@@ -43,7 +43,7 @@ def _run(coro):
 
 # ── Imports from the module under test ──────────────────────────────────────
 from compression_bridge import (  # noqa: E402
-    ENICompressionModule,
+    CompressionBridgeModule as ENICompressionModule,
     CompressionBridge,
     CompressionHealthCheck,
 )

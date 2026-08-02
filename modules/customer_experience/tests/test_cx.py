@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import sys
-sys.path.insert(0, "/home/hunter/Desktop/Eni Builder/enterprise/modules/customer_experience")
+sys.path.insert(0, "/home/hunter/Desktop/Enterprise Builder/enterprise/modules/customer_experience")
 
 from journey import JourneyStage, JourneyTouchpoint, JourneyMap, JourneyEngine
 from support import SeverityLevel, TicketStatus, SupportTicket, SupportEngine
