@@ -1,0 +1,28 @@
+# =============================================================================
+# Grafana Datasource Provisioning for ENI Enterprise Platform
+# =============================================================================
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "30s"
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: eni_enterprise
+    user: eni
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD:-eni_secure_2024}
+    jsonData:
+      sslmode: "disable"
+      postgresVersion: 1600
+      timescaledb: false

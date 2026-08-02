@@ -1,0 +1,85 @@
+# =============================================================================
+# Prometheus Configuration for ENI Enterprise Platform
+# Scrapes all service metrics endpoints
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  - job_name: "eni-kernel"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["kernel:8000"]
+        labels: { service: "kernel" }
+
+  - job_name: "eni-api-gateway"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api-gateway:8421"]
+        labels: { service: "api-gateway" }
+
+  - job_name: "eni-dashboard"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["dashboard:8421"]
+        labels: { service: "dashboard" }
+
+  - job_name: "eni-swarm"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["eni-swarm:8420"]
+        labels: { service: "eni-swarm" }
+
+  - job_name: "eni-turbocharger"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["swarm-turbocharger:8922"]
+        labels: { service: "turbocharger" }
+
+  - job_name: "eni-free-router"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["free-router:8920"]
+        labels: { service: "free-router" }
+
+  - job_name: "eni-claude-code"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["claude-code-server:9120"]
+        labels: { service: "claude-code-server" }
+
+  - job_name: "eni-event-hub"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["event-hub:8900"]
+        labels: { service: "event-hub" }
+
+  - job_name: "eni-service-mesh"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["service-mesh:8910"]
+        labels: { service: "service-mesh" }
+
+  - job_name: "eni-redis"
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels: { service: "redis" }
+
+  - job_name: "eni-postgres"
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels: { service: "postgres" }
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

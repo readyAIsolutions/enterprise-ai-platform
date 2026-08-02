@@ -1,0 +1,108 @@
+# =============================================================================
+# ENI Enterprise Platform — Dev Compose Override
+# Development overrides: hot-reload, debug ports, mounted source volumes
+# Use: docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up
+# =============================================================================
+
+version: "3.9"
+
+services:
+
+  kernel:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/app                         # Full source mount for hot-reload
+      - kernel_data:/app/data
+    environment:
+      ENI_ENV: development
+      LOG_LEVEL: DEBUG
+      PYTHONFAULTHANDLER: "1"
+    command: ["uvicorn", "kernel:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app"]
+    ports:
+      - "8000:8000"
+      - "5678:5678"                     # debugpy
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/app
+    environment:
+      ENI_ENV: development
+      LOG_LEVEL: DEBUG
+    command: ["uvicorn", "integration.api_gateway:app", "--host", "0.0.0.0", "--port", "8421", "--reload", "--reload-dir", "/app"]
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/app
+    environment:
+      ENI_ENV: development
+      LOG_LEVEL: DEBUG
+    command: ["uvicorn", "dashboard.server:app", "--host", "0.0.0.0", "--port", "8421", "--reload", "--reload-dir", "/app"]
+
+  eni-swarm:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/app
+    environment:
+      ENI_ENV: development
+      LOG_LEVEL: DEBUG
+
+  swarm-turbocharger:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/app
+    environment:
+      ENI_ENV: development
+      LOG_LEVEL: DEBUG
+
+  free-router:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/app
+    environment:
+      ENI_ENV: development
+      LOG_LEVEL: DEBUG
+
+  claude-code-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/app
+    environment:
+      ENI_ENV: development
+      LOG_LEVEL: DEBUG
+    command: ["uvicorn", "modules.agent_infra.server:app", "--host", "0.0.0.0", "--port", "9120", "--reload", "--reload-dir", "/app"]
+
+  event-hub:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/app
+    environment:
+      ENI_ENV: development
+      LOG_LEVEL: DEBUG
+
+  service-mesh:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    volumes:
+      - ..:/app
+    environment:
+      ENI_ENV: development
+      LOG_LEVEL: DEBUG

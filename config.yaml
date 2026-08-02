@@ -1,0 +1,177 @@
+# =============================================================================
+# ENI Enterprise Platform Configuration
+# =============================================================================
+# This file is loaded by PlatformOS at startup to configure all modules,
+# logging, metrics, health checks, and lifecycle behavior.
+# =============================================================================
+
+platform:
+  name: "ENI Enterprise Platform"
+  version: "1.0.0"
+  environment: "production"  # production | staging | development
+  data_dir: "data"
+  log_dir: "logs"
+  metrics_dir: "metrics"
+
+# ── Module configuration ─────────────────────────────────────────────────────
+modules:
+  safety_governance:
+    enabled: true
+    priority: 1
+    required: true
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      guardrail_strictness: "high"
+      monitoring_enabled: true
+      incident_alert_threshold: "critical"
+
+  agent_coordination:
+    enabled: true
+    priority: 2
+    required: true
+    startup_timeout_sec: 45
+    health_check_interval_sec: 30
+    config:
+      max_concurrent_agents: 50
+      message_queue_size: 10000
+      failover_enabled: true
+
+  privacy_data:
+    enabled: true
+    priority: 3
+    required: true
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      encryption_algorithm: "AES-256-GCM"
+      data_residency: ["US", "EU"]
+      gdpr_compliance: true
+
+  knowledge_graph:
+    enabled: true
+    priority: 4
+    required: false
+    startup_timeout_sec: 60
+    health_check_interval_sec: 120
+    config:
+      max_entities: 1000000
+      max_relationships: 10000000
+      indexing_strategy: "full_text"
+
+  prompt_context:
+    enabled: true
+    priority: 5
+    required: true
+    startup_timeout_sec: 20
+    health_check_interval_sec: 30
+    config:
+      max_context_tokens: 128000
+      optimization_enabled: true
+      cache_ttl_sec: 3600
+
+  developer_experience:
+    enabled: true
+    priority: 6
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 60
+    config:
+      golden_paths_enforced: true
+      dev_environment_provider: "container"
+
+  customer_experience:
+    enabled: true
+    priority: 7
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 60
+    config:
+      ticket_auto_routing: true
+      feedback_collection_enabled: true
+
+  release_change:
+    enabled: true
+    priority: 8
+    required: true
+    startup_timeout_sec: 20
+    health_check_interval_sec: 60
+    config:
+      require_approval: true
+      deployment_strategy: "canary"
+      rollback_enabled: true
+
+  innovation_rd:
+    enabled: true
+    priority: 9
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      sandbox_enabled: true
+      experiment_tracking: true
+
+  disaster_recovery:
+    enabled: true
+    priority: 10
+    required: true
+    startup_timeout_sec: 30
+    health_check_interval_sec: 90
+    config:
+      backup_interval_hours: 24
+      rto_target_minutes: 60
+      rpo_target_minutes: 15
+
+# ── Logging configuration ────────────────────────────────────────────────────
+logging:
+  level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  format: "json"  # json | text
+  outputs:
+    - type: "console"
+      level: "INFO"
+      format: "text"
+    - type: "file"
+      level: "DEBUG"
+      format: "json"
+      path: "logs/platform.log"
+      max_bytes: 104857600  # 100 MB
+      backup_count: 10
+    - type: "syslog"
+      level: "WARNING"
+      facility: "local0"
+
+# ── Metrics configuration ────────────────────────────────────────────────────
+metrics:
+  enabled: true
+  collection_interval_sec: 15
+  retention_days: 90
+  exporters:
+    - type: "prometheus"
+      port: 9090
+      path: "/metrics"
+    - type: "json_file"
+      path: "metrics/platform_metrics.json"
+
+# ── Health check configuration ───────────────────────────────────────────────
+health:
+  enabled: true
+  global_interval_sec: 30
+  failure_threshold: 3
+  recovery_threshold: 2
+  timeout_sec: 10
+
+# ── Event bus configuration ──────────────────────────────────────────────────
+event_bus:
+  max_queue_size: 100000
+  async_dispatch: true
+  max_workers: 8
+  dead_letter_enabled: true
+  dead_letter_retention: 7  # days
+
+# ── Lifecycle configuration ──────────────────────────────────────────────────
+lifecycle:
+  startup_grace_period_sec: 60
+  shutdown_timeout_sec: 30
+  degraded_threshold: 0.5  # fraction of required modules healthy
+  auto_restart: false
+  auto_restart_max_attempts: 3

@@ -1,0 +1,236 @@
+# =============================================================================
+# ENI Enterprise Platform — Project Configuration
+# Build system, metadata, and tool settings
+# =============================================================================
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# ── Project Metadata ─────────────────────────────────────────────────────────
+[project]
+name = "eni-enterprise"
+version = "1.0.0"
+description = "ENI Enterprise AI Operating System — Platform kernel, 10 OS modules, API gateway, and dashboard"
+readme = "README.md"
+license = { text = "Proprietary" }
+authors = [
+    { name = "ENI Enterprise", email = "engineering@eni-enterprise.com" },
+]
+requires-python = ">=3.11,<3.13"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: Other/Proprietary License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = "requirements.txt" }
+
+[tool.setuptools.packages.find]
+include = [
+    "kernel*",
+    "dashboard*",
+    "integration*",
+    "foundation*",
+    "modules*",
+    "monitoring*",
+]
+exclude = [
+    "tests*",
+    "scripts*",
+    "docs*",
+    "docker*",
+    "*.pyc",
+    "__pycache__",
+]
+
+# ── Ruff ─────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = [
+    ".git",
+    ".github",
+    "__pycache__",
+    "*.egg-info",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "htmlcov",
+    "dist",
+    "build",
+]
+
+[tool.ruff.lint]
+select = [
+    # Pyflakes
+    "F",
+    # Pycodestyle
+    "E", "W",
+    # isort
+    "I",
+    # Naming conventions (PEP 8)
+    "N",
+    # Comprehensions
+    "C4",
+    # Bugbear
+    "B",
+    # SIM — simplify code
+    "SIM",
+    # Error messages (EM)
+    "EM",
+    # flake8-return
+    "RET",
+    # flake8-raise
+    "RSE",
+    # flake8-tidy-imports
+    "TID",
+    # flake8-type-checking
+    "TCH",
+    # flake8-unused-arguments
+    "ARG",
+    # flake8-use-pathlib
+    "PTH",
+    # flake8-print
+    "T20",
+    # flake8-pytest-style
+    "PT",
+    # pyupgrade
+    "UP",
+    # flake8-annotations
+    "ANN",
+]
+ignore = [
+    # Allow line breaks before binary operators (readability)
+    "W503",
+    # Too complex (project-specific)
+    "C901",
+    # Missing docstring in public module
+    "D100", "D104",
+    # Missing docstring in public package
+    "D104",
+    # First line should end with a period
+    "D400",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["eni_enterprise", "kernel", "modules", "foundation", "integration"]
+force-single-line = false
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+# ── MyPy ─────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_unreachable = true
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pytest",
+    "pytest_asyncio",
+    "pytest_cov",
+    "pytest_mock",
+    "pytest_xdist",
+    "orjson",
+    "uvicorn.*",
+    "starlette.*",
+    "passlib.*",
+]
+ignore_missing_imports = true
+
+# ── Pytest ───────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests", "modules"]
+pythonpath = ["."]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "--disable-warnings",
+    "-p no:cacheprovider",
+    "-p no:anyio",
+]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::ResourceWarning",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "e2e: marks tests as end-to-end tests",
+    "kernel: tests for the platform kernel",
+    "agent_coordination: tests for agent coordination module",
+    "customer_experience: tests for customer experience module",
+    "developer_experience: tests for developer experience module",
+    "disaster_recovery: tests for disaster recovery module",
+    "innovation_rd: tests for innovation R&D module",
+    "knowledge_graph: tests for knowledge graph module",
+    "privacy_data: tests for privacy & data module",
+    "prompt_context: tests for prompt context module",
+    "release_change: tests for release & change module",
+    "safety_governance: tests for safety governance module",
+]
+
+[tool.coverage.run]
+source = [".", "kernel", "modules", "integration", "foundation", "dashboard"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+fail_under = 80
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"

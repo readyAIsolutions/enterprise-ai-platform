@@ -1,0 +1,66 @@
+# =============================================================================
+# ENI Enterprise Platform — Development Docker Build
+# Hot-reload enabled, dev tools included, full source mounts
+# =============================================================================
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    ENI_ENV="development" \
+    LOG_LEVEL="DEBUG" \
+    TZ="UTC"
+
+# System dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+        libmagic1 \
+        procps \
+        inotify-tools \
+        vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd --system --gid 1000 eni && \
+    useradd --system --uid 1000 --gid eni --create-home --shell /bin/bash eni
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt pyproject.toml ./
+RUN python -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip setuptools wheel && \
+    /opt/venv/bin/pip install -r requirements.txt 2>/dev/null || \
+    /opt/venv/bin/pip install fastapi uvicorn[standard] websockets \
+        redis httpx pydantic pydantic-settings pyyaml python-dotenv \
+        psutil structlog prometheus-client aiohttp
+
+# Install dev tools
+RUN /opt/venv/bin/pip install \
+        ruff \
+        mypy \
+        pytest \
+        pytest-cov \
+        pytest-asyncio \
+        pytest-xdist \
+        debugpy \
+        watchdog \
+        pre-commit
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy source — but dev mode uses bind mounts so these get overlaid at runtime
+COPY . .
+
+# Develop-time entrypoint uses watchdog for hot-reload (uvicorn --reload)
+EXPOSE 8000 8421 8420 8920 8922 8900 8910 9120
+
+# Use uvicorn with auto-reload for development
+CMD ["uvicorn", "kernel:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app"]

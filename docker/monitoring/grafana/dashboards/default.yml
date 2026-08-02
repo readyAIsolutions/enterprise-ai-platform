@@ -1,0 +1,17 @@
+# =============================================================================
+# Grafana Dashboard Provisioning for ENI Enterprise Platform
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: "ENI Default"
+    orgId: 1
+    folder: "ENI Enterprise"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true

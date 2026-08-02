@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise Platform Dashboard — {{ score.get('final_score', '?') }} {{ score.get('certification', 'Loading') }}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <span class="logo">⬡</span>
+    <h1>ENTERPRISE PLATFORM DASHBOARD</h1>
+  </div>
+  <div class="header-right">
+    <span class="clock" id="clock">{{ now }}</span>
+    <span class="uptime">UP {{ uptime }}s</span>
+  </div>
+</header>
+
+<!-- HERO SCORE -->
+<section class="hero">
+  <div class="score-container">
+    <div class="score-glow"></div>
+    <div class="score-number" id="hero-score">{{ score.get('final_score', '—') }}</div>
+    <div class="score-label">/ 100</div>
+  </div>
+  <div class="cert-badge {{ score.get('certification', 'offline').lower().replace(' ', '-') }}" id="hero-cert">
+    {{ score.get('certification', 'OFFLINE') }}
+  </div>
+  <div class="score-breakdown">
+    BASE {{ score.get('base_score', '—') }} + TRANSCENDENT {{ score.get('transcendent_bonus', '—') }}
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<section class="stats-bar">
+  <div class="stat">
+    <span class="stat-dot green"></span>
+    <span class="stat-value" id="stat-tests">{{ score.get('total_tests', '—') }}</span>
+    <span class="stat-label">Tests Passing</span>
+  </div>
+  <div class="stat">
+    <span class="stat-dot green"></span>
+    <span class="stat-value">{{ score.get('module_count', 0) }}</span>
+    <span class="stat-label">Modules</span>
+  </div>
+  <div class="stat">
+    <span class="stat-dot green"></span>
+    <span class="stat-value" id="stat-signal">{{ swarm.get('signal_dbm', '—') }}</span>
+    <span class="stat-label">dBm Signal</span>
+  </div>
+  <div class="stat">
+    <span class="stat-dot green"></span>
+    <span class="stat-value" id="stat-concurrency">{{ swarm.get('concurrency', '—') }}</span>
+    <span class="stat-label">Concurrent</span>
+  </div>
+  <div class="stat">
+    <span class="stat-dot {{ 'green' if swarm.get('turbocharger') else 'red' }}"></span>
+    <span class="stat-value">{{ 'ON' if swarm.get('turbocharger') else 'OFF' }}</span>
+    <span class="stat-label">Turbocharger</span>
+  </div>
+</section>
+
+<!-- TRANSCENDENT AXES -->
+<section class="section">
+  <h2>TRANSCENDENT AXES</h2>
+  <div class="axes-grid" id="axes-grid">
+    {% set bonuses = score.get('bonuses', {}) %}
+    {% set axes = [
+      ('Swarm Intelligence', bonuses.get('swarm_intelligence', 0), 15),
+      ('Recursive Self-Improve', bonuses.get('recursive_self_improve', 0), 12),
+      ('Compression Transcend', bonuses.get('compression_transcend', 0), 10),
+      ('Zero-Cost Operation', bonuses.get('zero_cost_operation', 0), 8),
+      ('Adaptive Resilience', bonuses.get('adaptive_resilience', 0), 10),
+      ('Cross-Domain Intel', bonuses.get('cross_domain_intel', 0), 10),
+      ('Hermeneutic Closure', bonuses.get('hermeneutic_closure', 0), 10),
+      ('Temporal Autonomy', bonuses.get('temporal_autonomy', 0), 8),
+    ] %}
+    {% for name, val, cap in axes %}
+    <div class="axis-card">
+      <div class="axis-header">
+        <span class="axis-name">{{ name }}</span>
+        <span class="axis-score">{{ val }}/{{ cap }}</span>
+      </div>
+      <div class="axis-bar">
+        <div class="axis-fill" style="width: {{ (val/cap*100)|round if cap > 0 else 0 }}%"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- MODULE GRID -->
+<section class="section">
+  <h2>MODULES — {{ score.get('module_count', 0) }} TOTAL</h2>
+  <div class="module-grid" id="module-grid">
+    {% set modules = score.get('modules', {}) %}
+    {% if modules %}
+    {% for name, mod in modules.items()|sort %}
+    <div class="module-card">
+      <div class="module-name">{{ name }}</div>
+      <div class="module-score">{{ mod.get('score', '—') }}</div>
+      <div class="module-meta">{{ mod.get('tests', 0) }} tests &middot; {{ mod.get('cert', '—') }}</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="module-card"><div class="module-name">No modules loaded</div></div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- SWARM STATUS -->
+<section class="section">
+  <h2>SWARM STATUS</h2>
+  <div class="swarm-panel">
+    <div class="swarm-item">
+      <span class="swarm-label">Interface</span>
+      <span class="swarm-value">{{ swarm.get('interface', '—') }}</span>
+    </div>
+    <div class="swarm-item">
+      <span class="swarm-label">Signal</span>
+      <span class="swarm-value" id="swarm-signal">{{ swarm.get('signal_dbm', '—') }} dBm</span>
+    </div>
+    <div class="swarm-item">
+      <span class="swarm-label">Concurrency</span>
+      <span class="swarm-value" id="swarm-concurrency">{{ swarm.get('concurrency', '—') }} agents</span>
+    </div>
+    <div class="swarm-item">
+      <span class="swarm-label">Turbocharger</span>
+      <span class="swarm-value {{ 'green-text' if swarm.get('turbocharger') else 'red-text' }}">
+        {{ 'RUNNING :8922' if swarm.get('turbocharger') else 'OFFLINE' }}
+      </span>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  Enterprise Platform Dashboard &middot; Self-validating &middot; Auto-refresh 10s
+</footer>
+
+<script>
+setInterval(async () => {
+  try {
+    const [scoreRes, swarmRes] = await Promise.all([
+      fetch('/api/score'), fetch('/api/swarm')
+    ]);
+    const score = await scoreRes.json();
+    const swarm = await swarmRes.json();
+    
+    document.getElementById('hero-score').textContent = score.final_score || '—';
+    document.getElementById('hero-cert').textContent = score.certification || 'OFFLINE';
+    document.getElementById('hero-cert').className = 'cert-badge ' + (score.certification || 'offline').toLowerCase().replace(/ /g, '-');
+    document.getElementById('stat-tests').textContent = score.total_tests || '—';
+    document.getElementById('stat-signal').textContent = swarm.signal_dbm || '—';
+    document.getElementById('stat-concurrency').textContent = swarm.concurrency || '—';
+    
+    const heroScore = document.getElementById('hero-score');
+    heroScore.style.animation = 'none';
+    heroScore.offsetHeight;
+    heroScore.style.animation = 'scorePulse 0.6s ease-out';
+  } catch(e) { console.log('Refresh:', e); }
+}, 10000);
+
+setInterval(() => {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+}, 1000);
+</script>
+</body>
+</html>

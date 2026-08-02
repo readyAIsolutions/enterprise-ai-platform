@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ENI Enterprise Admin Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0a0f'/><text x='16' y='23' text-anchor='middle' font-size='20' fill='%2300d4ff'>E</text></svg>">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 32 32">
+                    <defs>
+                        <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#00d4ff"/>
+                            <stop offset="100%" stop-color="#0066ff"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="32" height="32" rx="8" fill="url(#logo-grad)" opacity="0.15"/>
+                    <rect x="2" y="2" width="28" height="28" rx="7" fill="none" stroke="url(#logo-grad)" stroke-width="2"/>
+                    <text x="16" y="23" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="19" fill="url(#logo-grad)">E</text>
+                </svg>
+            </div>
+            <h1>ENI Enterprise</h1>
+            <span class="header-badge">Admin Console</span>
+        </div>
+        <div class="header-right">
+            <div class="header-status" id="header-status">
+                <span class="status-dot healthy"></span>
+                <span id="header-status-text">All Systems Operational</span>
+            </div>
+            <div class="header-clock" id="header-clock"></div>
+            <button class="btn-icon" id="btn-refresh" title="Refresh Dashboard">&#x21bb;</button>
+            <button class="btn-icon" id="btn-theme" title="Toggle Theme">&#x263e;</button>
+        </div>
+    </header>
+
+    <!-- Main Grid -->
+    <main class="dashboard-grid">
+        <!-- Row 1: System Health Overview -->
+        <section class="card card-span-3" id="card-health">
+            <div class="card-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 2a6 6 0 110 12 6 6 0 010-12z" fill="currentColor"/><circle cx="10" cy="10" r="3" fill="currentColor"/></svg>
+                    System Health Overview
+                </h2>
+                <span class="card-badge" id="health-badge">HEALTHY</span>
+            </div>
+            <div class="health-metrics">
+                <div class="health-metric">
+                    <div class="health-metric-value" id="metric-uptime">--</div>
+                    <div class="health-metric-label">Uptime</div>
+                </div>
+                <div class="health-metric">
+                    <div class="health-metric-value healthy" id="metric-modules">--/--</div>
+                    <div class="health-metric-label">Modules Healthy</div>
+                </div>
+                <div class="health-metric">
+                    <div class="health-metric-value" id="metric-agents">--/--</div>
+                    <div class="health-metric-label">Agents Active</div>
+                </div>
+                <div class="health-metric">
+                    <div class="health-metric-value degraded" id="metric-incidents">0</div>
+                    <div class="health-metric-label">Open Incidents</div>
+                </div>
+                <div class="health-metric">
+                    <div class="health-metric-value" id="metric-alerts">0</div>
+                    <div class="health-metric-label">Alerts (24h)</div>
+                </div>
+                <div class="health-metric">
+                    <div class="health-metric-value" id="metric-compliance">--</div>
+                    <div class="health-metric-label">Compliance Score</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Row 2: Resource Usage -->
+        <section class="card" id="card-resources">
+            <div class="card-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="12" width="4" height="6" rx="1" fill="currentColor"/><rect x="8" y="6" width="4" height="12" rx="1" fill="currentColor"/><rect x="14" y="3" width="4" height="15" rx="1" fill="currentColor" opacity="0.5"/></svg>
+                    Resource Usage
+                </h2>
+            </div>
+            <div class="resource-grid">
+                <div class="resource-item">
+                    <div class="resource-label">CPU</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill cpu" id="res-cpu" style="width:0%"></div>
+                    </div>
+                    <div class="resource-value" id="res-cpu-val">--</div>
+                </div>
+                <div class="resource-item">
+                    <div class="resource-label">Memory</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill memory" id="res-mem" style="width:0%"></div>
+                    </div>
+                    <div class="resource-value" id="res-mem-val">--</div>
+                </div>
+                <div class="resource-item">
+                    <div class="resource-label">GPU</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill gpu" id="res-gpu" style="width:0%"></div>
+                    </div>
+                    <div class="resource-value" id="res-gpu-val">--</div>
+                </div>
+                <div class="resource-item">
+                    <div class="resource-label">Disk</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill disk" id="res-disk" style="width:0%"></div>
+                    </div>
+                    <div class="resource-value" id="res-disk-val">--</div>
+                </div>
+            </div>
+            <div class="resource-details" id="resource-details"></div>
+        </section>
+
+        <!-- Module Status Grid -->
+        <section class="card card-span-2" id="card-modules">
+            <div class="card-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1.5" fill="currentColor"/><rect x="11" y="2" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.6"/><rect x="2" y="11" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.6"/><rect x="11" y="11" width="7" height="7" rx="1.5" fill="currentColor"/></svg>
+                    Module Status
+                </h2>
+                <span class="card-meta" id="modules-meta"></span>
+            </div>
+            <div class="module-grid" id="module-grid"></div>
+        </section>
+
+        <!-- Active Agents (next to modules in row) -->
+        <section class="card" id="card-agents">
+            <div class="card-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="7" cy="7" r="3" fill="currentColor"/><circle cx="13" cy="7" r="3" fill="currentColor" opacity="0.6"/><path d="M2 17c0-3 2.5-5 5-5h1c2.5 0 5 2 5 5" fill="currentColor" opacity="0.4"/></svg>
+                    Active Agents
+                </h2>
+                <span class="card-meta" id="agents-meta"></span>
+            </div>
+            <div class="agent-list" id="agent-list"></div>
+        </section>
+
+        <!-- Row 3: Incidents, Compliance, Tenants -->
+        <section class="card" id="card-incidents">
+            <div class="card-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 2L1 18h18L10 2zm0 3l7 12H3l7-12z" fill="currentColor"/><rect x="9" y="8" width="2" height="5" rx="1" fill="currentColor"/><circle cx="10" cy="15.5" r="1.2" fill="currentColor"/></svg>
+                    Recent Incidents
+                </h2>
+            </div>
+            <div class="incident-list" id="incident-list"></div>
+        </section>
+
+        <section class="card" id="card-compliance">
+            <div class="card-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 1L3 5v6c0 4 3 7 7 8 4-1 7-4 7-8V5l-7-4z" fill="none" stroke="currentColor" stroke-width="1.8"/><polyline points="7,10 9,12 13,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Compliance Status
+                </h2>
+                <span class="score-badge" id="compliance-score">--</span>
+            </div>
+            <div class="compliance-grid" id="compliance-grid"></div>
+        </section>
+
+        <section class="card" id="card-tenants">
+            <div class="card-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 20 20"><rect x="2" y="5" width="6" height="13" rx="1.5" fill="currentColor" opacity="0.5"/><rect x="12" y="2" width="6" height="16" rx="1.5" fill="currentColor"/><rect x="7" y="8" width="6" height="10" rx="1.5" fill="currentColor" opacity="0.75"/></svg>
+                    Tenant Overview
+                </h2>
+                <span class="card-meta" id="tenants-meta"></span>
+            </div>
+            <div class="tenant-list" id="tenant-list"></div>
+        </section>
+
+        <!-- Feature Flags (full width) -->
+        <section class="card card-span-3" id="card-features">
+            <div class="card-header">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 4h14l-7 10L3 4z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="15" r="1.5" fill="currentColor"/></svg>
+                    Feature Flags
+                </h2>
+                <span class="card-meta" id="features-meta"></span>
+            </div>
+            <div class="feature-grid" id="feature-grid"></div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <span>ENI Builder Enterprise v1.0.0</span>
+        <span class="footer-sep">|</span>
+        <span>Dashboard auto-refreshing</span>
+        <span class="footer-sep">|</span>
+        <span id="footer-last-update">Last updated: --</span>
+        <span class="footer-sep">|</span>
+        <span id="footer-latency">Latency: --</span>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
