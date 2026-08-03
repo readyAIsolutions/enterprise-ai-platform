@@ -121,7 +121,7 @@ jobs:
             --ignore=modules/compression_bridge \
             --ignore=modules/kb_bridge \
             --ignore=modules/swarm_network \
-            -n auto
+            -n 2
 
       - name: Report failures (annotations)
         if: failure()
