@@ -86,3 +86,70 @@ cd /home/hunter/Desktop/Enterprise\ Builder/enterprise
 python3 -m pytest -q -p no:cacheprovider          # full suite
 python3 -m pytest modules/skill_factory modules/task_harness modules/gateway modules/semantic_memory -q
 ```
+
+---
+
+# STATUS: Gold Picks Phase 2 — mem0-style Memory + FastMCP Tool Gateway
+
+**Date**: 2026-08-03 (follow-on, after PR #1 went green)
+
+## 1. Scope
+
+Implemented the top two items from `docs/GITHUB_GOLD_UPGRADE_ROADMAP.md`
+(recommended build order #1 and #2) as two new dependency-free platform modules,
+grafted onto the existing `semantic_memory` and `gateway`/`agent_tools` layers:
+
+| Roadmap pick | New module | What it adds |
+|---|---|---|
+| **mem0** (real long-term agent memory) | `memory` | Four memory types (semantic/episodic/declarative/procedural), per-user profiles, relevance+importance+recency ranking, update/delete/forget, consolidation/dedup, SQLite persistence, `<memory_context>` prompt blob. |
+| **FastMCP + python-sdk** (scale to 1000s of tools) | `mcp_tools` | `@tool` decorator auto-deriving JSON Schema from type hints, thread-safe ToolRegistry, arg validation, sync+async dispatch, JSON-RPC 2.0 `tools/list` + `tools/call` envelopes (MCP wire-shape) ready to serve over HTTP/SSE. |
+
+Both follow the exact kernel contract (`@module`, `Module`, lifecycle, `set_event_bus`,
+event emission) so they auto-discover with zero kernel edits — extending PR #1's 4-module
+upgrade (skill_factory/task_harness/gateway/semantic_memory) to 6 in this branch.
+
+## 2. PASS / FAIL board (real evidence)
+
+| Check | Result | Evidence |
+|---|---|---|
+| `memory` unit tests | ✅ PASS | 55/55 |
+| `mcp_tools` unit tests | ✅ PASS | 64/64 |
+| **New-module tests total** | ✅ PASS | **119/119** |
+| New-module + tests-dir run | ✅ PASS | `301 passed, 1 warning in 7.95s` |
+| **Full CI-scoped local suite** | ✅ PASS | **2129 passed, 1 warning in 24.16s** (0 failed) |
+| Kernel discovers both | ✅ PASS | 25 modules discovered incl. `memory`, `mcp_tools` (was 23) |
+| `PlatformOS` boots both to HEALTHY | ✅ PASS | 15 instances initialized incl. memory + mcp_tools; state RUNNING |
+| Functional smoke (live instances) | ✅ PASS | memory store+recall top-hit correct; mcp `list_tools`=5, `call_tool("add",2,3)`=5 |
+| `config.yaml` registers both | ✅ PASS | module count 14 → 16 (memory pri 13, mcp_tools pri 13) |
+| ruff on new modules | ⚠ advisory | 32 errors, all repo-convention classes (21×ANN401 any-type, 11×EM101/102 inline-exception) — same as existing `gateway`/`semantic_memory` baseline; lint not a CI gate |
+
+## 3. Implementation notes
+
+- **`memory`** (`modules/memory/memory.py`): own lightweight feature-hash embedder +
+  cosine similarity (standalone — does NOT import `semantic_memory` to stay CI-safe).
+  SQLite persistence; `MemoryEntry` dataclass (id, user_id, memory_type, content,
+  metadata, importance, created/updated/last_access, access_count). `AgentMemory`
+  facade: `remember`/`add`, `search`, `search_all`, `update`, `delete`, `forget`,
+  `consolidate`. Events: `memory.added/updated/searched/deleted/forgotten/consolidated`.
+- **`mcp_tools`** (`modules/mcp_tools/mcp_tools.py`): `@tool` decorator + `ToolRegistry`
+  (get/list/unregister/count, duplicate-name rejection, max_tools). Arg validation
+  (required presence + type check). `handle_request(method, params)` returns JSON-RPC 2.0
+  envelopes matching MCP `tools/list` + `tools/call`. Built-ins: add, echo, now,
+  get_env, upper. Events: `mcp_tools.tool.called`, etc.
+- Boot verification lives at `scripts/verify_gold_boot.py` (imports all module packages
+  so `@module` decorators register, then boots `PlatformOS` and runs live smokes).
+
+## 4. UNVALIDATED
+
+- No real MCP transport (HTTP/SSE/stdio) is served yet — `handle_request` is wire-shaped
+  and provable in-process, but nothing listens on a socket in this phase.
+- `memory` ranking uses deterministic token-hash embeddings, not a real LLM embedder;
+  a dense embedder can be injected but isn't wired.
+- SQLite single-file store; no distributed/sharded backend (mem0/Qdrant path not pulled).
+
+## 5. Next (roadmap order)
+3. **langgraph** → orchestrate `swarm_bridge` as stateful graphs w/ checkpoints
+4. **garak + deepeval + langfuse** → guardrails/eval/tracing in `safety_governance`
+5. **obra/superpowers + anthropics/skills** → align `skill_factory` skill format
+6. **A2A** → interop across teams
+

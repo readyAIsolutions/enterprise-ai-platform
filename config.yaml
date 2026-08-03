@@ -166,6 +166,30 @@ modules:
       embedding_dim: 256
       top_k: 5
 
+  # ── Upgrade: Long-term agent memory engine (mem0-style) ───────────────────
+  memory:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      database_path: 'data/agent_memory.sqlite'
+      embedding_dim: 128
+      top_k: 5
+      max_per_type: 1000
+
+  # ── Upgrade: MCP tool registry & serving layer (FastMCP-style) ─────────────
+  mcp_tools:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      max_tools: 1000
+      tags: []
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
