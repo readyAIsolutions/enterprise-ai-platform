@@ -20,8 +20,24 @@ def main() -> int:
                         f"- {tc.get('classname')}::{tc.get('name')} : "
                         f"{((fail.get('message') or '')[:200])}"
                     )
+                for err in tc.iter("error"):
+                    out.append(
+                        f"- [ERROR] {tc.get('classname')}::{tc.get('name')} : "
+                        f"{((err.get('message') or '')[:400])}"
+                    )
+            for ts in root.iter("testsuite"):
+                for err in ts.iter("error"):
+                    if err.get("message"):
+                        out.append(f"- [SUITE-ERROR] {err.get('message')[:400]}")
         except Exception as e:  # noqa: BLE001
             out.append(f"(junit parse error: {e})")
+    if not out:
+        # fallback: dump raw junit head so the error is visible in annotations
+        if os.path.exists(junit):
+            with open(junit, encoding="utf-8", errors="replace") as fh:
+                head = fh.read(1500)
+            out.append("(no failure/error entries parsed — junit head below)")
+            out.append(head)
     text = "\n".join(out)
     if summary:
         with open(summary, "a", encoding="utf-8") as fh:

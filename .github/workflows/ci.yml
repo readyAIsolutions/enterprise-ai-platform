@@ -123,7 +123,13 @@ jobs:
 
       - name: Report failures (annotations)
         if: failure()
-        run: python scripts/ci_report_failures.py "$GITHUB_STEP_SUMMARY"
+        run: |
+          python scripts/ci_report_failures.py "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### collect-only tail (import/collection errors)"
+            python -m pytest --collect-only -q 2>&1 | tail -40
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
       - name: Upload coverage to Codecov (if configured)
         if: github.event_name == 'push' && matrix.python-version == '3.11'
