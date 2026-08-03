@@ -165,7 +165,7 @@ jobs:
         with:
           images: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}
           tags: |
-            type=sha,prefix={{branch}}-
+            type=sha,format=short
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
