@@ -46,6 +46,8 @@ htmlcov/
 # Data
 *.sqlite
 *.db
+data/
+metrics/
 
 # Temporary
 *.tmp
