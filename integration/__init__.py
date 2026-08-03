@@ -53,6 +53,10 @@ Usage:
 __version__ = "1.0.0"
 __author__ = "ENI Enterprise"
 
+# typing imports used in annotations below — required on Python <3.14 where
+# function annotations are evaluated eagerly (3.14+ defers them, masking the miss)
+from typing import Any, Dict
+
 # ── API Gateway ──────────────────────────────────────────────────────────
 from enterprise.integration.api_gateway import (
     API_VERSION,
