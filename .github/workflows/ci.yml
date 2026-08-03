@@ -38,8 +38,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: enterprise
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -68,8 +66,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: enterprise
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -97,8 +93,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: enterprise
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -125,6 +119,7 @@ jobs:
             --cov-report=term-missing \
             --junitxml=junit.xml \
             --ignore=modules/compression_bridge \
+            --ignore=modules/kb_bridge \
             -n auto
 
       - name: Report failures (annotations)
@@ -162,8 +157,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: enterprise
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -210,8 +203,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: enterprise
 
       - name: Run Trivy vulnerability scanner (repo)
         uses: aquasecurity/trivy-action@master

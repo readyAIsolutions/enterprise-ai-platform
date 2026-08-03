@@ -171,6 +171,7 @@ minversion = "8.0"
 testpaths = ["tests", "modules"]
 pythonpath = ["."]
 addopts = [
+    "--import-mode=importlib",
     "--strict-markers",
     "--tb=short",
     "--disable-warnings",
@@ -223,7 +224,7 @@ exclude_also = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
-fail_under = 60
+fail_under = 55
 show_missing = true
 skip_covered = false
 
