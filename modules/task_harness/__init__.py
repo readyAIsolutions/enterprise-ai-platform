@@ -80,16 +80,16 @@ class TaskHarnessModule(Module):
       - task.state_changed
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._harness: Optional[TaskHarness] = None
-        self._event_bus: Optional[EventBus] = None
+        self._harness: TaskHarness | None = None
+        self._event_bus: EventBus | None = None
         self._lock: threading.RLock = threading.RLock()
 
     # ── Properties ───────────────────────────────────────────────────────
 
     @property
-    def harness(self) -> Optional[TaskHarness]:
+    def harness(self) -> TaskHarness | None:
         """Return the active TaskHarness store, if initialized."""
         with self._lock:
             return self._harness
@@ -173,7 +173,7 @@ class TaskHarnessModule(Module):
 
     # ── Event publishing ─────────────────────────────────────────────────
 
-    def _publish(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _publish(self, topic: str, payload: dict[str, Any]) -> None:
         """Publish a task event if an event bus is wired."""
         bus = self._event_bus
         if bus is None:

@@ -25,8 +25,9 @@ import math
 import re
 import threading
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol, Sequence
+from typing import Any, Protocol
 
 __all__ = [
     "Embedder",
@@ -52,7 +53,7 @@ class Embedder(Protocol):
     yield the same vector.
     """
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         """Embed a text string into a fixed-length float vector."""
         ...
 
@@ -96,7 +97,7 @@ class HashEmbedder:
         digest = hashlib.sha1(token.encode("utf-8", "ignore")).digest()
         return 1.0 if digest[0] % 2 == 0 else -1.0
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         """Embed text into a unit-length vector of size ``dim``.
 
         Args:
@@ -125,7 +126,7 @@ def dot(a: Sequence[float], b: Sequence[float]) -> float:
     return float(sum(x * y for x, y in zip(a, b)))
 
 
-def normalize(vec: Sequence[float]) -> List[float]:
+def normalize(vec: Sequence[float]) -> list[float]:
     """Return a copy of ``vec`` scaled to unit L2 norm.
 
     A zero vector (or all-zero input) is returned unchanged.
@@ -163,8 +164,8 @@ class Document:
 
     id: str
     text: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    vector: List[float] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    vector: list[float] = field(default_factory=list)
 
 
 @dataclass
@@ -181,10 +182,10 @@ class ScoredDoc:
     id: str
     score: float
     text: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
-def _matches_filter(metadata: Dict[str, Any], metadata_filter: Dict[str, Any]) -> bool:
+def _matches_filter(metadata: dict[str, Any], metadata_filter: dict[str, Any]) -> bool:
     """Return True if all filter keys/values appear in ``metadata``."""
     if not metadata_filter:
         return True
@@ -205,9 +206,9 @@ class SemanticIndex:
             to a :class:`HashEmbedder`.
     """
 
-    def __init__(self, embedder: Optional[Embedder] = None) -> None:
+    def __init__(self, embedder: Embedder | None = None) -> None:
         self._embedder: Embedder = embedder if embedder is not None else HashEmbedder()
-        self._documents: Dict[str, Document] = {}
+        self._documents: dict[str, Document] = {}
         self._lock = threading.RLock()
 
     @property
@@ -215,7 +216,7 @@ class SemanticIndex:
         """The embedder in use by this index."""
         return self._embedder
 
-    def add(self, id: str, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    def add(self, id: str, text: str, metadata: dict[str, Any] | None = None) -> str:
         """Add (or replace) a document and return its id.
 
         Args:
@@ -236,7 +237,7 @@ class SemanticIndex:
             )
         return id
 
-    def get(self, id: str) -> Optional[Document]:
+    def get(self, id: str) -> Document | None:
         """Return the document with ``id``, or ``None`` if absent."""
         with self._lock:
             return self._documents.get(id)
@@ -259,8 +260,8 @@ class SemanticIndex:
         self,
         query: str,
         k: int = 5,
-        metadata_filter: Optional[Dict[str, Any]] = None,
-    ) -> List[ScoredDoc]:
+        metadata_filter: dict[str, Any] | None = None,
+    ) -> list[ScoredDoc]:
         """Search the index, returning the top-k most similar documents.
 
         Documents are ranked by descending cosine similarity between the
@@ -283,7 +284,7 @@ class SemanticIndex:
                 doc for doc in self._documents.values() if _matches_filter(doc.metadata, f)
             ]
 
-        scored: List[ScoredDoc] = []
+        scored: list[ScoredDoc] = []
         for doc in candidates:
             sim = cosine_similarity(query_vec, doc.vector)
             # Clamp to [0, 1] for a clean similarity score.
@@ -327,7 +328,7 @@ class KnowledgeGraphAdapter:
         return self._index
 
     @staticmethod
-    def _validate_triple(triple: Dict[str, Any]) -> None:
+    def _validate_triple(triple: dict[str, Any]) -> None:
         """Validate that ``triple`` has the expected shape."""
         if not isinstance(triple, dict):
             raise TypeError("Each triple must be a dict with entity_name, description, relation")
@@ -337,7 +338,7 @@ class KnowledgeGraphAdapter:
             if triple[key] is None:
                 raise ValueError(f"Triple field '{key}' must not be None")
 
-    def _build_documents(self, triple: Dict[str, Any]) -> tuple[str, str, str, str]:
+    def _build_documents(self, triple: dict[str, Any]) -> tuple[str, str, str, str]:
         """Return ``(id_entity, text_entity, id_edge, text_edge)`` for a triple."""
         entity_name = str(triple["entity_name"])
         description = str(triple["description"])
@@ -350,7 +351,7 @@ class KnowledgeGraphAdapter:
         id_edge = f"{self._prefix}:edge:{uuid.uuid4().hex}"
         return id_entity, entity_text, id_edge, edge_text
 
-    def ingest_triples(self, triples: Sequence[Dict[str, Any]]) -> List[str]:
+    def ingest_triples(self, triples: Sequence[dict[str, Any]]) -> list[str]:
         """Ingest a batch of triples and return the ids of indexed documents.
 
         For each triple, two documents are indexed:
@@ -364,19 +365,19 @@ class KnowledgeGraphAdapter:
         Returns:
             List of document ids created (2 per triple).
         """
-        created: List[str] = []
+        created: list[str] = []
         with self._lock:
             for triple in triples:
                 self._validate_triple(triple)
                 id_entity, entity_text, id_edge, edge_text = self._build_documents(triple)
-                metadata: Dict[str, Any] = {
+                metadata: dict[str, Any] = {
                     "source": "knowledge_graph",
                     "kind": "entity",
                     "entity_name": str(triple["entity_name"]),
                     "relation": str(triple["relation"]),
                 }
                 self._index.add(id_entity, entity_text, metadata)
-                edge_metadata: Dict[str, Any] = dict(metadata)
+                edge_metadata: dict[str, Any] = dict(metadata)
                 edge_metadata["kind"] = "edge"
                 self._index.add(id_edge, edge_text, edge_metadata)
                 created.extend([id_entity, id_edge])
@@ -390,7 +391,7 @@ class SemanticMemory:
     ``semantic_memory`` module and by application code.
     """
 
-    def __init__(self, embedder: Optional[Embedder] = None) -> None:
+    def __init__(self, embedder: Embedder | None = None) -> None:
         self._embedder: Embedder = embedder if embedder is not None else HashEmbedder()
         self._index = SemanticIndex(embedder=self._embedder)
 
@@ -411,7 +412,7 @@ class SemanticMemory:
         self,
         id: str,
         text: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """Store a text document for later semantic retrieval."""
         return self._index.add(id, text, metadata)
@@ -420,7 +421,7 @@ class SemanticMemory:
         self,
         query: str,
         k: int = 5,
-        metadata_filter: Optional[Dict[str, Any]] = None,
-    ) -> List[ScoredDoc]:
+        metadata_filter: dict[str, Any] | None = None,
+    ) -> list[ScoredDoc]:
         """Retrieve the top-k documents most semantically similar to a query."""
         return self._index.search(query, k=k, metadata_filter=metadata_filter)

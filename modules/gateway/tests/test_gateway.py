@@ -17,16 +17,14 @@ opened by these tests.
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import MagicMock
 
 _PROJECT_ROOT: Path = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
-
-from enterprise.platform_kernel import HealthStatus, _MODULE_REGISTRY  # noqa: E402
 
 from enterprise.modules.gateway import (  # noqa: E402
     DiscordChannel,
@@ -43,7 +41,7 @@ from enterprise.modules.gateway.gateway import (  # noqa: E402
     GatewayResult,
     Job,
 )
-
+from enterprise.platform_kernel import _MODULE_REGISTRY, HealthStatus  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -52,7 +50,7 @@ from enterprise.modules.gateway.gateway import (  # noqa: E402
 
 def utc_ts(year: int, month: int, day: int, hour: int = 0, minute: int = 0) -> float:
     """Build a UTC timezone-aware epoch timestamp."""
-    return datetime(year, month, day, hour, minute, tzinfo=timezone.utc).timestamp()
+    return datetime(year, month, day, hour, minute, tzinfo=UTC).timestamp()
 
 
 class FakeChannel(Channel):
@@ -61,7 +59,7 @@ class FakeChannel(Channel):
     def __init__(self, name: str = "", ok: bool = True) -> None:
         self.name = name
         self._ok = ok
-        self.messages: List[str] = []
+        self.messages: list[str] = []
 
     @property
     def enabled(self) -> bool:
@@ -86,9 +84,9 @@ class RecordingOpener:
 
     def __init__(self, status: int = 200) -> None:
         self.status = status
-        self.calls: List[Dict[str, Any]] = []
+        self.calls: list[dict[str, Any]] = []
 
-    def __call__(self, url: str, data: bytes, headers: Dict[str, str]) -> Any:
+    def __call__(self, url: str, data: bytes, headers: dict[str, str]) -> Any:
         self.calls.append({"url": url, "data": data, "headers": headers})
         return self._FakeResponse(self.status)
 
@@ -103,7 +101,7 @@ class RecordingOpener:
     def call_count(self) -> int:
         return len(self.calls)
 
-    def last(self) -> Dict[str, Any]:
+    def last(self) -> dict[str, Any]:
         return self.calls[-1]
 
 

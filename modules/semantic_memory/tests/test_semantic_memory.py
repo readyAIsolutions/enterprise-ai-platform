@@ -12,12 +12,9 @@ Run with:
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
-
-from enterprise.platform_kernel import EventBus, HealthStatus
-
 from enterprise.modules.semantic_memory import (
     SemanticMemoryModule,
     cosine_similarity,
@@ -30,7 +27,7 @@ from enterprise.modules.semantic_memory.semantic_memory import (
     SemanticIndex,
     SemanticMemory,
 )
-
+from enterprise.platform_kernel import EventBus, HealthStatus
 
 # ---------------------------------------------------------------------------
 # Corpus + deterministic fake embedder
@@ -65,7 +62,7 @@ class FakeEmbedder:
     def dim(self) -> int:
         return self._dim
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         vec = [0.0] * self._dim
         for tok in text.lower().split():
             idx = _TOKEN_INDEX.get(tok)
@@ -335,7 +332,7 @@ class TestSemanticMemoryModule:
 
     async def test_event_bus_publishes_indexed_and_query(self) -> None:
         bus = EventBus(config={"async_dispatch": False})
-        received: List[str] = []
+        received: list[str] = []
 
         @bus.subscribe("memory.doc.indexed")
         def _on_indexed(event: Any) -> None:

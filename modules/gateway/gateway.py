@@ -24,9 +24,10 @@ import json
 import time
 import urllib.request
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Result type
@@ -49,11 +50,11 @@ class GatewayResult:
     ok: bool
     channel: str = ""
     recipient: str = ""
-    error: Optional[str] = None
+    error: str | None = None
     message: str = ""
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict (useful for event payloads)."""
         return {
             "ok": self.ok,
@@ -71,7 +72,7 @@ class GatewayResult:
 
 
 def _default_opener(
-    url: str, data: bytes, headers: Dict[str, str]
+    url: str, data: bytes, headers: dict[str, str]
 ) -> Any:
     """Send a POST via ``urllib.request`` and return the response object.
 
@@ -128,17 +129,17 @@ class HTTPChannel(Channel):
     Uses an injectable ``opener`` so tests can short-circuit real networking.
     """
 
-    def __init__(self, opener: Optional[Callable[..., Any]] = None) -> None:
+    def __init__(self, opener: Callable[..., Any] | None = None) -> None:
         self._opener: Callable[..., Any] = opener or _default_opener
 
     def _post(
         self,
         url: str,
-        payload: Dict[str, Any],
-        extra_headers: Optional[Dict[str, str]] = None,
+        payload: dict[str, Any],
+        extra_headers: dict[str, str] | None = None,
     ) -> GatewayResult:
         """POST ``payload`` as JSON; returns a non-raising result."""
-        headers: Dict[str, str] = {"Content-Type": "application/json"}
+        headers: dict[str, str] = {"Content-Type": "application/json"}
         if extra_headers:
             headers.update(extra_headers)
         data = json.dumps(payload).encode("utf-8")
@@ -174,9 +175,9 @@ class TelegramChannel(HTTPChannel):
 
     def __init__(
         self,
-        token: Optional[str] = None,
-        chat_id: Optional[str] = None,
-        opener: Optional[Callable[..., Any]] = None,
+        token: str | None = None,
+        chat_id: str | None = None,
+        opener: Callable[..., Any] | None = None,
     ) -> None:
         super().__init__(opener=opener)
         self.token = token
@@ -212,8 +213,8 @@ class DiscordChannel(HTTPChannel):
 
     def __init__(
         self,
-        webhook_url: Optional[str] = None,
-        opener: Optional[Callable[..., Any]] = None,
+        webhook_url: str | None = None,
+        opener: Callable[..., Any] | None = None,
     ) -> None:
         super().__init__(opener=opener)
         self.webhook_url = webhook_url
@@ -248,13 +249,13 @@ class WebhookChannel(HTTPChannel):
 
     def __init__(
         self,
-        url: Optional[str] = None,
-        headers: Optional[Dict[str, str]] = None,
-        opener: Optional[Callable[..., Any]] = None,
+        url: str | None = None,
+        headers: dict[str, str] | None = None,
+        opener: Callable[..., Any] | None = None,
     ) -> None:
         super().__init__(opener=opener)
         self.url = url
-        self.custom_headers: Dict[str, str] = headers or {}
+        self.custom_headers: dict[str, str] = headers or {}
 
     @property
     def enabled(self) -> bool:
@@ -289,28 +290,28 @@ class ChannelRegistry:
     """
 
     def __init__(self) -> None:
-        self._channels: Dict[str, Channel] = {}
-        self._sends: Dict[str, int] = defaultdict(int)
-        self._errors: Dict[str, int] = defaultdict(int)
+        self._channels: dict[str, Channel] = {}
+        self._sends: dict[str, int] = defaultdict(int)
+        self._errors: dict[str, int] = defaultdict(int)
 
     def register(self, name: str, channel: Channel) -> None:
         """Register a channel under ``name`` (stamped onto the channel)."""
         channel.name = name
         self._channels[name] = channel
 
-    def unregister(self, name: str) -> Optional[Channel]:
+    def unregister(self, name: str) -> Channel | None:
         """Remove and return a channel by name (None if absent)."""
         return self._channels.pop(name, None)
 
-    def get(self, name: str) -> Optional[Channel]:
+    def get(self, name: str) -> Channel | None:
         """Look up a channel by name."""
         return self._channels.get(name)
 
-    def get_channels(self) -> Dict[str, Channel]:
+    def get_channels(self) -> dict[str, Channel]:
         """Return a shallow copy of all registered channels."""
         return dict(self._channels)
 
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         """Return the registered channel names."""
         return list(self._channels)
 
@@ -322,19 +323,19 @@ class ChannelRegistry:
         """Increment the error counter for a channel."""
         self._errors[name] += 1
 
-    def send_count(self, name: Optional[str] = None) -> int:
+    def send_count(self, name: str | None = None) -> int:
         """Return total sends, optionally filtered by channel name."""
         if name is not None:
             return self._sends.get(name, 0)
         return sum(self._sends.values())
 
-    def error_count(self, name: Optional[str] = None) -> int:
+    def error_count(self, name: str | None = None) -> int:
         """Return total errors, optionally filtered by channel name."""
         if name is not None:
             return self._errors.get(name, 0)
         return sum(self._errors.values())
 
-    def metrics(self) -> Dict[str, Any]:
+    def metrics(self) -> dict[str, Any]:
         """Return a metrics snapshot (useful for the platform metrics hook)."""
         return {
             "channels": len(self._channels),
@@ -357,7 +358,7 @@ class Gateway:
 
     def __init__(
         self,
-        event_sink: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        event_sink: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
         self.registry = ChannelRegistry()
         self._event_sink = event_sink
@@ -369,11 +370,11 @@ class Gateway:
         self.registry.register(name, channel)
         return channel
 
-    def unregister_channel(self, name: str) -> Optional[Channel]:
+    def unregister_channel(self, name: str) -> Channel | None:
         """Unregister a channel; returns the removed channel or None."""
         return self.registry.unregister(name)
 
-    def get_channels(self) -> Dict[str, Channel]:
+    def get_channels(self) -> dict[str, Channel]:
         """Return all registered channels keyed by name."""
         return self.registry.get_channels()
 
@@ -397,19 +398,19 @@ class Gateway:
         self._tally(channel_name, result)
         return result
 
-    def broadcast(self, message: str) -> List[GatewayResult]:
+    def broadcast(self, message: str) -> list[GatewayResult]:
         """Send ``message`` to every registered channel."""
-        results: List[GatewayResult] = []
+        results: list[GatewayResult] = []
         for name in self.registry.names():
             results.append(self.send(name, message))
         return results
 
     def route(
         self,
-        routing_map: Dict[str, List[str]],
+        routing_map: dict[str, list[str]],
         topic: str,
         message: str,
-    ) -> List[GatewayResult]:
+    ) -> list[GatewayResult]:
         """Route ``message`` to the channels mapped to ``topic``.
 
         Args:
@@ -423,7 +424,7 @@ class Gateway:
             empty list.
         """
         targets = routing_map.get(topic, [])
-        results: List[GatewayResult] = []
+        results: list[GatewayResult] = []
         for name in targets:
             results.append(self.send(name, message))
         return results
@@ -441,7 +442,7 @@ class Gateway:
         else:
             self.registry.record_error(channel_name)
 
-    def metrics(self) -> Dict[str, Any]:
+    def metrics(self) -> dict[str, Any]:
         """Return gateway-level metrics."""
         return self.registry.metrics()
 
@@ -451,7 +452,7 @@ class Gateway:
 # ---------------------------------------------------------------------------
 
 
-def _parse_field(field: str, low: int, high: int) -> Set[int]:
+def _parse_field(field: str, low: int, high: int) -> set[int]:
     """Parse a cron field segment into a set of allowed values.
 
     Supports ``*`` and comma-separated numeric lists (e.g. ``0,30``).
@@ -460,7 +461,7 @@ def _parse_field(field: str, low: int, high: int) -> Set[int]:
     field = field.strip()
     if field == "*":
         return set(range(low, high + 1))
-    values: Set[int] = set()
+    values: set[int] = set()
     for part in field.split(","):
         part = part.strip()
         if not part.isdigit():
@@ -471,7 +472,7 @@ def _parse_field(field: str, low: int, high: int) -> Set[int]:
     return values
 
 
-def _parse_dow(field: str) -> Set[int]:
+def _parse_dow(field: str) -> set[int]:
     """Parse a day-of-week field (0-6, with 7 normalized to 0 = Sunday)."""
     values = _parse_field(field, 0, 7)
     if 7 in values:
@@ -480,7 +481,7 @@ def _parse_dow(field: str) -> Set[int]:
     return values
 
 
-def cron_next(expr: str, from_ts: float) -> Optional[float]:
+def cron_next(expr: str, from_ts: float) -> float | None:
     """Compute the next UTC epoch strictly after ``from_ts`` matching a cron expr.
 
     Supports the 5 standard fields (min hour dom mon dow). Only ``*`` and simple
@@ -512,7 +513,7 @@ def cron_next(expr: str, from_ts: float) -> Optional[float]:
     dow_full = days_of_week == set(range(0, 7))
 
     start = (
-        datetime.fromtimestamp(from_ts, tz=timezone.utc)
+        datetime.fromtimestamp(from_ts, tz=UTC)
         .replace(second=0, microsecond=0)
         + timedelta(minutes=1)
     )
@@ -543,7 +544,7 @@ def cron_next(expr: str, from_ts: float) -> Optional[float]:
 
 def interval_next(
     interval_seconds: float,
-    last_run_ts: Optional[float],
+    last_run_ts: float | None,
     from_ts: float,
 ) -> float:
     """Compute the next interval-based run time at or just after ``from_ts``.
@@ -581,10 +582,10 @@ class Job:
 
     id: str
     kind: str
-    expr: Optional[str] = None
-    interval: Optional[float] = None
+    expr: str | None = None
+    interval: float | None = None
     callback: str = ""
-    last_run: Optional[float] = None
+    last_run: float | None = None
     enabled: bool = True
 
 
@@ -604,7 +605,7 @@ class Scheduler:
     """
 
     def __init__(self) -> None:
-        self._jobs: Dict[str, Job] = {}
+        self._jobs: dict[str, Job] = {}
 
     # ── Management ─────────────────────────────────────────────────────────
 
@@ -613,19 +614,19 @@ class Scheduler:
         self._jobs[job.id] = job
         return job
 
-    def remove(self, job_id: str) -> Optional[Job]:
+    def remove(self, job_id: str) -> Job | None:
         """Remove a job; returns it or None."""
         return self._jobs.pop(job_id, None)
 
-    def get(self, job_id: str) -> Optional[Job]:
+    def get(self, job_id: str) -> Job | None:
         """Look up a job by id."""
         return self._jobs.get(job_id)
 
-    def all(self) -> List[Job]:
+    def all(self) -> list[Job]:
         """Return all jobs."""
         return list(self._jobs.values())
 
-    def jobs(self) -> Dict[str, Job]:
+    def jobs(self) -> dict[str, Job]:
         """Return the internal job map (copy)."""
         return dict(self._jobs)
 
@@ -658,7 +659,7 @@ class Scheduler:
                 return nxt
         return now_ts
 
-    def due(self, now_ts: float) -> List[Job]:
+    def due(self, now_ts: float) -> list[Job]:
         """Return enabled jobs that are due at (or before) ``now_ts``.
 
         Jobs are returned sorted by their next scheduled run, then by id, so
@@ -691,9 +692,9 @@ class Scheduler:
 
 def build_channel(
     channel_type: str,
-    spec: Dict[str, Any],
-    opener: Optional[Callable[..., Any]] = None,
-) -> Optional[Channel]:
+    spec: dict[str, Any],
+    opener: Callable[..., Any] | None = None,
+) -> Channel | None:
     """Construct a channel from a config spec dict.
 
     Args:

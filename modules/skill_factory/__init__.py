@@ -49,8 +49,8 @@ from .skill_factory import (
     SkillGenerator,
     SkillRecord,
     SkillRegistry,
-    bump_version,
     build_frontmatter,
+    bump_version,
     extract_steps,
     moving_average,
     name_from_prompt,
@@ -102,15 +102,15 @@ class SkillFactoryModule(Module):
       - ``auto_generate`` (bool)   Reserved for future auto-generation behaviour.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._factory: Optional[SkillFactory] = None
-        self._event_bus: Optional[EventBus] = None
+        self._factory: SkillFactory | None = None
+        self._event_bus: EventBus | None = None
 
     # ── Properties ───────────────────────────────────────────────────────
 
     @property
-    def factory(self) -> Optional[SkillFactory]:
+    def factory(self) -> SkillFactory | None:
         """Return the active SkillFactory, if initialized."""
         return self._factory
 
@@ -185,7 +185,7 @@ class SkillFactoryModule(Module):
         if self._factory is not None:
             self._factory.set_event_publisher(self._publish_event)
 
-    def _publish_event(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _publish_event(self, topic: str, payload: dict[str, Any]) -> None:
         """Publish a skill event on the platform bus, guarding a None bus."""
         if self._event_bus is None:
             return

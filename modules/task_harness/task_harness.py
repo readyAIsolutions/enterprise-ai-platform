@@ -18,16 +18,18 @@ Python: 3.10+
 
 from __future__ import annotations
 
+import builtins
 import json
 import logging
 import sqlite3
 import threading
 import uuid
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Logger
@@ -73,7 +75,7 @@ class TaskStatus(Enum):
 
 # Allowed state-machine transitions.
 #   current -> { allowed next states }
-_ALLOWED_TRANSITIONS: Dict[TaskStatus, set] = {
+_ALLOWED_TRANSITIONS: dict[TaskStatus, set] = {
     TaskStatus.PENDING: {
         TaskStatus.RUNNING,     # start work
         TaskStatus.CANCELLED,   # abandon before starting
@@ -103,7 +105,7 @@ _SATISFYING_STATUSES: frozenset = frozenset(
 
 def _utcnow() -> str:
     """UTC timestamp as ISO-8601 string."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @dataclass
@@ -128,17 +130,17 @@ class TaskCard:
     description: str
     status: TaskStatus = TaskStatus.PENDING
     priority: int = 0
-    depends_on: List[str] = field(default_factory=list)
-    steps: List[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
+    steps: list[str] = field(default_factory=list)
     notes: str = ""
-    result: Optional[str] = None
+    result: str | None = None
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
 
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> "TaskCard":
+    def from_row(cls, row: sqlite3.Row) -> TaskCard:
         """Build a TaskCard from a raw sqlite3.Row."""
-        d: Dict[str, Any] = dict(row)
+        d: dict[str, Any] = dict(row)
         raw_status = d.pop("status")
         try:
             status = TaskStatus(raw_status)
@@ -166,7 +168,7 @@ class TaskCard:
     def is_terminal(self) -> bool:
         return self.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-friendly dict."""
         return {
             "id": self.id,
@@ -183,7 +185,7 @@ class TaskCard:
         }
 
 
-def _json_loads_list(raw: Optional[str]) -> List[str]:
+def _json_loads_list(raw: str | None) -> list[str]:
     if raw is None:
         return []
     if isinstance(raw, list):
@@ -197,7 +199,7 @@ def _json_loads_list(raw: Optional[str]) -> List[str]:
     return []
 
 
-def _json_loads_str(raw: Optional[str]) -> str:
+def _json_loads_str(raw: str | None) -> str:
     if raw is None:
         return ""
     if isinstance(raw, str):
@@ -210,7 +212,7 @@ def _json_loads_str(raw: Optional[str]) -> str:
     return str(raw)
 
 
-def _json_loads_optional(raw: Optional[str]) -> Optional[str]:
+def _json_loads_optional(raw: str | None) -> str | None:
     if raw is None:
         return None
     if isinstance(raw, str):
@@ -273,19 +275,19 @@ class TaskHarness:
 
     # ── Low-level helpers ────────────────────────────────────────────────
 
-    def _row_to_card(self, row: Optional[sqlite3.Row]) -> Optional[TaskCard]:
+    def _row_to_card(self, row: sqlite3.Row | None) -> TaskCard | None:
         return TaskCard.from_row(row) if row is not None else None
 
     def _now(self) -> str:
         return _utcnow()
 
-    def _fetch(self, task_id: str) -> Optional[TaskCard]:
+    def _fetch(self, task_id: str) -> TaskCard | None:
         cur = self._conn.execute(
             "SELECT * FROM task_cards WHERE id = ?", (task_id,)
         )
         return self._row_to_card(cur.fetchone())
 
-    def _update_status_row(self, task_id: str, status: TaskStatus, result: Optional[str] = None) -> TaskCard:
+    def _update_status_row(self, task_id: str, status: TaskStatus, result: str | None = None) -> TaskCard:
         now = self._now()
         if result is not None:
             self._conn.execute(
@@ -311,8 +313,8 @@ class TaskHarness:
         description: str = "",
         *,
         priority: int = 0,
-        depends_on: Optional[Iterable[str]] = None,
-        steps: Optional[Sequence[str]] = None,
+        depends_on: Iterable[str] | None = None,
+        steps: Sequence[str] | None = None,
     ) -> TaskCard:
         """Create and persist a new task card.
 
@@ -323,8 +325,8 @@ class TaskHarness:
             raise TaskHarnessError("title must be a non-empty string")
 
         task_id = str(uuid.uuid4())
-        dep_list: List[str] = list(dict.fromkeys(depends_on or []))
-        step_list: List[str] = list(steps or [])
+        dep_list: list[str] = list(dict.fromkeys(depends_on or []))
+        step_list: list[str] = list(steps or [])
         now = self._now()
 
         with self._lock:
@@ -361,7 +363,7 @@ class TaskHarness:
             raise TaskNotFoundError(task_id)
         return card
 
-    def list(self, status: Optional[TaskStatus] = None) -> List[TaskCard]:
+    def list(self, status: TaskStatus | None = None) -> builtins.list[TaskCard]:
         """List task cards, optionally filtered by status."""
         with self._lock:
             if status is None:
@@ -425,13 +427,13 @@ class TaskHarness:
             self._validate_transition(task_id, TaskStatus.CANCELLED)
             return self._update_status_row(task_id, TaskStatus.CANCELLED)
 
-    def mark_completed(self, task_id: str, result: Optional[str] = None) -> TaskCard:
+    def mark_completed(self, task_id: str, result: str | None = None) -> TaskCard:
         """Record a task as completed with an optional result payload."""
         with self._lock:
             self._validate_transition(task_id, TaskStatus.COMPLETED)
             return self._update_status_row(task_id, TaskStatus.COMPLETED, result=result)
 
-    def mark_failed(self, task_id: str, result: Optional[str] = None) -> TaskCard:
+    def mark_failed(self, task_id: str, result: str | None = None) -> TaskCard:
         """Record a task as failed with an optional error payload."""
         with self._lock:
             self._validate_transition(task_id, TaskStatus.FAILED)
@@ -497,7 +499,7 @@ class TaskHarness:
                 return False
         return True
 
-    def next_runnable(self) -> List[TaskCard]:
+    def next_runnable(self) -> builtins.list[TaskCard]:
         """Return pending tasks whose dependencies are satisfied.
 
         Ordered by priority descending, then created_at ascending.
@@ -511,7 +513,7 @@ class TaskHarness:
         runnable.sort(key=lambda c: (-c.priority, c.created_at))
         return runnable
 
-    def _list_pending_locked(self) -> List[TaskCard]:
+    def _list_pending_locked(self) -> builtins.list[TaskCard]:
         cur = self._conn.execute(
             "SELECT * FROM task_cards WHERE status = ?", (TaskStatus.PENDING.value,)
         )
@@ -527,7 +529,7 @@ class TaskHarness:
                 self._conn.close()
                 self._closed = True
 
-    def __enter__(self) -> "TaskHarness":
+    def __enter__(self) -> TaskHarness:
         return self
 
     def __exit__(self, *exc: Any) -> None:

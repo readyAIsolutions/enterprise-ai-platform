@@ -34,15 +34,17 @@ Python: 3.10+
 
 from __future__ import annotations
 
+import builtins
 import json
 import logging
 import os
 import re
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Module logger
@@ -75,13 +77,13 @@ def _yaml_quote(value: str) -> str:
     return value
 
 
-def _yaml_emit(data: Dict[str, Any]) -> str:
+def _yaml_emit(data: dict[str, Any]) -> str:
     """Emit a simple, deterministic YAML document for a flat metadata dict.
 
     Supports string / number / bool scalars and lists of scalars, which is
     all that skill frontmatter requires.
     """
-    lines: List[str] = []
+    lines: list[str] = []
     for key, value in data.items():
         if isinstance(value, list):
             lines.append(f"{key}:")
@@ -99,14 +101,14 @@ def _yaml_emit(data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _yaml_parse(block: str) -> Dict[str, Any]:
+def _yaml_parse(block: str) -> dict[str, Any]:
     """Parse the subset of YAML emitted by :func:`_yaml_emit`.
 
     Handles ``key: scalar``, ``key:`` with ``  - item`` lists, and blank
     value keys.  Unknown nesting is best-effort.
     """
-    result: Dict[str, Any] = {}
-    current_list_key: Optional[str] = None
+    result: dict[str, Any] = {}
+    current_list_key: str | None = None
     for raw_line in block.splitlines():
         line = raw_line.rstrip("\n")
         if not line.strip() or line.lstrip().startswith("#"):
@@ -177,14 +179,14 @@ class SkillRecord:
     body: str
     category: str = "general"
     description: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     score: float = 0.0
-    feedback: List[str] = field(default_factory=list)
-    history: List[Dict[str, Any]] = field(default_factory=list)
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    feedback: list[str] = field(default_factory=list)
+    history: list[dict[str, Any]] = field(default_factory=list)
+    created_at: str | None = None
+    updated_at: str | None = None
 
-    def metadata(self) -> Dict[str, Any]:
+    def metadata(self) -> dict[str, Any]:
         """Return metadata only (no body), suitable for listings."""
         return {
             "name": self.name,
@@ -196,7 +198,7 @@ class SkillRecord:
             "updated_at": self.updated_at,
         }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return the full record as a dict (including body)."""
         data = self.metadata()
         data["body"] = self.body
@@ -206,7 +208,7 @@ class SkillRecord:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SkillRecord":
+    def from_dict(cls, data: dict[str, Any]) -> SkillRecord:
         return cls(
             name=str(data.get("name", "")),
             version=str(data.get("version", INITIAL_VERSION)),
@@ -224,7 +226,7 @@ class SkillRecord:
 
 def _now_iso() -> str:
     """Return an ISO-8601 UTC timestamp string."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def bump_version(version: str, part: str = "patch") -> str:
@@ -309,7 +311,7 @@ class SkillRegistry:
         body: str,
         category: str = "general",
         description: str = "",
-        tags: Optional[List[str]] = None,
+        tags: builtins.list[str] | None = None,
     ) -> SkillRecord:
         """Create a new skill, or version-bump an existing one (upsert).
 
@@ -370,7 +372,7 @@ class SkillRegistry:
 
     # ── Read ────────────────────────────────────────────────────────────────
 
-    def get(self, name: str) -> Optional[SkillRecord]:
+    def get(self, name: str) -> SkillRecord | None:
         """Return the full skill record, or None if it does not exist."""
         skill_file = self.skill_file(name)
         if not skill_file.exists():
@@ -378,7 +380,7 @@ class SkillRegistry:
         text = skill_file.read_text(encoding="utf-8")
         frontmatter, body = parse_frontmatter(text)
 
-        meta: Dict[str, Any] = {}
+        meta: dict[str, Any] = {}
         meta_file = self.meta_file(name)
         if meta_file.exists():
             try:
@@ -403,10 +405,10 @@ class SkillRegistry:
         )
         return record
 
-    def list(self) -> List[Dict[str, Any]]:
+    def list(self) -> builtins.list[dict[str, Any]]:
         """Return metadata-only dicts for all skills (no bodies)."""
         self.ensure()
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         for child in sorted(self.root().iterdir()):
             if not child.is_dir():
                 continue
@@ -420,11 +422,11 @@ class SkillRegistry:
     def update(
         self,
         name: str,
-        body: Optional[str] = None,
-        category: Optional[str] = None,
-        description: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-    ) -> Optional[SkillRecord]:
+        body: str | None = None,
+        category: str | None = None,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None,
+    ) -> SkillRecord | None:
         """Update an existing skill, bumping the patch version keeping history.
 
         Returns the updated record, or None if the skill does not exist.
@@ -493,7 +495,7 @@ class SkillRegistry:
             frontmatter + (record.body or ""), encoding="utf-8"
         )
 
-        meta: Dict[str, Any] = {
+        meta: dict[str, Any] = {
             "name": record.name,
             "version": record.version,
             "category": record.category,
@@ -523,7 +525,7 @@ class SkillRegistry:
 # ===========================================================================
 
 
-def build_frontmatter(meta: Dict[str, Any]) -> str:
+def build_frontmatter(meta: dict[str, Any]) -> str:
     """Build a YAML frontmatter block (including ``---`` delimiters).
 
     Args:
@@ -536,7 +538,7 @@ def build_frontmatter(meta: Dict[str, Any]) -> str:
     return f"---\n{body}\n---\n"
 
 
-def parse_frontmatter(text: str) -> "tuple[Dict[str, Any], str]":
+def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     """Split a document into (frontmatter dict, body).
 
     Expects the document to begin with a ``---`` delimiter line, a YAML block,
@@ -546,7 +548,7 @@ def parse_frontmatter(text: str) -> "tuple[Dict[str, Any], str]":
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return {}, text
-    end_index: Optional[int] = None
+    end_index: int | None = None
     for i in range(1, len(lines)):
         if lines[i].strip() == "---":
             end_index = i
@@ -572,12 +574,12 @@ class SkillGenerator:
 
     def generate_skill(
         self,
-        commands: List[str],
+        commands: list[str],
         category: str = "general",
         description: str = "",
-        prompt: Optional[str] = None,
-        triggers: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        prompt: str | None = None,
+        triggers: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Compile an observed command sequence into a full SKILL.md document.
 
         Returns a dict containing ``name``, ``version``, ``frontmatter``,
@@ -607,7 +609,7 @@ class SkillGenerator:
         }
 
     @staticmethod
-    def _render_steps(steps: List[str]) -> str:
+    def _render_steps(steps: list[str]) -> str:
         """Render extracted steps as a numbered markdown section."""
         if not steps:
             return "No steps extracted.\n"
@@ -616,7 +618,7 @@ class SkillGenerator:
         return "\n".join(lines) + "\n"
 
 
-def extract_steps(commands: List[str]) -> List[str]:
+def extract_steps(commands: list[str]) -> list[str]:
     """Clean, trim and cap a list of raw command lines into actionable steps.
 
     - Strips surrounding whitespace.
@@ -629,7 +631,7 @@ def extract_steps(commands: List[str]) -> List[str]:
     Returns:
         A cleaned list of non-empty step strings.
     """
-    cleaned: List[str] = []
+    cleaned: list[str] = []
     for raw in commands:
         if raw is None:
             continue
@@ -676,7 +678,7 @@ class SkillEvolutionLoop:
     def __init__(self, registry: SkillRegistry) -> None:
         self._registry: SkillRegistry = registry
         #: Keep a small in-memory mirror of scores/records for pure scoring.
-        self._runs: Dict[str, List[bool]] = {}
+        self._runs: dict[str, list[bool]] = {}
 
     def record_run(self, skill_name: str, success: bool, feedback: str = "") -> SkillRecord:
         """Record a benchmark run for a skill, updating its moving-average score.
@@ -751,7 +753,7 @@ class SkillEvolutionLoop:
         return record.body.rstrip() + "\n" + "\n".join(section) + "\n"
 
 
-def moving_average(runs: List[bool], alpha: float = SCORE_ALPHA) -> float:
+def moving_average(runs: list[bool], alpha: float = SCORE_ALPHA) -> float:
     """Compute the exponential moving-average score from a sequence of runs.
 
     The first measurement seeds the score directly (1.0 / 0.0); subsequent
@@ -778,7 +780,7 @@ def moving_average(runs: List[bool], alpha: float = SCORE_ALPHA) -> float:
 # ===========================================================================
 
 #: Callback type for event publishing: (topic, payload) -> None
-EventPublisher = Callable[[str, Dict[str, Any]], None]
+EventPublisher = Callable[[str, dict[str, Any]], None]
 
 
 class SkillFactory:
@@ -787,20 +789,20 @@ class SkillFactory:
     def __init__(
         self,
         data_dir: Path,
-        generator: Optional[SkillGenerator] = None,
-        evolution: Optional[SkillEvolutionLoop] = None,
+        generator: SkillGenerator | None = None,
+        evolution: SkillEvolutionLoop | None = None,
     ) -> None:
         self.registry: SkillRegistry = SkillRegistry(data_dir)
         self.generator: SkillGenerator = generator or SkillGenerator()
         self.evolution: SkillEvolutionLoop = evolution or SkillEvolutionLoop(self.registry)
         #: Optional event publisher wired by the owning module.
-        self._event_publisher: Optional[EventPublisher] = None
+        self._event_publisher: EventPublisher | None = None
 
-    def set_event_publisher(self, publisher: Optional[EventPublisher]) -> None:
+    def set_event_publisher(self, publisher: EventPublisher | None) -> None:
         """Wire an optional event publisher callback."""
         self._event_publisher = publisher
 
-    def _emit(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _emit(self, topic: str, payload: dict[str, Any]) -> None:
         if self._event_publisher is not None:
             try:
                 self._event_publisher(topic, payload)
@@ -815,7 +817,7 @@ class SkillFactory:
         body: str,
         category: str = "general",
         description: str = "",
-        tags: Optional[List[str]] = None,
+        tags: builtins.list[str] | None = None,
     ) -> SkillRecord:
         existed = self.registry.exists(name)
         record = self.registry.create(name, body, category, description, tags)
@@ -823,20 +825,20 @@ class SkillFactory:
         self._emit("skill.updated" if existed else "skill.created", payload)
         return record
 
-    def get(self, name: str) -> Optional[SkillRecord]:
+    def get(self, name: str) -> SkillRecord | None:
         return self.registry.get(name)
 
-    def list(self) -> List[Dict[str, Any]]:
+    def list(self) -> builtins.list[dict[str, Any]]:
         return self.registry.list()
 
     def update(
         self,
         name: str,
-        body: Optional[str] = None,
-        category: Optional[str] = None,
-        description: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-    ) -> Optional[SkillRecord]:
+        body: str | None = None,
+        category: str | None = None,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None,
+    ) -> SkillRecord | None:
         record = self.registry.update(name, body, category, description, tags)
         if record is not None:
             self._emit(
@@ -852,12 +854,12 @@ class SkillFactory:
 
     def generate(
         self,
-        commands: List[str],
+        commands: builtins.list[str],
         category: str = "general",
         description: str = "",
-        prompt: Optional[str] = None,
-        triggers: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        prompt: str | None = None,
+        triggers: builtins.list[str] | None = None,
+    ) -> dict[str, Any]:
         """Generate a skill document; does not persist unless persisted."""
         return self.generator.generate_skill(commands, category, description, prompt, triggers)
 

@@ -82,10 +82,10 @@ class SemanticMemoryModule(Module):
         - memory.query       — a recall/query was performed
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._memory: Optional[SemanticMemory] = None
-        self._event_bus: Optional[EventBus] = None
+        self._memory: SemanticMemory | None = None
+        self._event_bus: EventBus | None = None
         self._lock = threading.RLock()
         self._dim: int = int(self._config.get("dim", 256) or 256)
         self._top_k: int = int(self._config.get("top_k", 5) or 5)
@@ -93,7 +93,7 @@ class SemanticMemoryModule(Module):
     # -- Properties ---------------------------------------------------------
 
     @property
-    def memory(self) -> Optional[SemanticMemory]:
+    def memory(self) -> SemanticMemory | None:
         """Return the active SemanticMemory facade, if initialized."""
         with self._lock:
             return self._memory
@@ -173,7 +173,7 @@ class SemanticMemoryModule(Module):
         self,
         id: str,
         text: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """Store a document into semantic memory and return its id.
 
@@ -191,9 +191,9 @@ class SemanticMemoryModule(Module):
     def recall(
         self,
         query: str,
-        k: Optional[int] = None,
-        metadata_filter: Optional[Dict[str, Any]] = None,
-    ) -> List[ScoredDoc]:
+        k: int | None = None,
+        metadata_filter: dict[str, Any] | None = None,
+    ) -> list[ScoredDoc]:
         """Retrieve the top-k documents most semantically similar to ``query``.
 
         Emits ``memory.query`` on the event bus when available.
@@ -208,7 +208,7 @@ class SemanticMemoryModule(Module):
         )
         return results
 
-    def _publish(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _publish(self, topic: str, payload: dict[str, Any]) -> None:
         """Publish an event on the wired bus (no-op if none is set)."""
         bus = self._event_bus
         if bus is None:

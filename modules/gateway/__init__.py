@@ -97,21 +97,21 @@ class GatewayModule(Module):
       - gateway.message.sent
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._gateway: Optional[Gateway] = None
-        self._scheduler: Optional[Scheduler] = None
-        self._event_bus: Optional[EventBus] = None
+        self._gateway: Gateway | None = None
+        self._scheduler: Scheduler | None = None
+        self._event_bus: EventBus | None = None
 
     # ── Properties ────────────────────────────────────────────────────────
 
     @property
-    def gateway(self) -> Optional[Gateway]:
+    def gateway(self) -> Gateway | None:
         """The active Gateway instance (None before initialization)."""
         return self._gateway
 
     @property
-    def scheduler(self) -> Optional[Scheduler]:
+    def scheduler(self) -> Scheduler | None:
         """The active Scheduler instance (None before initialization)."""
         return self._scheduler
 
@@ -121,7 +121,7 @@ class GatewayModule(Module):
         """Store the platform EventBus for outbound event publishing."""
         self._event_bus = event_bus
 
-    def _emit(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _emit(self, topic: str, payload: dict[str, Any]) -> None:
         """Publish an event on the platform bus (no-op if bus is absent)."""
         if self._event_bus is not None:
             try:

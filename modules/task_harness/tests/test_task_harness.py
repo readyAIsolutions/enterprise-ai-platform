@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List
 
 import pytest
 
@@ -260,8 +259,8 @@ class TestNotesStepsHeartbeat:
 # ===========================================================================
 class TestModule:
     def test_module_registered(self) -> None:
-        from enterprise.platform_kernel import _MODULE_REGISTRY
         from enterprise.modules.task_harness import TaskHarnessModule
+        from enterprise.platform_kernel import _MODULE_REGISTRY
 
         assert "task_harness" in _MODULE_REGISTRY
         assert _MODULE_REGISTRY["task_harness"] is TaskHarnessModule
@@ -296,17 +295,17 @@ class TestModule:
         assert mod.harness is None
 
     async def test_health_check_unknown_when_uninitialized(self) -> None:
-        from enterprise.platform_kernel import HealthStatus
         from enterprise.modules.task_harness import TaskHarnessModule
+        from enterprise.platform_kernel import HealthStatus
 
         mod = TaskHarnessModule()
         assert await mod.health_check() == HealthStatus.UNKNOWN
 
     async def test_set_event_bus_and_publish(self, tmp_path: Path) -> None:
-        from enterprise.platform_kernel import EventBus
         from enterprise.modules.task_harness import TaskHarnessModule
+        from enterprise.platform_kernel import EventBus
 
-        events: List[str] = []
+        events: list[str] = []
         bus = EventBus({"async_dispatch": False})
         bus.subscribe("task.created")(lambda e: events.append(e.topic))
 

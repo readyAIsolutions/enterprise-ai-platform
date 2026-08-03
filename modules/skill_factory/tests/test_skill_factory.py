@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
 
 # ---------------------------------------------------------------------------
 # Ensure the parent of the repo root is on sys.path so that the repo root
@@ -33,7 +32,6 @@ from enterprise.modules.skill_factory.skill_factory import (  # noqa: E402
     SkillEvolutionLoop,
     SkillFactory,
     SkillGenerator,
-    SkillRecord,
     SkillRegistry,
     build_frontmatter,
     bump_version,
@@ -432,7 +430,7 @@ class TestSkillFactoryModule:
     def test_event_emission_for_create(self, tmp_path):
         import asyncio
 
-        topics: List[str] = []
+        topics: list[str] = []
 
         bus = EventBus()
 
@@ -450,7 +448,7 @@ class TestSkillFactoryModule:
     def test_event_emission_for_evolve(self, tmp_path):
         import asyncio
 
-        topics: List[str] = []
+        topics: list[str] = []
 
         bus = EventBus()
 
