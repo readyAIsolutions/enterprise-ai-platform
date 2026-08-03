@@ -35,6 +35,8 @@ build/
 
 # Test artifacts
 .coverage
+coverage.xml
+junit.xml
 htmlcov/
 .pytest_cache/
 .mypy_cache/
