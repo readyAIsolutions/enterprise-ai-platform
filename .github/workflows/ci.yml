@@ -124,11 +124,10 @@ jobs:
       - name: Report failures (annotations)
         if: failure()
         run: |
-          python scripts/ci_report_failures.py "$GITHUB_STEP_SUMMARY"
-          {
-            echo "### collect-only tail (import/collection errors)"
-            python -m pytest --collect-only -q 2>&1 | tail -40
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::=== collecting error details (exit 2 = collection error) ==="
+          python -m pytest --collect-only -q 2>&1 | tail -60 | sed 's/^/::error::/' || true
+          echo "::error::=== junit failure/error entries ==="
+          python scripts/ci_report_failures.py "" || true
           exit 1
 
       - name: Upload coverage to Codecov (if configured)
