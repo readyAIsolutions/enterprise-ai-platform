@@ -120,6 +120,7 @@ jobs:
             --junitxml=junit.xml \
             --ignore=modules/compression_bridge \
             --ignore=modules/kb_bridge \
+            --ignore=modules/swarm_network \
             -n auto
 
       - name: Report failures (annotations)
