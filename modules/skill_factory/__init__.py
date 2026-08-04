@@ -56,6 +56,12 @@ from .skill_factory import (
     name_from_prompt,
     parse_frontmatter,
 )
+from .skills_import import (
+    SkillImport,
+    SkillsImportFacade,
+    import_skill_from_markdown,
+    parse_skill_markdown,
+)
 
 __all__ = [
     "__version__",
@@ -73,6 +79,11 @@ __all__ = [
     "moving_average",
     "MAX_STEPS",
     "SCORE_ALPHA",
+    # Standard markdown-skills import capability
+    "SkillImport",
+    "SkillsImportFacade",
+    "import_skill_from_markdown",
+    "parse_skill_markdown",
 ]
 
 # ---------------------------------------------------------------------------

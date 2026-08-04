@@ -205,6 +205,39 @@ modules:
       max_tools: 1000
       tags: []
 
+  # ── Upgrade: Agent-to-Agent interop (Google A2A protocol) ──────────────────
+  a2a:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      max_tasks: 10000
+      handoff_depth: 64
+
+  # ── Upgrade: Automated LLM eval gates (deepeval-style, offline metrics) ───
+  eval_gate:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      default_threshold: 0.7
+      required_metrics: ["answer_relevancy", "faithfulness", "toxicity"]
+
+  # ── Upgrade: Stateful agent graph orchestration (langgraph-style) ──────────
+  agent_graph:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      max_steps: 1000
+      max_runs: 10000
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
