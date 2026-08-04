@@ -166,6 +166,21 @@ modules:
       embedding_dim: 256
       top_k: 5
 
+  # ── Critical: Model-Agnostic Security (PRIORITY 0 - boots FIRST) ──────────
+  model_security:
+    enabled: true
+    priority: 0
+    required: true
+    startup_timeout_sec: 15
+    health_check_interval_sec: 60
+    config:
+      audit_path: "data/model_security_audit.log"
+      policy_path: "config/security_policies.yaml"
+      injection_threshold: 0.7
+      jailbreak_threshold: 0.7
+      toxicity_threshold: 0.7
+      refusal_threshold: 0.8
+
   # ── Upgrade: Long-term agent memory engine (mem0-style) ───────────────────
   memory:
     enabled: true
