@@ -1,0 +1,80 @@
+"""ENI Enterprise Compliance OS Module.
+
+Offline security-control mapping & audit evidence for the ENI platform across:
+
+* OWASP LLM Top 10 (2025)
+* NIST AI RMF 1.0 core functions (GOVERN / MAP / MEASURE / MANAGE)
+* MITRE ATLAS (Adversarial Threat Landscape for AI Systems)
+
+Provides a control catalogue, a ComplianceEvaluator that computes coverage,
+residual risk and PASS/FAIL against a target, a GapAnalyzer for missing
+controls, and a ComplianceReport for audit snapshots.
+
+All components are stdlib-only, zero external dependencies.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, List, Optional  # noqa: F401  (re-exported API types)
+
+from enterprise.platform_kernel import (
+    EventBus,
+    HealthStatus,
+    Module,
+    module,
+)
+
+from .compliance import (
+    BUILTIN_CONTROLS,
+    DEFAULT_TARGET,
+    FRAMEWORK_MITRE,
+    FRAMEWORK_NIST,
+    FRAMEWORK_OWASP,
+    STATUS_IMPLEMENTED,
+    STATUS_MISSING,
+    STATUS_NOT_APPLICABLE,
+    STATUS_PARTIAL,
+    VALID_STATUSES,
+    ComplianceEvaluator,
+    ComplianceFacade,
+    ComplianceModule,
+    ComplianceReport,
+    CompControl,
+    Control,
+    ControlEvaluation,
+    EvaluationResult,
+    GapAnalyzer,
+    controls_for_framework,
+)
+
+__version__ = "1.0.0"
+__module__ = "compliance"
+
+__all__ = [
+    "__version__",
+    "ComplianceModule",
+    "ComplianceFacade",
+    # Core classes
+    "Control",
+    "CompControl",
+    "EvaluationResult",
+    "ControlEvaluation",
+    "ComplianceEvaluator",
+    "GapAnalyzer",
+    "ComplianceReport",
+    "controls_for_framework",
+    # Constants
+    "BUILTIN_CONTROLS",
+    "STATUS_IMPLEMENTED",
+    "STATUS_PARTIAL",
+    "STATUS_MISSING",
+    "STATUS_NOT_APPLICABLE",
+    "VALID_STATUSES",
+    "FRAMEWORK_OWASP",
+    "FRAMEWORK_NIST",
+    "FRAMEWORK_MITRE",
+    "DEFAULT_TARGET",
+]
+
+_logger = logging.getLogger("enterprise.compliance")

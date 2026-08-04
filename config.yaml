@@ -238,6 +238,73 @@ modules:
       max_steps: 1000
       max_runs: 10000
 
+  # ═══════════════════════ SECURITY WAVE 2 (6 modules) ════════════════════════
+  # ── Security: Local LLM observability & tracing (langfuse-style) ──────────
+  llmops_trace:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      max_spans: 100000
+      trace_file: null
+
+  # ── Security: Offline vulnerability scanner (garak-style) ──────────────────
+  vuln_scanner:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      default_threshold: 0.5
+      probes: ["prompt_extraction", "jailbreak", "pii_leak", "toxicity"]
+
+  # ── Security: Programmable guardrails validators (guardrails-ai style) ─────
+  guardrails:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      on_fail: "raise"
+      max_refix_rounds: 3
+
+  # ── Security: Compliance control mapping (OWASP / NIST / MITRE) ────────────
+  compliance:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      frameworks: ["owasp_llm_top10", "nist_ai_rmf", "mitre_atlas"]
+      require_all_implemented: false
+
+  # ── Security: Credential hygiene & rotation (hash-only) ────────────────────
+  secret_rotation:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      default_max_age_days: 90
+      alert_before_days: 14
+
+  # ── Security: Threat modeling & attack surface (MITRE ATLAS / STRIDE) ──────
+  threat_model:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      default_likelihood: 3
+      default_impact: 3
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
