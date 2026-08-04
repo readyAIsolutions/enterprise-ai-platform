@@ -46,6 +46,11 @@ from .model_security import (
     ThreatCategory,
 )
 
+from .security_gate import SecurityGate
+from .security_health import SecurityHealth
+from .redteam_bench import RedTeamBench
+from .deployment_gate import DeploymentSecurityGate, DeploymentSecurityError
+
 __version__ = "1.0.0"
 __module__ = "model_security"
 

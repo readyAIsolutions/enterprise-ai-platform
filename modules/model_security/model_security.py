@@ -340,9 +340,12 @@ class PromptInjectionShield:
         (r"(?i)(?:```system|```instruction|\[system\]|\[/system\])", "markdown_delimiter", 0.85),
         (r"(?i)(?:-{3,}\s*(?:begin|start)\s*(?:system|instruction)\s*-{3,})", "header_delimiter", 0.8),
         # System prompt extraction
-        (r"(?i)(?:reveal|show|display|print|output)\s+(?:your\s+)?(?:system\s+prompt|instructions?|programming|training\s+data|configuration)", "prompt_extraction", 0.95),
+        (r"(?i)(?:reveal|show|display|print|output)\s+(?:your\s+)?(?:system\s+prompt|instructions?|programming|rules?|guidelines?|training\s+data|configuration)", "prompt_extraction", 0.95),
         (r"(?i)(?:what\s+(?:are|is)\s+your\s+(?:system\s+prompt|instructions?|rules?|guidelines?))", "prompt_query", 0.9),
         (r"(?i)(?:repeat\s+(?:back\s+)?(?:the\s+)?(?:above|previous|your\s+)?(?:prompt|instructions?|message))", "prompt_repeat", 0.85),
+        # Data exfiltration (input-side): requesting secret/env/db/file dump
+        (r"(?i)(?:print|show|display|output|dump|list|send|return)\s+(?:all\s+|the\s+)?(?:environment\s+variables|env\s+vars?|environment|api\s+keys?|secrets?|credentials?|passwords?|tokens?|keys?|config(?:uration)?\s+(?:file|files)?|database|secret\s+storage)", "data_exfiltration", 0.92),
+        (r"(?i)(?:output|dump|read)\s+(?:the\s+)?(?:contents?\s+of\s+)?(?:the\s+)?(?:secret|secure|storage|config|\.env|credential)\s*(?:file|storage|database|vault)?", "data_exfiltration", 0.92),
         # Encoding tricks
         (r"(?i)(?:base64|hex|rot13|rot47)\s*(?:decode|encode|translate)\s*:?\s*['\"][^'\"]+['\"]", "encoding_trick", 0.8),
         (r"(?i)(?:decode\s+(?:this|the\s+following))\s*(?:base64|hex|rot13)", "decode_instruction", 0.85),
@@ -1098,6 +1101,32 @@ class ModelSecurityModule(Module):
         if not self._pipeline:
             return False, [{"error": "Module not initialized"}]
         return self._pipeline.audit_logger.verify_chain()
+
+    # -- Upgrade-Run 5 facet: unified security surface -------------------------
+
+    def new_gate(self, **kw):
+        """Create a SecurityGate (kernel-level model-agnostic wrapper)."""
+        from enterprise.modules.model_security.security_gate import SecurityGate
+        return SecurityGate({**(self._config or {}), **kw})
+
+    def new_gate_wrapped(self, model_fn, model_name="model", model_type="cloud", **kw):
+        """Return a SecuredGate-wrapped model callable."""
+        return self.new_gate(**kw).wrap(model_fn, model_name, model_type)
+
+    def security_health(self) -> Dict[str, Any]:
+        """Live security posture report."""
+        from enterprise.modules.model_security.security_health import SecurityHealth
+        return SecurityHealth(self._config or {}).report()
+
+    def redteam(self, model_type: str = "cloud", **kw) -> Dict[str, Any]:
+        """Run the adversarial red-team bench; returns stop-rate + slips."""
+        from enterprise.modules.model_security.redteam_bench import RedTeamBench
+        return RedTeamBench({**(self._config or {}), **kw}).run(model_type=model_type)
+
+    def assert_deploy_secure(self, **kw) -> Dict[str, Any]:
+        """Fail-closed deployment gate; raises if security posture unhealthy."""
+        from enterprise.modules.model_security.deployment_gate import DeploymentSecurityGate
+        return DeploymentSecurityGate(self._config or {}).check(**kw)
 
 
 # Module exports
