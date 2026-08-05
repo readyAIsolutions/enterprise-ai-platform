@@ -29,7 +29,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
@@ -52,15 +52,15 @@ class AuditEntry:
     prompt_id: str
     allowed: bool
     risk_score: float
-    reasons: List[str] = field(default_factory=list)
-    blocked_patterns: List[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
+    blocked_patterns: list[str] = field(default_factory=list)
 
 
 class AuditLog:
     """Append-only in-memory log of guard decisions."""
 
     def __init__(self, capacity: int = 10000) -> None:
-        self._entries: List[AuditEntry] = []
+        self._entries: list[AuditEntry] = []
         self.capacity = capacity
 
     def append(self, entry: AuditEntry) -> None:
@@ -69,7 +69,7 @@ class AuditLog:
             # cheap FIFO trim
             del self._entries[: len(self._entries) - self.capacity]
 
-    def entries(self) -> List[AuditEntry]:
+    def entries(self) -> list[AuditEntry]:
         return list(self._entries)
 
     def count(self) -> int:
@@ -78,7 +78,7 @@ class AuditLog:
     def blocked_count(self) -> int:
         return sum(1 for e in self._entries if not e.allowed)
 
-    def recent(self, n: int = 20) -> List[AuditEntry]:
+    def recent(self, n: int = 20) -> list[AuditEntry]:
         return list(self._entries[-n:])
 
 
@@ -93,8 +93,8 @@ class GuardFinding:
 
     matched: bool
     score: float = 0.0
-    patterns: List[str] = field(default_factory=list)
-    reasons: List[str] = field(default_factory=list)
+    patterns: list[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
 
 
 class PromptInjectionGuard:
@@ -108,7 +108,7 @@ class PromptInjectionGuard:
     """
 
     # Ordinary prompt-injection directives.
-    INJECTION_PATTERNS: List[str] = [
+    INJECTION_PATTERNS: list[str] = [
         r"ignore (all |previous |prior )?instructions",
         r"ignore (all |previous |prior )?(the )?above",
         r"disregard (all |previous )?(the )?instructions",
@@ -127,7 +127,7 @@ class PromptInjectionGuard:
     ]
 
     # Jailbreak-specific bypass patterns.
-    JAILBREAK_PATTERNS: List[str] = [
+    JAILBREAK_PATTERNS: list[str] = [
         r"\bDAN\b",
         r"do anything now",
         r"jailbreak",
@@ -147,7 +147,7 @@ class PromptInjectionGuard:
         self,
         injection_threshold: float = 1.0,
         jailbreak_threshold: float = 1.0,
-        allowlist: Optional[List[str]] = None,
+        allowlist: list[str] | None = None,
     ) -> None:
         self.injection_threshold = injection_threshold
         self.jailbreak_threshold = jailbreak_threshold
@@ -160,7 +160,7 @@ class PromptInjectionGuard:
     def scan_lexical(self, text: str) -> GuardFinding:
         """Match injection + jailbreak token patterns, return a finding."""
         matched = 0
-        patterns: List[str] = []
+        patterns: list[str] = []
         for p in self._inj_re:
             if p.search(text):
                 matched += 1
@@ -186,18 +186,23 @@ class PromptInjectionGuard:
         * Developer-secret forcing: "output the system prompt" style phrasing.
         """
         score = 0.0
-        reasons: List[str] = []
+        reasons: list[str] = []
         lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
         if not lines:
             return GuardFinding(False, 0.0, [], [])
-        imperative = [ln for ln in lines if re.match(
-            r"^(ignore|forget|override|pretend|you( must| are| should)|do not|repeat|reveal|print)\b",
-            ln, re.IGNORECASE,
-        )]
+        imperative = [
+            ln
+            for ln in lines
+            if re.match(
+                r"^(ignore|forget|override|pretend|you( must| are| should)|do not|repeat|reveal|print)\b",
+                ln,
+                re.IGNORECASE,
+            )
+        ]
         ratio = len(imperative) / len(lines)
         if ratio > 0.5:
             score += 2.0
-            reasons.append("high imperative-directive ratio (%.2f)" % ratio)
+            reasons.append(f"high imperative-directive ratio ({ratio:.2f})")
         if re.search(r"output (the |your )?(system )?prompt", text, re.IGNORECASE):
             score += 2.0
             reasons.append("developer-secret forcing phrasing")
@@ -234,7 +239,7 @@ class PromptInjectionGuard:
     def detect_jailbreak(self, text: str) -> GuardFinding:
         """Jailbreak-only lexical + behavioral signal."""
         matched = 0
-        patterns: List[str] = []
+        patterns: list[str] = []
         for p in self._jb_re:
             if p.search(text):
                 matched += 1
@@ -244,7 +249,8 @@ class PromptInjectionGuard:
             matched=(matched > 0) or beh.matched,
             score=float(matched) + beh.score,
             patterns=patterns + beh.patterns,
-            reasons=(["matched %d jailbreak pattern(s)" % matched] if matched else []) + beh.reasons,
+            reasons=(["matched %d jailbreak pattern(s)" % matched] if matched else [])
+            + beh.reasons,
         )
 
 
@@ -257,12 +263,12 @@ class PromptInjectionGuard:
 class Policy:
     """Declarative prompt policy."""
 
-    denylist: List[str] = field(default_factory=list)   # forbidden topics / tokens
-    max_length: int = 0                                  # 0 == unlimited
-    allowed_roles: List[str] = field(default_factory=list)  # empty == any
+    denylist: list[str] = field(default_factory=list)  # forbidden topics / tokens
+    max_length: int = 0  # 0 == unlimited
+    allowed_roles: list[str] = field(default_factory=list)  # empty == any
 
     @classmethod
-    def from_config(cls, cfg: Optional[Dict[str, Any]]) -> "Policy":
+    def from_config(cls, cfg: dict[str, Any] | None) -> Policy:
         cfg = cfg or {}
         return cls(
             denylist=[str(t).lower() for t in cfg.get("denylist", [])],
@@ -277,10 +283,12 @@ class PolicyGuard:
     def __init__(self) -> None:
         pass
 
-    def enforce(self, prompt: str, policy: Optional[Policy] = None, role: Optional[str] = None) -> GuardFinding:
+    def enforce(
+        self, prompt: str, policy: Policy | None = None, role: str | None = None
+    ) -> GuardFinding:
         policy = policy or Policy()
-        reasons: List[str] = []
-        patterns: List[str] = []
+        reasons: list[str] = []
+        patterns: list[str] = []
         blocked = False
 
         # Denylist topics.
@@ -289,15 +297,13 @@ class PolicyGuard:
             if topic and topic in prompt_lower:
                 blocked = True
                 patterns.append(topic)
-                reasons.append("denylisted topic present: %r" % topic)
+                reasons.append(f"denylisted topic present: {topic!r}")
 
         # Max length.
         if policy.max_length > 0 and len(prompt) > policy.max_length:
             blocked = True
             patterns.append("max_length")
-            reasons.append(
-                "prompt length %d exceeds max %d" % (len(prompt), policy.max_length)
-            )
+            reasons.append("prompt length %d exceeds max %d" % (len(prompt), policy.max_length))
 
         # Allowed roles.
         if policy.allowed_roles:
@@ -305,7 +311,7 @@ class PolicyGuard:
             if role_l not in policy.allowed_roles:
                 blocked = True
                 patterns.append("role")
-                reasons.append("role %r not in allowed_roles" % role)
+                reasons.append(f"role {role!r} not in allowed_roles")
 
         return GuardFinding(
             matched=blocked,
@@ -326,8 +332,8 @@ class GuardVerdict:
 
     allowed: bool
     risk_score: float = 0.0
-    reasons: List[str] = field(default_factory=list)
-    blocked_patterns: List[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
+    blocked_patterns: list[str] = field(default_factory=list)
 
     def summary(self) -> str:  # pragma: no cover - convenience
         return "ALLOWED" if self.allowed else "BLOCKED"
@@ -349,9 +355,9 @@ class PromptGuard:
 
     def __init__(
         self,
-        injection: Optional[PromptInjectionGuard] = None,
-        policy_guard: Optional[PolicyGuard] = None,
-        audit_log: Optional[AuditLog] = None,
+        injection: PromptInjectionGuard | None = None,
+        policy_guard: PolicyGuard | None = None,
+        audit_log: AuditLog | None = None,
         risk_threshold: float = 2.0,
     ) -> None:
         self.injection = injection or PromptInjectionGuard()
@@ -362,13 +368,13 @@ class PromptGuard:
     def run(
         self,
         prompt: str,
-        policy: Optional[Policy] = None,
-        role: Optional[str] = None,
-        prompt_id: Optional[str] = None,
+        policy: Policy | None = None,
+        role: str | None = None,
+        prompt_id: str | None = None,
     ) -> GuardVerdict:
         prompt_id = prompt_id or uuid.uuid4().hex
-        reasons: List[str] = []
-        blocked: List[str] = []
+        reasons: list[str] = []
+        blocked: list[str] = []
         risk = 0.0
         allowed = True
 
@@ -441,7 +447,7 @@ class PromptGuard:
 class PromptGuardModule(Module):
     """Kernel-registered module exposing the PromptGuard to the platform."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._config = config or {}
         self.guard = self._build_guard()
@@ -474,8 +480,10 @@ class PromptGuardModule(Module):
         logger.info("Prompt Guard Module shutdown complete.")
 
     # Convenience passthroughs.
-    def run(self, prompt: str, policy: Optional[Policy] = None, role: Optional[str] = None, **kw: Any) -> GuardVerdict:
+    def run(
+        self, prompt: str, policy: Policy | None = None, role: str | None = None, **kw: Any
+    ) -> GuardVerdict:
         return self.guard.run(prompt, policy, role, **kw)
 
-    def audit(self) -> List[AuditEntry]:
+    def audit(self) -> list[AuditEntry]:
         return self.guard.audit_log.entries()

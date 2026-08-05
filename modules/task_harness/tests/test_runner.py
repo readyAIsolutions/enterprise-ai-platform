@@ -28,6 +28,8 @@ _PROJECT_ROOT: Path = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from typing import Never
+
 from enterprise.modules.task_harness import (  # noqa: E402
     Deadline,
     ErrorClass,
@@ -39,7 +41,6 @@ from enterprise.modules.task_harness import (  # noqa: E402
     RunningStatus,
     TaskHarness,
     WorkerRunner,
-    build_runner,
 )
 from enterprise.modules.task_harness.task_harness import TaskStatus  # noqa: E402
 
@@ -107,11 +108,7 @@ def _runner(
     sleeper = sleeper or RecordingSleep()
     retry_policy = retry_policy or RetryPolicy()
     deadline = Deadline(max_runtime, clock) if max_runtime is not None else None
-    heartbeat = (
-        Heartbeat(heartbeat_timeout, clock)
-        if heartbeat_timeout is not None
-        else None
-    )
+    heartbeat = Heartbeat(heartbeat_timeout, clock) if heartbeat_timeout is not None else None
     return WorkerRunner(
         harness,
         executor=executor,
@@ -131,9 +128,9 @@ class TestPolicyAndClassifier:
     def test_retry_policy_exponential_backoff(self) -> None:
         policy = RetryPolicy(max_attempts=4, backoff=1.0)
         assert policy.max_attempts == 4
-        assert policy.delay(1) == 1.0     # 2^0
-        assert policy.delay(2) == 2.0     # 2^1
-        assert policy.delay(3) == 4.0     # 2^2
+        assert policy.delay(1) == 1.0  # 2^0
+        assert policy.delay(2) == 2.0  # 2^1
+        assert policy.delay(3) == 4.0  # 2^2
         assert policy.exhausted(4) is True
         assert policy.exhausted(3) is False
 
@@ -162,9 +159,7 @@ class TestPolicyAndClassifier:
         assert cls.is_permanent(RuntimeError("? ")) is True
 
     def test_error_classifier_custom_sets(self) -> None:
-        cls = ErrorClassifier(
-            retryable=[RuntimeError], permanent=[ValueError]
-        )
+        cls = ErrorClassifier(retryable=[RuntimeError], permanent=[ValueError])
         assert cls.classify(RuntimeError()) is ErrorClass.RETRYABLE
         assert cls.classify(ValueError()) is ErrorClass.PERMANENT
 
@@ -180,11 +175,11 @@ class TestPolicyAndClassifier:
 
     def test_heartbeat_watchdog_marks_stalled(self, clock: FakeClock) -> None:
         hb = Heartbeat(timeout=5.0, clock=clock)
-        hb.start("a", clock())            # b and a both start at 1000
-        hb.beat("b", clock())             # name b started (not refreshed later)
+        hb.start("a", clock())  # b and a both start at 1000
+        hb.beat("b", clock())  # name b started (not refreshed later)
         clock.advance(5.0)
-        hb.beat("a")                      # a refreshed at 1005 (alive)
-        clock.advance(4.0)                # -> 1009
+        hb.beat("a")  # a refreshed at 1005 (alive)
+        clock.advance(4.0)  # -> 1009
         # a: 1009-1005=4 < 5 -> alive ; b: 1009-1000=9 > 5 -> stalled
         assert hb.is_stalled("a") is False
         assert hb.is_stalled("b") is True
@@ -200,10 +195,11 @@ class TestRunnerRetry:
     ) -> None:
         calls: list[int] = []
 
-        def flaky(card):
+        def flaky(card) -> str:
             calls.append(card.id)
             if len(calls) < 3:
-                raise ConnectionError("transient")
+                msg = "transient"
+                raise ConnectionError(msg)
             return "ok"
 
         task = harness.create_card("flaky-task")
@@ -226,9 +222,10 @@ class TestRunnerRetry:
         calls: list[int] = []
         policy = RetryPolicy(max_attempts=4, backoff=1.0)
 
-        def always_flaky(card):
+        def always_flaky(card) -> Never:
             calls.append(card.id)
-            raise ConnectionError("down")
+            msg = "down"
+            raise ConnectionError(msg)
 
         task = harness.create_card("down")
         runner = _runner(
@@ -252,17 +249,18 @@ class TestRunnerRetry:
     ) -> None:
         calls: list[int] = []
 
-        def bad_logic(card):
+        def bad_logic(card) -> Never:
             calls.append(card.id)
-            raise ValueError("bad input")
+            msg = "bad input"
+            raise ValueError(msg)
 
         task = harness.create_card("logic")
         runner = _runner(harness, executor=bad_logic, sleeper=sleeper)
         outcome = runner.run_once()
 
         assert outcome is RunningStatus.RUNNING_PERMANENT
-        assert len(calls) == 1                       # never retried
-        assert sleeper.delays == []                  # no backoff
+        assert len(calls) == 1  # never retried
+        assert sleeper.delays == []  # no backoff
         assert harness.get(task.id).status is TaskStatus.FAILED
         assert runner.stats.failed == 1
         assert runner.stats.retried == 0
@@ -274,7 +272,7 @@ class TestRunnerDeadline:
     ) -> None:
         calls: list[int] = []
 
-        def slow(card):
+        def slow(card) -> str:
             calls.append(card.id)
             return "not done"
 
@@ -305,7 +303,7 @@ class TestRunnerHeartbeat:
     ) -> None:
         calls: list[int] = []
 
-        def work(card):
+        def work(card) -> str:
             calls.append(card.id)
             return "done"
 
@@ -325,17 +323,15 @@ class TestRunnerHeartbeat:
 
         # The watchdog marks the stalled attempt retriable and retries once;
         # the retry finishes successfully with a fresh heartbeat.
-        assert len(calls) == 1                        # work done only on retry
+        assert len(calls) == 1  # work done only on retry
         assert runner.stats.retried == 1
-        assert runner.stats.stalled == 0              # watchdog not invoked
+        assert runner.stats.stalled == 0  # watchdog not invoked
         assert runner.stats.completed == 1
         assert task.id in runner.retriable or outcome is RunningStatus.RUNNING
         assert harness.get(task.id).status is TaskStatus.COMPLETED
         assert outcome is RunningStatus.RUNNING
 
-    def test_watchdog_marks_retriable_set(
-        self, harness: TaskHarness, clock: FakeClock
-    ) -> None:
+    def test_watchdog_marks_retriable_set(self, harness: TaskHarness, clock: FakeClock) -> None:
         task = harness.create_card("watch")
         runner = _runner(
             harness,
@@ -343,7 +339,7 @@ class TestRunnerHeartbeat:
             clock=clock,
             heartbeat_timeout=5.0,
         )
-        runner.claim()                 # starts + begins heartbeat
+        runner.claim()  # starts + begins heartbeat
         assert runner.heartbeat is not None
         clock.advance(6.0)
         stalled = runner.watchdog()
@@ -354,9 +350,7 @@ class TestRunnerHeartbeat:
 
 
 class TestRunnerOrdering:
-    def test_claims_by_priority_desc(
-        self, harness: TaskHarness, clock: FakeClock
-    ) -> None:
+    def test_claims_by_priority_desc(self, harness: TaskHarness, clock: FakeClock) -> None:
         low = harness.create_card("low", priority=1)
         high = harness.create_card("high", priority=10)
         mid = harness.create_card("mid", priority=5)
@@ -369,9 +363,7 @@ class TestRunnerOrdering:
         third = runner.claim()
         assert third.id == low.id
 
-    def test_respects_dependencies_ordering(
-        self, harness: TaskHarness, clock: FakeClock
-    ) -> None:
+    def test_respects_dependencies_ordering(self, harness: TaskHarness, clock: FakeClock) -> None:
         dep = harness.create_card("dep")
         child = harness.create_card("child", depends_on=[dep.id])
 
@@ -386,9 +378,7 @@ class TestRunnerOrdering:
 
 
 class TestRunnerLifecycle:
-    def test_run_drains_all_and_reports_stats(
-        self, harness: TaskHarness, clock: FakeClock
-    ) -> None:
+    def test_run_drains_all_and_reports_stats(self, harness: TaskHarness, clock: FakeClock) -> None:
         for i in range(3):
             harness.create_card(f"task-{i}", priority=i)
         runner = _runner(harness, executor=lambda c: f"done-{c.id}", clock=clock)
@@ -399,13 +389,10 @@ class TestRunnerLifecycle:
         assert stats.total_runs == 3
         assert runner.harness.next_runnable() == []
         assert all(
-            runner.harness.get(t.id).status is TaskStatus.COMPLETED
-            for t in runner.harness.list()
+            runner.harness.get(t.id).status is TaskStatus.COMPLETED for t in runner.harness.list()
         )
 
-    def test_run_once_returns_none_when_idle(
-        self, harness: TaskHarness, clock: FakeClock
-    ) -> None:
+    def test_run_once_returns_none_when_idle(self, harness: TaskHarness, clock: FakeClock) -> None:
         runner = _runner(harness, executor=lambda c: "ok", clock=clock)
         assert runner.run_once() is None
         assert runner.stats.claimed == 0
@@ -416,10 +403,11 @@ class TestRunnerLifecycle:
         # One transient task that succeeds on the 2nd attempt, one permanent.
         transient_calls: list[int] = []
 
-        def transient(card):
+        def transient(card) -> str:
             transient_calls.append(card.id)
             if len(transient_calls) < 2:
-                raise TimeoutError("retry me")
+                msg = "retry me"
+                raise TimeoutError(msg)
             return "ok"
 
         t_ok = harness.create_card("transient")
@@ -429,7 +417,8 @@ class TestRunnerLifecycle:
         def dispatch(card):
             seen.add(card.id)
             if card.id == t_bad.id:
-                raise PermanentError("nope")
+                msg = "nope"
+                raise PermanentError(msg)
             return transient(card)
 
         runner = _runner(

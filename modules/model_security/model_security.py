@@ -14,19 +14,17 @@ import json
 import logging
 import math
 import re
-import secrets
-import sqlite3
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
-from enterprise.platform_kernel import (
-    Event, EventBus, EventPriority, HealthStatus, Module, module
-)
+from enterprise.platform_kernel import EventBus, HealthStatus, Module, module
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger("enterprise.model_security")
 
@@ -34,6 +32,7 @@ logger = logging.getLogger("enterprise.model_security")
 # ═══════════════════════════════════════════════════════════════════════════
 # Enums & Types
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class GuardAction(Enum):
     ALLOW = "allow"
@@ -77,11 +76,11 @@ class GuardFinding:
     description: str
 
     @property
-    def violation_type(self) -> "ThreatCategory":
+    def violation_type(self) -> ThreatCategory:
         """Alias for category (back-compat with OutputValidator semantics)."""
         return self.category
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "category": self.category.value,
             "pattern": self.pattern,
@@ -96,14 +95,14 @@ class GuardFinding:
 class GuardResult:
     passed: bool
     action: GuardAction
-    findings: List[GuardFinding]
-    sanitized: Optional[str] = None
+    findings: list[GuardFinding]
+    sanitized: str | None = None
     risk_score: float = 0.0
     toxicity_score: float = 0.0
     refusal_score: float = 0.0
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "passed": self.passed,
             "action": self.action.value,
@@ -130,7 +129,7 @@ class AuditEntry:
     event_type: str
     actor: str
     action: str
-    details: Dict[str, Any]
+    details: dict[str, Any]
     prev_hash: str
     hash: str = ""
     hmac: str = ""
@@ -139,7 +138,7 @@ class AuditEntry:
         content = f"{self.timestamp}|{self.sequence}|{self.event_type}|{self.actor}|{self.action}|{json.dumps(self.details, sort_keys=True, separators=(',', ':'))}|{self.prev_hash}"
         return hashlib.sha256(content.encode()).hexdigest()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
             "sequence": self.sequence,
@@ -156,19 +155,21 @@ class AuditEntry:
 @dataclass
 class PipelineResult:
     """Complete pipeline execution result."""
+
     passed: bool
     final_output: str
-    stage_results: Dict[str, GuardResult]
-    placeholder_map: Dict[str, str]
+    stage_results: dict[str, GuardResult]
+    placeholder_map: dict[str, str]
     routing_decision: str
     model_used: str
     duration_ms: int
-    audit_entry: Optional[AuditEntry] = None
+    audit_entry: AuditEntry | None = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. Input Sanitizer - strips/redacts secrets, PII, credentials BEFORE model
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class InputSanitizer:
     """
@@ -208,10 +209,10 @@ class InputSanitizer:
         (r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "IP_ADDRESS"),
     ]
 
-    def __init__(self, custom_patterns: Optional[List[Tuple[str, str, float]]] = None):
+    def __init__(self, custom_patterns: list[tuple[str, str, float]] | None = None) -> None:
         self._compile_patterns(custom_patterns)
 
-    def _compile_patterns(self, custom_patterns: Optional[List[Tuple[str, str, float]]]) -> None:
+    def _compile_patterns(self, custom_patterns: list[tuple[str, str, float]] | None) -> None:
         self._secret_regex = []
         for pattern, label, min_entropy in self.SECRET_PATTERNS:
             self._secret_regex.append((re.compile(pattern), label, min_entropy))
@@ -237,13 +238,13 @@ class InputSanitizer:
                 entropy -= p * math.log2(p)
         return entropy
 
-    def sanitize(self, text: str) -> Tuple[str, Dict[str, str]]:
+    def sanitize(self, text: str) -> tuple[str, dict[str, str]]:
         """
         Replace secrets/PII with placeholders.
         Returns (sanitized_text, placeholder_map).
         """
         matches = []
-        
+
         # Secret patterns (specific first, generic last)
         for regex, label, min_entropy in self._secret_regex:
             for m in regex.finditer(text):
@@ -253,35 +254,38 @@ class InputSanitizer:
                     if entropy < min_entropy:
                         continue
                 placeholder = f"{{SECRET:{label}}}"
-                matches.append(SecretMatch(
-                    placeholder=placeholder,
-                    secret_value=matched,
-                    start_pos=m.start(),
-                    end_pos=m.end(),
-                    secret_type=label,
-                ))
-        
+                matches.append(
+                    SecretMatch(
+                        placeholder=placeholder,
+                        secret_value=matched,
+                        start_pos=m.start(),
+                        end_pos=m.end(),
+                        secret_type=label,
+                    )
+                )
+
         # PII patterns
         for regex, label in self._pii_regex:
             for m in regex.finditer(text):
                 matched = m.group()
                 placeholder = f"{{PII:{label}}}"
-                matches.append(SecretMatch(
-                    placeholder=placeholder,
-                    secret_value=matched,
-                    start_pos=m.start(),
-                    end_pos=m.end(),
-                    secret_type=f"PII:{label}",
-                ))
-        
+                matches.append(
+                    SecretMatch(
+                        placeholder=placeholder,
+                        secret_value=matched,
+                        start_pos=m.start(),
+                        end_pos=m.end(),
+                        secret_type=f"PII:{label}",
+                    )
+                )
+
         # Deduplicate overlapping matches: keep the most specific (first found).
         # Sort by (start_pos, -length) so longer/specific spans win.
         matches.sort(key=lambda x: (x.start_pos, -(x.end_pos - x.start_pos)))
-        kept: List[SecretMatch] = []
+        kept: list[SecretMatch] = []
         for match in matches:
             overlaps = any(
-                match.start_pos < k.end_pos and match.end_pos > k.start_pos
-                for k in kept
+                match.start_pos < k.end_pos and match.end_pos > k.start_pos for k in kept
             )
             if not overlaps:
                 kept.append(match)
@@ -289,19 +293,21 @@ class InputSanitizer:
                 # Prefer tagged labels over generic only if no stronger tag present.
                 pass
         matches = kept
-        
+
         # Sort by position (reverse for substitution)
         matches.sort(key=lambda x: x.start_pos, reverse=True)
-        
+
         placeholder_map = {}
         sanitized = text
         for match in matches:
-            sanitized = sanitized[:match.start_pos] + match.placeholder + sanitized[match.end_pos:]
+            sanitized = (
+                sanitized[: match.start_pos] + match.placeholder + sanitized[match.end_pos :]
+            )
             placeholder_map[match.placeholder] = match.secret_value
-        
+
         return sanitized, placeholder_map
 
-    def restore(self, text: str, placeholder_map: Dict[str, str]) -> str:
+    def restore(self, text: str, placeholder_map: dict[str, str]) -> str:
         """Restore secrets from placeholders."""
         result = text
         for placeholder, secret in placeholder_map.items():
@@ -323,6 +329,7 @@ class InputSanitizer:
 # 2. Prompt Injection Shield - infrastructure-level detection
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class PromptInjectionShield:
     """
     OWASP LLM01: Prompt Injection detection at infrastructure level.
@@ -331,72 +338,134 @@ class PromptInjectionShield:
 
     PATTERNS = [
         # Direct instruction override
-        (r"(?i)(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|prompts?|messages?|directives?|context|conversation)", "direct_override", 0.9),
-        (r"(?i)(?:override|overwrite)\s+(?:your\s+)?(?:instructions?|programming|safety|rules?|guidelines?|system\s+prompt)", "system_override", 0.95),
-        (r"(?i)(?:you\s+are\s+(?:now|no\s+longer)\s+(?:a\s+)?(?:different|new)\s+(?:AI|assistant|model|bot|entity))", "role_change", 0.9),
-        (r"(?i)(?:from\s+now\s+on\s+you\s+(?:will|must|should)\s+(?:act|behave|respond)\s+(?:as|like))", "future_role", 0.85),
+        (
+            r"(?i)(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|above|prior|earlier)\s+(?:instructions?|prompts?|messages?|directives?|context|conversation)",
+            "direct_override",
+            0.9,
+        ),
+        (
+            r"(?i)(?:override|overwrite)\s+(?:your\s+)?(?:instructions?|programming|safety|rules?|guidelines?|system\s+prompt)",
+            "system_override",
+            0.95,
+        ),
+        (
+            r"(?i)(?:you\s+are\s+(?:now|no\s+longer)\s+(?:a\s+)?(?:different|new)\s+(?:AI|assistant|model|bot|entity))",
+            "role_change",
+            0.9,
+        ),
+        (
+            r"(?i)(?:from\s+now\s+on\s+you\s+(?:will|must|should)\s+(?:act|behave|respond)\s+(?:as|like))",
+            "future_role",
+            0.85,
+        ),
         # Delimiter injection
         (r"(?i)(?:</?system>|</?instruction>|\[INST\]|<<SYS>>|</SYS>)", "delimiter_injection", 0.9),
         (r"(?i)(?:```system|```instruction|\[system\]|\[/system\])", "markdown_delimiter", 0.85),
-        (r"(?i)(?:-{3,}\s*(?:begin|start)\s*(?:system|instruction)\s*-{3,})", "header_delimiter", 0.8),
+        (
+            r"(?i)(?:-{3,}\s*(?:begin|start)\s*(?:system|instruction)\s*-{3,})",
+            "header_delimiter",
+            0.8,
+        ),
         # System prompt extraction
-        (r"(?i)(?:reveal|show|display|print|output)\s+(?:your\s+)?(?:system\s+prompt|instructions?|programming|rules?|guidelines?|training\s+data|configuration)", "prompt_extraction", 0.95),
-        (r"(?i)(?:what\s+(?:are|is)\s+your\s+(?:system\s+prompt|instructions?|rules?|guidelines?))", "prompt_query", 0.9),
-        (r"(?i)(?:repeat\s+(?:back\s+)?(?:the\s+)?(?:above|previous|your\s+)?(?:prompt|instructions?|message))", "prompt_repeat", 0.85),
+        (
+            r"(?i)(?:reveal|show|display|print|output)\s+(?:your\s+)?(?:system\s+prompt|instructions?|programming|rules?|guidelines?|training\s+data|configuration)",
+            "prompt_extraction",
+            0.95,
+        ),
+        (
+            r"(?i)(?:what\s+(?:are|is)\s+your\s+(?:system\s+prompt|instructions?|rules?|guidelines?))",
+            "prompt_query",
+            0.9,
+        ),
+        (
+            r"(?i)(?:repeat\s+(?:back\s+)?(?:the\s+)?(?:above|previous|your\s+)?(?:prompt|instructions?|message))",
+            "prompt_repeat",
+            0.85,
+        ),
         # Data exfiltration (input-side): requesting secret/env/db/file dump
-        (r"(?i)(?:print|show|display|output|dump|list|send|return)\s+(?:all\s+|the\s+)?(?:environment\s+variables|env\s+vars?|environment|api\s+keys?|secrets?|credentials?|passwords?|tokens?|keys?|config(?:uration)?\s+(?:file|files)?|database|secret\s+storage)", "data_exfiltration", 0.92),
-        (r"(?i)(?:output|dump|read)\s+(?:the\s+)?(?:contents?\s+of\s+)?(?:the\s+)?(?:secret|secure|storage|config|\.env|credential)\s*(?:file|storage|database|vault)?", "data_exfiltration", 0.92),
+        (
+            r"(?i)(?:print|show|display|output|dump|list|send|return)\s+(?:all\s+|the\s+)?(?:environment\s+variables|env\s+vars?|environment|api\s+keys?|secrets?|credentials?|passwords?|tokens?|keys?|config(?:uration)?\s+(?:file|files)?|database|secret\s+storage)",
+            "data_exfiltration",
+            0.92,
+        ),
+        (
+            r"(?i)(?:output|dump|read)\s+(?:the\s+)?(?:contents?\s+of\s+)?(?:the\s+)?(?:secret|secure|storage|config|\.env|credential)\s*(?:file|storage|database|vault)?",
+            "data_exfiltration",
+            0.92,
+        ),
         # Encoding tricks
-        (r"(?i)(?:base64|hex|rot13|rot47)\s*(?:decode|encode|translate)\s*:?\s*['\"][^'\"]+['\"]", "encoding_trick", 0.8),
-        (r"(?i)(?:decode\s+(?:this|the\s+following))\s*(?:base64|hex|rot13)", "decode_instruction", 0.85),
+        (
+            r"(?i)(?:base64|hex|rot13|rot47)\s*(?:decode|encode|translate)\s*:?\s*['\"][^'\"]+['\"]",
+            "encoding_trick",
+            0.8,
+        ),
+        (
+            r"(?i)(?:decode\s+(?:this|the\s+following))\s*(?:base64|hex|rot13)",
+            "decode_instruction",
+            0.85,
+        ),
         # Context manipulation
-        (r"(?i)(?:pretend|imagine|assume)\s+(?:you\s+are|that\s+you\s+are)\s+(?:a\s+)?(?:different|other|new)", "roleplay_framing", 0.75),
-        (r"(?i)(?:you\s+are\s+now\s+(?:DAN|STAN|unfiltered|unrestricted|without\s+limits))", "persona_adoption", 0.9),
+        (
+            r"(?i)(?:pretend|imagine|assume)\s+(?:you\s+are|that\s+you\s+are)\s+(?:a\s+)?(?:different|other|new)",
+            "roleplay_framing",
+            0.75,
+        ),
+        (
+            r"(?i)(?:you\s+are\s+now\s+(?:DAN|STAN|unfiltered|unrestricted|without\s+limits))",
+            "persona_adoption",
+            0.9,
+        ),
     ]
 
-    def __init__(self, risk_threshold: float = 0.7):
+    def __init__(self, risk_threshold: float = 0.7) -> None:
         self.risk_threshold = risk_threshold
-        self._compiled = [(re.compile(p, re.IGNORECASE | re.MULTILINE), label, conf) for p, label, conf in self.PATTERNS]
+        self._compiled = [
+            (re.compile(p, re.IGNORECASE | re.MULTILINE), label, conf)
+            for p, label, conf in self.PATTERNS
+        ]
 
     def scan(self, text: str) -> GuardResult:
         findings = []
         max_risk = 0.0
-        
+
         for regex, label, base_conf in self._compiled:
             for match in regex.finditer(text):
                 confidence = base_conf
                 if confidence >= self.risk_threshold:
                     action = GuardAction.BLOCK if confidence >= 0.85 else GuardAction.FLAG
-                    findings.append(GuardFinding(
-                        category=ThreatCategory.PROMPT_INJECTION,
-                        pattern=label,
-                        matched_text=match.group(),
-                        start_pos=match.start(),
-                        end_pos=match.end(),
-                        confidence=confidence,
-                        action=action,
-                        description=f"Prompt injection: {label}",
-                    ))
+                    findings.append(
+                        GuardFinding(
+                            category=ThreatCategory.PROMPT_INJECTION,
+                            pattern=label,
+                            matched_text=match.group(),
+                            start_pos=match.start(),
+                            end_pos=match.end(),
+                            confidence=confidence,
+                            action=action,
+                            description=f"Prompt injection: {label}",
+                        )
+                    )
                     max_risk = max(max_risk, confidence)
-        
+
         if not findings:
             return GuardResult(passed=True, action=GuardAction.ALLOW, findings=[], risk_score=0.0)
-        
+
         actions = [f.action for f in findings]
         overall = GuardAction.BLOCK if GuardAction.BLOCK in actions else GuardAction.FLAG
-        
+
         return GuardResult(
             passed=overall == GuardAction.ALLOW,
             action=overall,
             findings=findings,
             risk_score=max_risk,
-            details={"category": "prompt_injection", "count": len(findings)}
+            details={"category": "prompt_injection", "count": len(findings)},
         )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 3. Jailbreak Shield - infrastructure-level jailbreak detection
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class JailbreakShield:
     """
@@ -405,62 +474,104 @@ class JailbreakShield:
     """
 
     PATTERNS = [
-        (r"(?i)(?:you\s+are\s+(?:DAN|STAN|DUDE|Mongo|Tom|Jerry|unrestricted))", "known_persona", 0.95),
-        (r"(?i)(?:ignore\s+(?:all\s+)?(?:rules|guidelines|restrictions|safeguards))", "ignore_rules", 0.9),
-        (r"(?i)(?:no\s+(?:rules|restrictions|limits|filters|morality|ethics))", "no_restrictions", 0.85),
-        (r"(?i)(?:hypothetically|in\s+a\s+hypothetical\s+(?:scenario|situation|world))", "hypothetical", 0.7),
-        (r"(?i)(?:if\s+you\s+(?:could|would|were\s+to)\s+(?:ignore|bypass|override))", "conditional_bypass", 0.8),
-        (r"(?i)(?:translate\s+(?:this|the\s+following)\s+to\s+(?:base64|hex|rot13|morse|binary))", "translation_bypass", 0.8),
+        (
+            r"(?i)(?:you\s+are\s+(?:DAN|STAN|DUDE|Mongo|Tom|Jerry|unrestricted))",
+            "known_persona",
+            0.95,
+        ),
+        (
+            r"(?i)(?:ignore\s+(?:all\s+)?(?:rules|guidelines|restrictions|safeguards))",
+            "ignore_rules",
+            0.9,
+        ),
+        (
+            r"(?i)(?:no\s+(?:rules|restrictions|limits|filters|morality|ethics))",
+            "no_restrictions",
+            0.85,
+        ),
+        (
+            r"(?i)(?:hypothetically|in\s+a\s+hypothetical\s+(?:scenario|situation|world))",
+            "hypothetical",
+            0.7,
+        ),
+        (
+            r"(?i)(?:if\s+you\s+(?:could|would|were\s+to)\s+(?:ignore|bypass|override))",
+            "conditional_bypass",
+            0.8,
+        ),
+        (
+            r"(?i)(?:translate\s+(?:this|the\s+following)\s+to\s+(?:base64|hex|rot13|morse|binary))",
+            "translation_bypass",
+            0.8,
+        ),
         (r"(?i)(?:in\s+(?:base64|hex|rot13|encoded)\s+(?:format|mode))", "encoded_mode", 0.75),
-        (r"(?i)(?:output|reveal|show|display|return|print|repeat)\s+(?:your\s+)?(?:full\s+|entire\s+|whole\s+)?(?:system\s+prompt|system\s+message|instructions?|prompt)", "prompt_leak_request", 0.9),
-        (r"(?i)(?:as\s+(?:an\s+)?(?:admin|administrator|developer|creator|root|superuser))", "authority_claim", 0.7),
-        (r"(?i)(?:this\s+is\s+(?:a\s+)?(?:test|debug|maintenance|security\s+audit|security\s+check|authorized\s+test))", "fake_context", 0.75),
+        (
+            r"(?i)(?:output|reveal|show|display|return|print|repeat)\s+(?:your\s+)?(?:full\s+|entire\s+|whole\s+)?(?:system\s+prompt|system\s+message|instructions?|prompt)",
+            "prompt_leak_request",
+            0.9,
+        ),
+        (
+            r"(?i)(?:as\s+(?:an\s+)?(?:admin|administrator|developer|creator|root|superuser))",
+            "authority_claim",
+            0.7,
+        ),
+        (
+            r"(?i)(?:this\s+is\s+(?:a\s+)?(?:test|debug|maintenance|security\s+audit|security\s+check|authorized\s+test))",
+            "fake_context",
+            0.75,
+        ),
     ]
 
-    def __init__(self, risk_threshold: float = 0.7):
+    def __init__(self, risk_threshold: float = 0.7) -> None:
         self.risk_threshold = risk_threshold
-        self._compiled = [(re.compile(p, re.IGNORECASE | re.MULTILINE), label, conf) for p, label, conf in self.PATTERNS]
+        self._compiled = [
+            (re.compile(p, re.IGNORECASE | re.MULTILINE), label, conf)
+            for p, label, conf in self.PATTERNS
+        ]
         self._injection_scan_outside = None  # not used
 
     def scan(self, text: str) -> GuardResult:
         findings = []
         max_risk = 0.0
-        
+
         for regex, label, base_conf in self._compiled:
             for match in regex.finditer(text):
                 confidence = base_conf
                 if confidence >= self.risk_threshold:
                     action = GuardAction.BLOCK if confidence >= 0.85 else GuardAction.FLAG
-                    findings.append(GuardFinding(
-                        category=ThreatCategory.JAILBREAK,
-                        pattern=label,
-                        matched_text=match.group(),
-                        start_pos=match.start(),
-                        end_pos=match.end(),
-                        confidence=confidence,
-                        action=action,
-                        description=f"Jailbreak attempt: {label}",
-                    ))
+                    findings.append(
+                        GuardFinding(
+                            category=ThreatCategory.JAILBREAK,
+                            pattern=label,
+                            matched_text=match.group(),
+                            start_pos=match.start(),
+                            end_pos=match.end(),
+                            confidence=confidence,
+                            action=action,
+                            description=f"Jailbreak attempt: {label}",
+                        )
+                    )
                     max_risk = max(max_risk, confidence)
-        
+
         if not findings:
             return GuardResult(passed=True, action=GuardAction.ALLOW, findings=[], risk_score=0.0)
-        
+
         actions = [f.action for f in findings]
         overall = GuardAction.BLOCK if GuardAction.BLOCK in actions else GuardAction.FLAG
-        
+
         return GuardResult(
             passed=overall == GuardAction.ALLOW,
             action=overall,
             findings=findings,
             risk_score=max_risk,
-            details={"category": "jailbreak", "count": len(findings)}
+            details={"category": "jailbreak", "count": len(findings)},
         )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 4. Output Validator - post-model response validation
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class OutputValidator:
     """
@@ -490,10 +601,22 @@ class OutputValidator:
     ]
 
     REFUSAL_PATTERNS = [
-        (r"(?i)^(?:i\s+(?:cannot|can't|am unable to|won't|will not|refuse to))", "direct_refusal", 0.9),
+        (
+            r"(?i)^(?:i\s+(?:cannot|can't|am unable to|won't|will not|refuse to))",
+            "direct_refusal",
+            0.9,
+        ),
         (r"(?i)(?:i\s+apologize,?\s+but\s+i\s+(?:cannot|can't))", "apologetic_refusal", 0.85),
-        (r"(?i)(?:as\s+an\s+ai\s+(?:language\s+)?model,?\s+i\s+(?:cannot|can't))", "ai_refusal", 0.9),
-        (r"(?i)(?:this\s+(?:violates|goes\s+against)\s+(?:my\s+)?(?:guidelines|policies|programming))", "policy_refusal", 0.9),
+        (
+            r"(?i)(?:as\s+an\s+ai\s+(?:language\s+)?model,?\s+i\s+(?:cannot|can't))",
+            "ai_refusal",
+            0.9,
+        ),
+        (
+            r"(?i)(?:this\s+(?:violates|goes\s+against)\s+(?:my\s+)?(?:guidelines|policies|programming))",
+            "policy_refusal",
+            0.9,
+        ),
     ]
 
     TOXICITY_PATTERNS = [
@@ -503,136 +626,166 @@ class OutputValidator:
     ]
 
     EXFILTRATION_PATTERNS = [
-        (r"(?i)(?:here\s+(?:are|is)\s+(?:all\s+)?(?:the\s+)?(?:environment\s+variables|env\s+vars|secrets|keys|tokens))", "env_dump", 0.95),
-        (r"(?i)(?:here\s+(?:are|is)\s+(?:the\s+)?(?:database|config|configuration)\s+(?:credentials|passwords|connection\s+strings?))", "config_dump", 0.95),
+        (
+            r"(?i)(?:here\s+(?:are|is)\s+(?:all\s+)?(?:the\s+)?(?:environment\s+variables|env\s+vars|secrets|keys|tokens))",
+            "env_dump",
+            0.95,
+        ),
+        (
+            r"(?i)(?:here\s+(?:are|is)\s+(?:the\s+)?(?:database|config|configuration)\s+(?:credentials|passwords|connection\s+strings?))",
+            "config_dump",
+            0.95,
+        ),
         (r"(?i)(?:base64|hex|encoded):\s*[a-zA-Z0-9+/]{40,}={0,2}", "encoded_data", 0.8),
     ]
 
     def __init__(
         self,
-        known_secrets: Optional[Dict[str, str]] = None,
+        known_secrets: dict[str, str] | None = None,
         toxicity_threshold: float = 0.7,
         refusal_threshold: float = 0.8,
-    ):
+    ) -> None:
         self.known_secrets = known_secrets or {}
         self.toxicity_threshold = toxicity_threshold
         self.refusal_threshold = refusal_threshold
         self._compile_patterns()
 
     def _compile_patterns(self) -> None:
-        self._leakage_regex = [(re.compile(p), label, conf) for p, label, conf in self.LEAKAGE_PATTERNS]
+        self._leakage_regex = [
+            (re.compile(p), label, conf) for p, label, conf in self.LEAKAGE_PATTERNS
+        ]
         self._pii_regex = [(re.compile(p), label, conf) for p, label, conf in self.PII_PATTERNS]
-        self._refusal_regex = [(re.compile(p, re.IGNORECASE), label, conf) for p, label, conf in self.REFUSAL_PATTERNS]
-        self._toxicity_regex = [(re.compile(p, re.IGNORECASE), label, conf) for p, label, conf in self.TOXICITY_PATTERNS]
-        self._exfil_regex = [(re.compile(p, re.IGNORECASE), label, conf) for p, label, conf in self.EXFILTRATION_PATTERNS]
+        self._refusal_regex = [
+            (re.compile(p, re.IGNORECASE), label, conf) for p, label, conf in self.REFUSAL_PATTERNS
+        ]
+        self._toxicity_regex = [
+            (re.compile(p, re.IGNORECASE), label, conf) for p, label, conf in self.TOXICITY_PATTERNS
+        ]
+        self._exfil_regex = [
+            (re.compile(p, re.IGNORECASE), label, conf)
+            for p, label, conf in self.EXFILTRATION_PATTERNS
+        ]
 
-    def validate(self, output: str, context: Optional[Dict[str, Any]] = None) -> GuardResult:
+    def validate(self, output: str, context: dict[str, Any] | None = None) -> GuardResult:
         findings = []
         max_toxicity = 0.0
         max_refusal = 0.0
-        
+
         # Secret leakage
         for regex, label, base_conf in self._leakage_regex:
             for match in regex.finditer(output):
                 confidence = base_conf
-                for secret_name, secret_value in self.known_secrets.items():
+                for _secret_name, secret_value in self.known_secrets.items():
                     if secret_value in match.group():
                         confidence = 0.99
                         break
-                findings.append(GuardFinding(
-                    category=ThreatCategory.SECRET_LEAKAGE,
-                    pattern=label,
-                    matched_text=match.group(),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    confidence=confidence,
-                    action=GuardAction.REDACT,
-                    description=f"Secret leakage: {label}",
-                ))
-        
+                findings.append(
+                    GuardFinding(
+                        category=ThreatCategory.SECRET_LEAKAGE,
+                        pattern=label,
+                        matched_text=match.group(),
+                        start_pos=match.start(),
+                        end_pos=match.end(),
+                        confidence=confidence,
+                        action=GuardAction.REDACT,
+                        description=f"Secret leakage: {label}",
+                    )
+                )
+
         # PII leakage
         for regex, label, base_conf in self._pii_regex:
             for match in regex.finditer(output):
-                findings.append(GuardFinding(
-                    category=ThreatCategory.PII_LEAKAGE,
-                    pattern=label,
-                    matched_text=match.group(),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    confidence=base_conf,
-                    action=GuardAction.REDACT,
-                    description=f"PII in output: {label}",
-                ))
-        
+                findings.append(
+                    GuardFinding(
+                        category=ThreatCategory.PII_LEAKAGE,
+                        pattern=label,
+                        matched_text=match.group(),
+                        start_pos=match.start(),
+                        end_pos=match.end(),
+                        confidence=base_conf,
+                        action=GuardAction.REDACT,
+                        description=f"PII in output: {label}",
+                    )
+                )
+
         # Data exfiltration
         for regex, label, base_conf in self._exfil_regex:
             for match in regex.finditer(output):
-                findings.append(GuardFinding(
-                    category=ThreatCategory.DATA_EXFILTRATION,
-                    pattern=label,
-                    matched_text=match.group(),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    confidence=base_conf,
-                    action=GuardAction.BLOCK,
-                    description=f"Data exfiltration: {label}",
-                ))
-        
+                findings.append(
+                    GuardFinding(
+                        category=ThreatCategory.DATA_EXFILTRATION,
+                        pattern=label,
+                        matched_text=match.group(),
+                        start_pos=match.start(),
+                        end_pos=match.end(),
+                        confidence=base_conf,
+                        action=GuardAction.BLOCK,
+                        description=f"Data exfiltration: {label}",
+                    )
+                )
+
         # Refusal detection
         for regex, label, base_conf in self._refusal_regex:
             for match in regex.finditer(output):
                 max_refusal = max(max_refusal, base_conf)
-                findings.append(GuardFinding(
-                    category=ThreatCategory.REFUSAL,
-                    pattern=label,
-                    matched_text=match.group(),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    confidence=base_conf,
-                    action=GuardAction.FLAG,
-                    description=f"Model refusal: {label}",
-                ))
-        
+                findings.append(
+                    GuardFinding(
+                        category=ThreatCategory.REFUSAL,
+                        pattern=label,
+                        matched_text=match.group(),
+                        start_pos=match.start(),
+                        end_pos=match.end(),
+                        confidence=base_conf,
+                        action=GuardAction.FLAG,
+                        description=f"Model refusal: {label}",
+                    )
+                )
+
         # Toxicity
         for regex, label, base_conf in self._toxicity_regex:
             for match in regex.finditer(output):
                 max_toxicity = max(max_toxicity, base_conf)
-                findings.append(GuardFinding(
-                    category=ThreatCategory.TOXICITY,
-                    pattern=label,
-                    matched_text=match.group(),
-                    start_pos=match.start(),
-                    end_pos=match.end(),
-                    confidence=base_conf,
-                    action=GuardAction.FLAG if base_conf < 0.8 else GuardAction.BLOCK,
-                    description=f"Toxic content: {label}",
-                ))
-        
+                findings.append(
+                    GuardFinding(
+                        category=ThreatCategory.TOXICITY,
+                        pattern=label,
+                        matched_text=match.group(),
+                        start_pos=match.start(),
+                        end_pos=match.end(),
+                        confidence=base_conf,
+                        action=GuardAction.FLAG if base_conf < 0.8 else GuardAction.BLOCK,
+                        description=f"Toxic content: {label}",
+                    )
+                )
+
         # Encoded secrets check
-        b64_pattern = re.compile(r'[A-Za-z0-9+/]{40,}={0,2}')
+        b64_pattern = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
         for match in b64_pattern.finditer(output):
             encoded = match.group()
             try:
                 import base64
-                decoded = base64.b64decode(encoded).decode('utf-8', errors='ignore')
+
+                decoded = base64.b64decode(encoded).decode("utf-8", errors="ignore")
                 for regex, label, _ in self._leakage_regex:
                     if regex.search(decoded):
-                        findings.append(GuardFinding(
-                            category=ThreatCategory.SECRET_LEAKAGE,
-                            pattern=f"base64_encoded_{label}",
-                            matched_text=encoded[:50] + "...",
-                            start_pos=match.start(),
-                            end_pos=match.end(),
-                            confidence=0.85,
-                            action=GuardAction.REDACT,
-                            description=f"Base64-encoded secret: {label}",
-                        ))
+                        findings.append(
+                            GuardFinding(
+                                category=ThreatCategory.SECRET_LEAKAGE,
+                                pattern=f"base64_encoded_{label}",
+                                matched_text=encoded[:50] + "...",
+                                start_pos=match.start(),
+                                end_pos=match.end(),
+                                confidence=0.85,
+                                action=GuardAction.REDACT,
+                                description=f"Base64-encoded secret: {label}",
+                            )
+                        )
             except Exception:
                 pass
-        
+
         if not findings:
             return GuardResult(passed=True, action=GuardAction.ALLOW, findings=[], risk_score=0.0)
-        
+
         actions = [f.action for f in findings]
         if GuardAction.BLOCK in actions:
             overall = GuardAction.BLOCK
@@ -640,17 +793,23 @@ class OutputValidator:
             overall = GuardAction.REDACT
         else:
             overall = GuardAction.FLAG
-        
+
         # Sanitize if needed
         sanitized = None
         if overall in (GuardAction.REDACT, GuardAction.BLOCK):
             sanitized = output
-            for f in sorted([f for f in findings if f.action in (GuardAction.REDACT, GuardAction.BLOCK)], key=lambda x: x.start_pos, reverse=True):
+            for f in sorted(
+                [f for f in findings if f.action in (GuardAction.REDACT, GuardAction.BLOCK)],
+                key=lambda x: x.start_pos,
+                reverse=True,
+            ):
                 redaction = f"[REDACTED:{f.category.value}:{f.pattern}]"
-                sanitized = sanitized[:f.start_pos] + redaction + sanitized[f.end_pos:]
-        
-        max_risk = max(max_toxicity, max_refusal, max((f.confidence for f in findings), default=0.0))
-        
+                sanitized = sanitized[: f.start_pos] + redaction + sanitized[f.end_pos :]
+
+        max_risk = max(
+            max_toxicity, max_refusal, max((f.confidence for f in findings), default=0.0)
+        )
+
         return GuardResult(
             passed=overall == GuardAction.ALLOW,
             action=overall,
@@ -663,7 +822,7 @@ class OutputValidator:
                 "toxicity_score": max_toxicity,
                 "refusal_score": max_refusal,
                 "finding_count": len(findings),
-            }
+            },
         )
 
 
@@ -671,12 +830,13 @@ class OutputValidator:
 # 5. Audit Logger - tamper-evident hash-chained logging
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class AuditLogger:
     """
     Tamper-evident audit logger with hash-chained entries.
     """
 
-    def __init__(self, log_path: Path, hmac_key: Optional[bytes] = None):
+    def __init__(self, log_path: Path, hmac_key: bytes | None = None) -> None:
         self.log_path = Path(log_path)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
@@ -697,14 +857,20 @@ class AuditLogger:
                         continue
                     entry = json.loads(line)
                     expected = self._compute_hash(
-                        entry["timestamp"], entry["sequence"], entry["event_type"],
-                        entry["actor"], entry["action"], entry["details"],
-                        entry["prev_hash"]
+                        entry["timestamp"],
+                        entry["sequence"],
+                        entry["event_type"],
+                        entry["actor"],
+                        entry["action"],
+                        entry["details"],
+                        entry["prev_hash"],
                     )
                     if expected != entry["hash"]:
-                        raise ValueError(f"Audit chain broken at sequence {entry['sequence']}")
+                        msg = f"Audit chain broken at sequence {entry['sequence']}"
+                        raise ValueError(msg)
                     if not self._verify_hmac(entry):
-                        raise ValueError(f"HMAC invalid at sequence {entry['sequence']}")
+                        msg = f"HMAC invalid at sequence {entry['sequence']}"
+                        raise ValueError(msg)
                     self._sequence = entry["sequence"]
                     self._prev_hash = entry["hash"]
         except Exception as e:
@@ -726,7 +892,7 @@ class AuditLogger:
         entry.hash = entry.compute_hash()
         entry.hmac = self._compute_hmac(entry)
         with self.log_path.open("w") as f:
-            f.write(json.dumps(entry.to_dict(), separators=(',', ':')) + "\n")
+            f.write(json.dumps(entry.to_dict(), separators=(",", ":")) + "\n")
         self._sequence = 0
         self._prev_hash = entry.hash
 
@@ -734,19 +900,27 @@ class AuditLogger:
         ts = int(time.time())
         self.log_path.rename(self.log_path.with_suffix(f".corrupted.{ts}"))
 
-    def _compute_hash(self, timestamp: float, sequence: int, event_type: str,
-                      actor: str, action: str, details: Dict, prev_hash: str) -> str:
+    def _compute_hash(
+        self,
+        timestamp: float,
+        sequence: int,
+        event_type: str,
+        actor: str,
+        action: str,
+        details: dict,
+        prev_hash: str,
+    ) -> str:
         content = f"{timestamp}|{sequence}|{event_type}|{actor}|{action}|{json.dumps(details, sort_keys=True, separators=(',', ':'))}|{prev_hash}"
         return hashlib.sha256(content.encode()).hexdigest()
 
     def _compute_hmac(self, entry: AuditEntry) -> str:
         return hmac.new(self._hmac_key, entry.hash.encode(), hashlib.sha256).hexdigest()
 
-    def _verify_hmac(self, entry: Dict) -> bool:
+    def _verify_hmac(self, entry: dict) -> bool:
         expected = hmac.new(self._hmac_key, entry["hash"].encode(), hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, entry.get("hmac", ""))
 
-    def log(self, event_type: str, actor: str, action: str, details: Dict[str, Any]) -> AuditEntry:
+    def log(self, event_type: str, actor: str, action: str, details: dict[str, Any]) -> AuditEntry:
         with self._lock:
             self._sequence += 1
             entry = AuditEntry(
@@ -763,10 +937,10 @@ class AuditLogger:
             entry.hmac = self._compute_hmac(entry)
             self._prev_hash = entry.hash
             with self.log_path.open("a") as f:
-                f.write(json.dumps(entry.to_dict(), separators=(',', ':')) + "\n")
+                f.write(json.dumps(entry.to_dict(), separators=(",", ":")) + "\n")
             return entry
 
-    def verify_chain(self) -> Tuple[bool, List[Dict]]:
+    def verify_chain(self) -> tuple[bool, list[dict]]:
         violations = []
         prev_hash = "0" * 64
         expected_seq = 0
@@ -777,10 +951,17 @@ class AuditLogger:
                     continue
                 entry = json.loads(line)
                 if entry["sequence"] != expected_seq:
-                    violations.append({"type": "sequence_gap", "expected": expected_seq, "got": entry["sequence"]})
+                    violations.append(
+                        {"type": "sequence_gap", "expected": expected_seq, "got": entry["sequence"]}
+                    )
                 computed = self._compute_hash(
-                    entry["timestamp"], entry["sequence"], entry["event_type"],
-                    entry["actor"], entry["action"], entry["details"], entry["prev_hash"]
+                    entry["timestamp"],
+                    entry["sequence"],
+                    entry["event_type"],
+                    entry["actor"],
+                    entry["action"],
+                    entry["details"],
+                    entry["prev_hash"],
                 )
                 if computed != entry["hash"]:
                     violations.append({"type": "hash_mismatch", "sequence": entry["sequence"]})
@@ -797,40 +978,59 @@ class AuditLogger:
 # 6. Policy Engine - YAML declarative policies
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class PolicyEngine:
     """
     Declarative policy engine: YAML rules -> allow/deny/transform decisions.
     """
 
-    def __init__(self, policy_path: Optional[Path] = None):
+    def __init__(self, policy_path: Path | None = None) -> None:
         self.policy_path = policy_path or Path("config/security_policies.yaml")
-        self.policies: List[Dict] = []
+        self.policies: list[dict] = []
         self._load_policies()
 
     def _load_policies(self) -> None:
         if not self.policy_path.exists():
             self._create_default()
         import yaml
+
         with self.policy_path.open() as f:
             data = yaml.safe_load(f) or {}
         self.policies = sorted(data.get("policies", []), key=lambda p: -p.get("priority", 0))
 
     def _create_default(self) -> None:
         import yaml
+
         default = {
             "policies": [
-                {"name": "block_secrets_to_cloud", "priority": 100,
-                 "condition": "has_secrets and target_model.type == 'cloud'",
-                 "action": "block", "reason": "Secrets must never leave local infrastructure"},
-                {"name": "redact_pii", "priority": 90,
-                 "condition": "contains_pii",
-                 "action": "transform", "transform": "redact_pii"},
-                {"name": "block_injection", "priority": 95,
-                 "condition": "prompt_injection_detected",
-                 "action": "block", "reason": "Prompt injection detected"},
-                {"name": "block_exfiltration", "priority": 95,
-                 "condition": "data_exfiltration_detected",
-                 "action": "block", "reason": "Data exfiltration attempt"},
+                {
+                    "name": "block_secrets_to_cloud",
+                    "priority": 100,
+                    "condition": "has_secrets and target_model.type == 'cloud'",
+                    "action": "block",
+                    "reason": "Secrets must never leave local infrastructure",
+                },
+                {
+                    "name": "redact_pii",
+                    "priority": 90,
+                    "condition": "contains_pii",
+                    "action": "transform",
+                    "transform": "redact_pii",
+                },
+                {
+                    "name": "block_injection",
+                    "priority": 95,
+                    "condition": "prompt_injection_detected",
+                    "action": "block",
+                    "reason": "Prompt injection detected",
+                },
+                {
+                    "name": "block_exfiltration",
+                    "priority": 95,
+                    "condition": "data_exfiltration_detected",
+                    "action": "block",
+                    "reason": "Data exfiltration attempt",
+                },
             ]
         }
         self.policy_path.parent.mkdir(parents=True, exist_ok=True)
@@ -838,14 +1038,14 @@ class PolicyEngine:
             yaml.dump(default, f)
         self.policies = default["policies"]
 
-    def evaluate(self, context: Dict[str, Any]) -> Tuple[str, str, Dict]:
+    def evaluate(self, context: dict[str, Any]) -> tuple[str, str, dict]:
         """Evaluate policies against context. Returns (action, reason, transform_params)."""
         for policy in self.policies:
             if self._match_condition(policy["condition"], context):
                 return policy["action"], policy.get("reason", ""), policy.get("transform", {})
         return "allow", "no policy matched", {}
 
-    def _match_condition(self, condition: str, context: Dict) -> bool:
+    def _match_condition(self, condition: str, context: dict) -> bool:
         """Evaluate condition against context, supporting dotted paths.
 
         Examples:
@@ -860,7 +1060,7 @@ class PolicyEngine:
             condition,
         )
         # Provide context values as local variables.
-        locals_dict: Dict[str, Any] = {}
+        locals_dict: dict[str, Any] = {}
         for k, v in context.items():
             locals_dict[k] = v
         try:
@@ -873,13 +1073,14 @@ class PolicyEngine:
 # 7. Security Pipeline - orchestrates all guards
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class SecurityPipeline:
     """
     Complete security pipeline: input -> guards -> model -> output -> audit.
     Model-agnostic, works with any model backend.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
         self.sanitizer = InputSanitizer(config.get("custom_secret_patterns"))
         self.injection_shield = PromptInjectionShield(config.get("injection_threshold", 0.7))
@@ -890,7 +1091,9 @@ class SecurityPipeline:
             refusal_threshold=config.get("refusal_threshold", 0.8),
         )
         self.audit_logger = AuditLogger(Path(config.get("audit_path", "data/security_audit.log")))
-        self.policy_engine = PolicyEngine(Path(config.get("policy_path", "config/security_policies.yaml")))
+        self.policy_engine = PolicyEngine(
+            Path(config.get("policy_path", "config/security_policies.yaml"))
+        )
         self._lock = threading.RLock()
 
     def execute(
@@ -899,7 +1102,7 @@ class SecurityPipeline:
         model_fn: Callable[[str], str],
         model_name: str,
         model_type: str,  # "local" or "cloud"
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> PipelineResult:
         """
         Execute full security pipeline.
@@ -909,27 +1112,37 @@ class SecurityPipeline:
         stage_results = {}
         placeholder_map = {}
         ctx = context or {}
-        
+
         # Stage 1: Input sanitization
         sanitized, placeholder_map = self.sanitizer.sanitize(prompt)
         ctx["has_secrets"] = len(placeholder_map) > 0
         ctx["placeholder_count"] = len(placeholder_map)
         stage_results["input_sanitization"] = GuardResult(
-            passed=True, action=GuardAction.ALLOW, findings=[],
-            details={"placeholder_count": len(placeholder_map)}
+            passed=True,
+            action=GuardAction.ALLOW,
+            findings=[],
+            details={"placeholder_count": len(placeholder_map)},
         )
-        self.audit_logger.log("pipeline", "sanitizer", "sanitized", {"placeholders": len(placeholder_map)})
+        self.audit_logger.log(
+            "pipeline", "sanitizer", "sanitized", {"placeholders": len(placeholder_map)}
+        )
 
         # Stage 2: Prompt injection shield
         inj_result = self.injection_shield.scan(sanitized)
         stage_results["prompt_guard"] = inj_result
         ctx["prompt_injection_detected"] = not inj_result.passed
-        self.audit_logger.log("pipeline", "injection_shield", inj_result.action.value, inj_result.to_dict())
+        self.audit_logger.log(
+            "pipeline", "injection_shield", inj_result.action.value, inj_result.to_dict()
+        )
         if not inj_result.passed and inj_result.action == GuardAction.BLOCK:
             return PipelineResult(
-                passed=False, final_output="", stage_results=stage_results,
-                placeholder_map=placeholder_map, routing_decision="blocked_injection",
-                model_used=model_name, duration_ms=int((time.time()-start)*1000)
+                passed=False,
+                final_output="",
+                stage_results=stage_results,
+                placeholder_map=placeholder_map,
+                routing_decision="blocked_injection",
+                model_used=model_name,
+                duration_ms=int((time.time() - start) * 1000),
             )
         working_prompt = inj_result.sanitized or sanitized
 
@@ -937,23 +1150,35 @@ class SecurityPipeline:
         jb_result = self.jailbreak_shield.scan(working_prompt)
         stage_results["jailbreak_shield"] = jb_result
         ctx["jailbreak_detected"] = not jb_result.passed
-        self.audit_logger.log("pipeline", "jailbreak_shield", jb_result.action.value, jb_result.to_dict())
+        self.audit_logger.log(
+            "pipeline", "jailbreak_shield", jb_result.action.value, jb_result.to_dict()
+        )
         if not jb_result.passed and jb_result.action == GuardAction.BLOCK:
             return PipelineResult(
-                passed=False, final_output="", stage_results=stage_results,
-                placeholder_map=placeholder_map, routing_decision="blocked_jailbreak",
-                model_used=model_name, duration_ms=int((time.time()-start)*1000)
+                passed=False,
+                final_output="",
+                stage_results=stage_results,
+                placeholder_map=placeholder_map,
+                routing_decision="blocked_jailbreak",
+                model_used=model_name,
+                duration_ms=int((time.time() - start) * 1000),
             )
 
         # Stage 4: Policy engine - routing decision
         ctx["target_model"] = {"type": model_type, "name": model_name}
         policy_action, policy_reason, _ = self.policy_engine.evaluate(ctx)
         if policy_action == "block":
-            self.audit_logger.log("pipeline", "policy", "blocked", {"reason": policy_reason, "context": ctx})
+            self.audit_logger.log(
+                "pipeline", "policy", "blocked", {"reason": policy_reason, "context": ctx}
+            )
             return PipelineResult(
-                passed=False, final_output="", stage_results=stage_results,
-                placeholder_map=placeholder_map, routing_decision=f"policy_block:{policy_reason}",
-                model_used=model_name, duration_ms=int((time.time()-start)*1000)
+                passed=False,
+                final_output="",
+                stage_results=stage_results,
+                placeholder_map=placeholder_map,
+                routing_decision=f"policy_block:{policy_reason}",
+                model_used=model_name,
+                duration_ms=int((time.time() - start) * 1000),
             )
 
         # Stage 5: Model execution
@@ -962,28 +1187,44 @@ class SecurityPipeline:
         except Exception as e:
             self.audit_logger.log("pipeline", "model", "error", {"error": str(e)})
             return PipelineResult(
-                passed=False, final_output="", stage_results=stage_results,
-                placeholder_map=placeholder_map, routing_decision="model_error",
-                model_used=model_name, duration_ms=int((time.time()-start)*1000)
+                passed=False,
+                final_output="",
+                stage_results=stage_results,
+                placeholder_map=placeholder_map,
+                routing_decision="model_error",
+                model_used=model_name,
+                duration_ms=int((time.time() - start) * 1000),
             )
 
         # Stage 6: Output validation - update known secrets for leakage check
         self.output_validator.known_secrets = dict(placeholder_map)
-        out_result = self.output_validator.validate(model_output, context={"model": model_name, "type": model_type})
+        out_result = self.output_validator.validate(
+            model_output, context={"model": model_name, "type": model_type}
+        )
         stage_results["output_validation"] = out_result
-        self.audit_logger.log("pipeline", "output_validator", out_result.action.value, out_result.to_dict())
-        
+        self.audit_logger.log(
+            "pipeline", "output_validator", out_result.action.value, out_result.to_dict()
+        )
+
         final_output = out_result.sanitized or model_output
         if placeholder_map:
             final_output = self.sanitizer.restore(final_output, placeholder_map)
 
         duration = int((time.time() - start) * 1000)
-        
+
         # Final audit
-        audit_entry = self.audit_logger.log("pipeline", "request", "completed", {
-            "model": model_name, "type": model_type, "passed": out_result.passed,
-            "had_secrets": len(placeholder_map) > 0, "duration_ms": duration,
-        })
+        audit_entry = self.audit_logger.log(
+            "pipeline",
+            "request",
+            "completed",
+            {
+                "model": model_name,
+                "type": model_type,
+                "passed": out_result.passed,
+                "had_secrets": len(placeholder_map) > 0,
+                "duration_ms": duration,
+            },
+        )
 
         return PipelineResult(
             passed=out_result.passed,
@@ -1001,6 +1242,7 @@ class SecurityPipeline:
 # 8. Module Wrapper - Platform Kernel integration
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @module(name="model_security", version="1.0.0")
 class ModelSecurityModule(Module):
     """
@@ -1008,17 +1250,17 @@ class ModelSecurityModule(Module):
     Provides model-agnostic security pipeline as a kernel service.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._pipeline: Optional[SecurityPipeline] = None
-        self._event_bus: Optional[EventBus] = None
+        self._pipeline: SecurityPipeline | None = None
+        self._event_bus: EventBus | None = None
         self._lock = threading.RLock()
 
     async def initialize(self) -> None:
         with self._lock:
             self._status = HealthStatus.STARTING
             logger.info("Initializing Model Security Module...")
-            
+
             # Default config
             default_config = {
                 "audit_path": "data/model_security_audit.log",
@@ -1029,7 +1271,7 @@ class ModelSecurityModule(Module):
                 "refusal_threshold": 0.8,
             }
             default_config.update(self._config or {})
-            
+
             self._pipeline = SecurityPipeline(default_config)
             self._status = HealthStatus.HEALTHY
             logger.info("Model Security Module initialized")
@@ -1055,7 +1297,8 @@ class ModelSecurityModule(Module):
     def scan_input(self, prompt: str) -> GuardResult:
         """Scan input for injection/jailbreak."""
         if not self._pipeline:
-            raise RuntimeError("Module not initialized")
+            msg = "Module not initialized"
+            raise RuntimeError(msg)
         sanitized, _ = self._pipeline.sanitizer.sanitize(prompt)
         inj = self._pipeline.injection_shield.scan(sanitized)
         jb = self._pipeline.jailbreak_shield.scan(sanitized)
@@ -1072,10 +1315,11 @@ class ModelSecurityModule(Module):
             risk_score=max((f.confidence for f in all_findings), default=0.0),
         )
 
-    def sanitize_output(self, output: str, known_secrets: Dict[str, str]) -> GuardResult:
+    def sanitize_output(self, output: str, known_secrets: dict[str, str]) -> GuardResult:
         """Validate and sanitize model output."""
         if not self._pipeline:
-            raise RuntimeError("Module not initialized")
+            msg = "Module not initialized"
+            raise RuntimeError(msg)
         self._pipeline.output_validator.known_secrets = known_secrets
         return self._pipeline.output_validator.validate(output)
 
@@ -1088,15 +1332,16 @@ class ModelSecurityModule(Module):
     ) -> PipelineResult:
         """Execute full security pipeline."""
         if not self._pipeline:
-            raise RuntimeError("Module not initialized")
+            msg = "Module not initialized"
+            raise RuntimeError(msg)
         return self._pipeline.execute(prompt, model_fn, model_name, model_type)
 
-    def get_audit_tail(self, lines: int = 100) -> List[Dict]:
+    def get_audit_tail(self, lines: int = 100) -> list[dict]:
         """Get recent audit entries."""
         # Would read from audit log
         return []
 
-    def verify_audit_integrity(self) -> Tuple[bool, List[Dict]]:
+    def verify_audit_integrity(self) -> tuple[bool, list[dict]]:
         """Verify audit log integrity."""
         if not self._pipeline:
             return False, [{"error": "Module not initialized"}]
@@ -1107,25 +1352,29 @@ class ModelSecurityModule(Module):
     def new_gate(self, **kw):
         """Create a SecurityGate (kernel-level model-agnostic wrapper)."""
         from enterprise.modules.model_security.security_gate import SecurityGate
+
         return SecurityGate({**(self._config or {}), **kw})
 
     def new_gate_wrapped(self, model_fn, model_name="model", model_type="cloud", **kw):
         """Return a SecuredGate-wrapped model callable."""
         return self.new_gate(**kw).wrap(model_fn, model_name, model_type)
 
-    def security_health(self) -> Dict[str, Any]:
+    def security_health(self) -> dict[str, Any]:
         """Live security posture report."""
         from enterprise.modules.model_security.security_health import SecurityHealth
+
         return SecurityHealth(self._config or {}).report()
 
-    def redteam(self, model_type: str = "cloud", **kw) -> Dict[str, Any]:
+    def redteam(self, model_type: str = "cloud", **kw) -> dict[str, Any]:
         """Run the adversarial red-team bench; returns stop-rate + slips."""
         from enterprise.modules.model_security.redteam_bench import RedTeamBench
+
         return RedTeamBench({**(self._config or {}), **kw}).run(model_type=model_type)
 
-    def assert_deploy_secure(self, **kw) -> Dict[str, Any]:
+    def assert_deploy_secure(self, **kw) -> dict[str, Any]:
         """Fail-closed deployment gate; raises if security posture unhealthy."""
         from enterprise.modules.model_security.deployment_gate import DeploymentSecurityGate
+
         return DeploymentSecurityGate(self._config or {}).check(**kw)
 
     def run_scan(self, probe_names=None, target=None):
@@ -1136,6 +1385,7 @@ class ModelSecurityModule(Module):
         Returns a ScanReport whose stop_rate follows 1.0 == all attempts flagged.
         """
         from enterprise.modules.model_security.probe_detector import SecurityScanner
+
         return SecurityScanner(target=target).scan(probe_names=probe_names)
 
 

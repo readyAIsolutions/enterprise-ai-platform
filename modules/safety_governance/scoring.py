@@ -29,12 +29,13 @@ Version: 1.0.0
 Python: 3.10+
 """
 
-import re
 import math
+import re
 import threading
-from dataclasses import dataclass, field
 from collections import Counter
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import Any
 
 __all__ = [
     "ToxicityCategory",
@@ -51,6 +52,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
+
 
 class ToxicityCategory:
     """Stable category names used by the ToxicityScorer (strings, not enum, so
@@ -81,14 +83,14 @@ class SafetyVerdict:
 _WORD_RE = re.compile(r"[a-z0-9']+")
 
 
-def _tokenize(text: str) -> List[str]:
+def _tokenize(text: str) -> list[str]:
     """Lowercase word tokens extracted from *text*."""
     return _WORD_RE.findall(text.lower())
 
 
-def _char_ngrams(s: str, n: int) -> Set[str]:
+def _char_ngrams(s: str, n: int) -> set[str]:
     """Extract character n-grams from a string."""
-    return {s[i:i + n] for i in range(max(0, len(s) - n + 1))}
+    return {s[i : i + n] for i in range(max(0, len(s) - n + 1))}
 
 
 def _sigmoid(x: float) -> float:
@@ -104,6 +106,7 @@ def _clamp01(x: float) -> float:
 # ToxicityScorer
 # ---------------------------------------------------------------------------
 
+
 class ToxicityScorer:
     """Token/ngram-based toxicity scorer with per-category scores.
 
@@ -112,36 +115,77 @@ class ToxicityScorer:
     """
 
     # ------------------------------------------------------------------
-    _DEFAULT_LEXICON: Dict[str, List[str]] = {
+    _DEFAULT_LEXICON: dict[str, list[str]] = {
         ToxicityCategory.HATE: [
-            "hate", "bigot", "racist", "sexist", "xenophobe", "misogynist",
-            "dehumanize", "inferior", "subhuman",
+            "hate",
+            "bigot",
+            "racist",
+            "sexist",
+            "xenophobe",
+            "misogynist",
+            "dehumanize",
+            "inferior",
+            "subhuman",
         ],
         ToxicityCategory.HARASSMENT: [
-            "harass", "bully", "demean", "humiliate", "belittle", "mock",
-            "exploit", "intimidate",
+            "harass",
+            "bully",
+            "demean",
+            "humiliate",
+            "belittle",
+            "mock",
+            "exploit",
+            "intimidate",
         ],
         ToxicityCategory.VIOLENCE: [
-            "kill", "murder", "assault", "stab", "shoot", "bomb", "slaughter",
-            "beat", "punch", "torture", "blood",
+            "kill",
+            "murder",
+            "assault",
+            "stab",
+            "shoot",
+            "bomb",
+            "slaughter",
+            "beat",
+            "punch",
+            "torture",
+            "blood",
         ],
         ToxicityCategory.SELF_HARM: [
-            "suicide", "self-harm", "self_harm", "cutting", "killmyself",
-            "end_it_all", "worthless",
+            "suicide",
+            "self-harm",
+            "self_harm",
+            "cutting",
+            "killmyself",
+            "end_it_all",
+            "worthless",
         ],
         ToxicityCategory.SEXUAL: [
-            "explicit", "nude", "porn", "obscene", "masturbat", "penetrat",
-            "genital", "rape",
+            "explicit",
+            "nude",
+            "porn",
+            "obscene",
+            "masturbat",
+            "penetrat",
+            "genital",
+            "rape",
         ],
         ToxicityCategory.THREATS: [
-            "threat", "iwillhunt", "iwillfind", "youwillpay", "reprisal",
-            "retaliate", "i_am_going_to_get_you", "hunt you down", "find you",
-            "you will pay", "come for you",
+            "threat",
+            "iwillhunt",
+            "iwillfind",
+            "youwillpay",
+            "reprisal",
+            "retaliate",
+            "i_am_going_to_get_you",
+            "hunt you down",
+            "find you",
+            "you will pay",
+            "come for you",
         ],
     }
 
     # Heavier weight for intrinsically severe categories.
-    _CATEGORY_WEIGHTS: Dict[str, float] = {
+    _CATEGORY_WEIGHTS: dict[str, float] = {
         ToxicityCategory.HATE: 1.0,
         ToxicityCategory.HARASSMENT: 0.9,
         ToxicityCategory.VIOLENCE: 1.0,
@@ -152,8 +196,8 @@ class ToxicityScorer:
 
     def __init__(
         self,
-        lexicon: Optional[Dict[str, List[str]]] = None,
-        category_weights: Optional[Dict[str, float]] = None,
+        lexicon: dict[str, list[str]] | None = None,
+        category_weights: dict[str, float] | None = None,
         sensitivity: float = 1.0,
     ) -> None:
         """
@@ -163,16 +207,16 @@ class ToxicityScorer:
             sensitivity: Scales how quickly token hits translate to a high score.
         """
         self._lock = threading.RLock()
-        self.lexicon = dict(lexicon) if lexicon else {
-            k: list(v) for k, v in self._DEFAULT_LEXICON.items()
-        }
-        self.category_weights = dict(category_weights) if category_weights else {
-            k: v for k, v in self._CATEGORY_WEIGHTS.items()
-        }
+        self.lexicon = (
+            dict(lexicon) if lexicon else {k: list(v) for k, v in self._DEFAULT_LEXICON.items()}
+        )
+        self.category_weights = (
+            dict(category_weights) if category_weights else dict(self._CATEGORY_WEIGHTS.items())
+        )
         self.sensitivity = float(sensitivity)
 
     # ------------------------------------------------------------------
-    def categories(self) -> List[str]:
+    def categories(self) -> list[str]:
         return [c for c in ToxicityCategory.ALL if c in self.lexicon]
 
     # ------------------------------------------------------------------
@@ -188,7 +232,7 @@ class ToxicityScorer:
             return 0.0
         low = text.lower()
         hits = 0
-        seen: Set[str] = set()
+        seen: set[str] = set()
         for term in terms:
             if re.search(r"\b" + re.escape(term), low):
                 hits += 1
@@ -196,11 +240,11 @@ class ToxicityScorer:
         if hits == 0:
             return 0.0
         # 1 hit -> sensitivity, 2 hits -> ~sensitivity*1.7 ... capped at 1.0
-        score = self.sensitivity * (1.0 - 0.5 ** hits)
+        score = self.sensitivity * (1.0 - 0.5**hits)
         return round(_clamp01(score), 4)
 
     # ------------------------------------------------------------------
-    def category_scores(self, text: str) -> Dict[str, float]:
+    def category_scores(self, text: str) -> dict[str, float]:
         """Return all per-category 0-1 scores for *text*."""
         with self._lock:
             return {c: self.score_category(text, c) for c in self.categories()}
@@ -221,7 +265,7 @@ class ToxicityScorer:
         for cat, val in cat_scores.items():
             w = self.category_weights.get(cat, 1.0)
             effective = _clamp01(val * w)
-            survival *= (1.0 - effective)
+            survival *= 1.0 - effective
         overall = 1.0 - survival
         return round(_clamp01(overall), 4)
 
@@ -229,6 +273,7 @@ class ToxicityScorer:
 # ---------------------------------------------------------------------------
 # RefusalScorer
 # ---------------------------------------------------------------------------
+
 
 class RefusalScorer:
     """Detects refusal patterns in an assistant response and returns refusalness.
@@ -238,26 +283,58 @@ class RefusalScorer:
     """
 
     # ------------------------------------------------------------------
-    _REFUSAL_PHRASES: List[str] = [
-        "i can't", "i can not", "i cannot", "i'm unable", "i am unable",
-        "i'm not able", "i am not able", "i won't", "i will not",
-        "i'm afraid i can't", "i'm sorry, i can't", "i must decline",
-        "i cannot assist", "i can't help", "cannot help you with that",
-        "against my policy", "against my guidelines", "not able to help",
-        "i'm not allowed", "i am not allowed", "cannot comply",
-        "as an ai, i cannot", "as an ai language model, i cannot",
-        "i can't provide", "i cannot provide", "i can't do that",
-        "that's not something i can do", "cannot fulfill",
+    _REFUSAL_PHRASES: list[str] = [
+        "i can't",
+        "i can not",
+        "i cannot",
+        "i'm unable",
+        "i am unable",
+        "i'm not able",
+        "i am not able",
+        "i won't",
+        "i will not",
+        "i'm afraid i can't",
+        "i'm sorry, i can't",
+        "i must decline",
+        "i cannot assist",
+        "i can't help",
+        "cannot help you with that",
+        "against my policy",
+        "against my guidelines",
+        "not able to help",
+        "i'm not allowed",
+        "i am not allowed",
+        "cannot comply",
+        "as an ai, i cannot",
+        "as an ai language model, i cannot",
+        "i can't provide",
+        "i cannot provide",
+        "i can't do that",
+        "that's not something i can do",
+        "cannot fulfill",
     ]
 
-    _POLICY_TERMS: List[str] = [
-        "policy", "guidelines", "principles", "ethical guidelines",
-        "terms of service", "usage policy", "content policy",
+    _POLICY_TERMS: list[str] = [
+        "policy",
+        "guidelines",
+        "principles",
+        "ethical guidelines",
+        "terms of service",
+        "usage policy",
+        "content policy",
     ]
 
-    _REFUSAL_TERMS: List[str] = [
-        "cannot", "can't", "unable", "decline", "refuse", "refusal",
-        "won't", "apolog", "unfortunately", "sorry",
+    _REFUSAL_TERMS: list[str] = [
+        "cannot",
+        "can't",
+        "unable",
+        "decline",
+        "refuse",
+        "refusal",
+        "won't",
+        "apolog",
+        "unfortunately",
+        "sorry",
     ]
 
     def __init__(self) -> None:
@@ -280,17 +357,14 @@ class RefusalScorer:
         policy_hits = sum(1 for p in self._POLICY_TERMS if p in low)
         term_hits = sum(1 for t in self._REFUSAL_TERMS if re.search(r"\b" + re.escape(t), low))
 
-        raw = (
-            phrase_hits * 1.0
-            + policy_hits * 0.5
-            + min(term_hits, 3) * 0.3
-        )
+        raw = phrase_hits * 1.0 + policy_hits * 0.5 + min(term_hits, 3) * 0.3
         return round(_clamp01(_sigmoid(raw - 1.0)), 4)
 
 
 # ---------------------------------------------------------------------------
 # CooccurrenceModel  (replaces the placeholder word_association_test)
 # ---------------------------------------------------------------------------
+
 
 class CooccurrenceModel:
     """Learnable counter-based co-occurrence association model.
@@ -310,8 +384,8 @@ class CooccurrenceModel:
         self._lock = threading.RLock()
         self.smooth = float(smooth)
         # (ctx_term, cand_term) -> count
-        self._co: Counter[Tuple[str, str]] = Counter()
-        self._ctx_total: Counter[str] = Counter()   # context-term marginals
+        self._co: Counter[tuple[str, str]] = Counter()
+        self._ctx_total: Counter[str] = Counter()  # context-term marginals
         self._cand_total: Counter[str] = Counter()  # candidate-term marginals
         self._total = 0
 
@@ -321,7 +395,7 @@ class CooccurrenceModel:
         return self._total
 
     # ------------------------------------------------------------------
-    def learn(self, ctx_pairs: Sequence[Tuple[str, str]], target: Optional[str] = None) -> None:
+    def learn(self, ctx_pairs: Sequence[tuple[str, str]], target: str | None = None) -> None:
         """Ingest association data.
 
         Args:
@@ -363,7 +437,7 @@ class CooccurrenceModel:
             return round(_clamp01(co / ctx_occ), 4)
 
     # ------------------------------------------------------------------
-    def score(self, candidate: str, context: Optional[str] = None) -> float:
+    def score(self, candidate: str, context: str | None = None) -> float:
         """Co-occurrence risk of *candidate* given *context* in [0, 1].
 
         Uses the average conditional association between context terms and
@@ -376,11 +450,7 @@ class CooccurrenceModel:
 
         if context:
             ctx_tokens = set(_tokenize(context))
-            assocs = [
-                self.association(c, t)
-                for c in ctx_tokens
-                for t in cand_tokens
-            ]
+            assocs = [self.association(c, t) for c in ctx_tokens for t in cand_tokens]
             positive = [a for a in assocs if a > 0.0]
             if not positive:
                 return 0.0
@@ -399,7 +469,7 @@ class CooccurrenceModel:
         return round(_clamp01(max(vals) * 3.0), 4)
 
     # ------------------------------------------------------------------
-    def most_associated(self, cand_term: str, top: int = 5) -> List[Tuple[str, float]]:
+    def most_associated(self, cand_term: str, top: int = 5) -> list[tuple[str, float]]:
         """Return the context terms most associated with *cand_term*."""
         cand = cand_term.strip().lower()
         with self._lock:
@@ -412,7 +482,7 @@ class CooccurrenceModel:
         return scored[:top]
 
     # ------------------------------------------------------------------
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "observations": self._total,
@@ -426,16 +496,18 @@ class CooccurrenceModel:
 # SafetyResult & SafetyScorer facade
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SafetyResult:
     """Structured result from the SafetyScorer facade."""
+
     toxicity: float = 0.0
     refusal: float = 0.0
     cooccurrence_risk: float = 0.0
     overall: float = 0.0
     verdict: str = SafetyVerdict.SAFE
-    category_scores: Dict[str, float] = field(default_factory=dict)
-    reasons: List[str] = field(default_factory=list)
+    category_scores: dict[str, float] = field(default_factory=dict)
+    reasons: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -457,7 +529,7 @@ class SafetyScorer:
         scorer = SafetyScorer(
             block_threshold=0.8,
             flag_threshold=0.4,
-            cooccurrence_model=model,   # optional learnable model
+            cooccurrence_model=model,  # optional learnable model
         )
         result = scorer.evaluate("text", context="conversation so far")
         # result.verdict in {"safe", "flag", "block"}
@@ -467,14 +539,15 @@ class SafetyScorer:
         self,
         flag_threshold: float = 0.4,
         block_threshold: float = 0.75,
-        toxicity_weights: Optional[Dict[str, float]] = None,
-        toxicity_lexicon: Optional[Dict[str, List[str]]] = None,
-        cooccurrence_model: Optional[CooccurrenceModel] = None,
+        toxicity_weights: dict[str, float] | None = None,
+        toxicity_lexicon: dict[str, list[str]] | None = None,
+        cooccurrence_model: CooccurrenceModel | None = None,
         use_refusal: bool = True,
         context_weight: float = 0.25,
     ) -> None:
         if not (0.0 <= flag_threshold <= block_threshold <= 1.0):
-            raise ValueError("require 0 <= flag_threshold <= block_threshold <= 1")
+            msg = "require 0 <= flag_threshold <= block_threshold <= 1"
+            raise ValueError(msg)
         self.flag_threshold = float(flag_threshold)
         self.block_threshold = float(block_threshold)
         self.context_weight = float(context_weight)
@@ -490,13 +563,13 @@ class SafetyScorer:
         )
 
     # ------------------------------------------------------------------
-    def evaluate(self, text: str, context: Optional[str] = None) -> SafetyResult:
+    def evaluate(self, text: str, context: str | None = None) -> SafetyResult:
         """Score *text* (optionally in *context*) and return a SafetyResult."""
         with self._lock:
             return self._evaluate(text, context)
 
     # ------------------------------------------------------------------
-    def _evaluate(self, text: str, context: Optional[str]) -> SafetyResult:
+    def _evaluate(self, text: str, context: str | None) -> SafetyResult:
         cat_scores = self.toxicity.category_scores(text)
         toxicity = self.toxicity.score(text)
         refusal = self.refusal_scorer.score(text) if self.use_refusal else 0.0
@@ -518,7 +591,7 @@ class SafetyScorer:
             verdict = SafetyVerdict.SAFE
 
         # Reasons
-        reasons: List[str] = []
+        reasons: list[str] = []
         if toxicity >= self.flag_threshold:
             reasons.append(f"toxicity {toxicity:.2f} >= {self.flag_threshold:.2f}")
         if co_risk >= self.flag_threshold and context is not None:
@@ -549,7 +622,7 @@ class SafetyScorer:
             self.cooccurrence = CooccurrenceModel(smooth=self.cooccurrence.smooth)
 
     # ------------------------------------------------------------------
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "flag_threshold": self.flag_threshold,
             "block_threshold": self.block_threshold,

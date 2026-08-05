@@ -29,6 +29,8 @@ _PROJECT_ROOT: Path = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from typing import TYPE_CHECKING, Never
+
 from enterprise.modules.gateway import (  # noqa: E402
     ChannelConfigLoader,
     Gateway,
@@ -37,7 +39,9 @@ from enterprise.modules.gateway import (  # noqa: E402
     push_test,
     wire_config,
 )
-from enterprise.modules.gateway.jobs import RegisteredJob  # noqa: E402
+
+if TYPE_CHECKING:
+    from enterprise.modules.gateway.jobs import RegisteredJob
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -119,7 +123,7 @@ def start_echo_server() -> EchoServer:
     """Start an echo HTTP server bound to 127.0.0.1 on an ephemeral port."""
 
     class _Handler(BaseHTTPRequestHandler):
-        def do_POST(self):  # noqa: N802 (stdlib handler naming)
+        def do_POST(self) -> None:  # noqa: N802 (stdlib handler naming)
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length) if length else b""
             try:
@@ -132,7 +136,7 @@ def start_echo_server() -> EchoServer:
             self.end_headers()
             self.wfile.write(b'{"ok":true}')
 
-        def log_message(self, *args):  # silence stdlib request logging
+        def log_message(self, *args) -> None:  # silence stdlib request logging
             return
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
@@ -153,14 +157,14 @@ def _sentinel_job() -> list[str]:
 
 
 class TestJobRegistry:
-    def test_register_and_list(self):
+    def test_register_and_list(self) -> None:
         reg = JobRegistry()
         ran: list[str] = []
 
-        def a():
+        def a() -> None:
             ran.append("a")
 
-        def b():
+        def b() -> None:
             ran.append("b")
 
         reg.register("alpha", a, kind="interval", interval=60)
@@ -170,7 +174,7 @@ class TestJobRegistry:
         assert len(reg.list()) == 2
         assert {j.id for j in reg.list()} == {"alpha", "beta"}
 
-    def test_register_replaces_duplicate(self):
+    def test_register_replaces_duplicate(self) -> None:
         reg = JobRegistry()
         reg.register("dup", lambda: None, kind="interval", interval=1)
         reg.register("dup", lambda: None, kind="cron", expr="* * * * *")
@@ -178,17 +182,18 @@ class TestJobRegistry:
         assert len(jobs) == 1
         assert jobs[0].kind == "cron"
 
-    def test_unregister_and_get(self):
+    def test_unregister_and_get(self) -> None:
         reg = JobRegistry()
         reg.register("x", lambda: None, kind="interval", interval=5)
         job = reg.get("x")
-        assert job is not None and job.id == "x"
+        assert job is not None
+        assert job.id == "x"
         removed = reg.unregister("x")
         assert removed is not None
         assert reg.get("x") is None
         assert len(reg) == 0
 
-    def test_job_run_state_snapshot(self):
+    def test_job_run_state_snapshot(self) -> None:
         reg = JobRegistry()
         job = reg.register("s", lambda: None, kind="interval", interval=10)
         job.last_run = 100.0
@@ -208,13 +213,13 @@ class TestJobRegistry:
 
 
 class TestJobScheduler:
-    def test_never_run_job_is_due_immediately(self):
+    def test_never_run_job_is_due_immediately(self) -> None:
         clock = FakeClock(1000.0)
         sched = JobScheduler(clock=clock)
         sched.register("j", lambda: None, kind="interval", interval=60)
         assert [j.id for j in sched.due(1000.0)] == ["j"]
 
-    def test_runs_due_interval_job_and_tracks_last_run(self):
+    def test_runs_due_interval_job_and_tracks_last_run(self) -> None:
         clock = FakeClock(1000.0)
         ran: list[str] = []
         sched = JobScheduler(clock=clock, runnable=RecordingRunnable())
@@ -231,7 +236,7 @@ class TestJobScheduler:
         assert sched.due(1059.0) == []
         assert [j.id for j in sched.due(1060.0)] == ["j"]
 
-    def test_injectable_runnable_records_calls(self):
+    def test_injectable_runnable_records_calls(self) -> None:
         recorder = RecordingRunnable()
         sched = JobScheduler(runnable=recorder)
         sched.register("a", lambda: None, kind="interval", interval=60)
@@ -239,14 +244,15 @@ class TestJobScheduler:
         sched.run_due(2000.0)
         assert recorder.calls == ["a", "b"]
 
-    def test_run_job_tracks_success_and_next_run(self):
+    def test_run_job_tracks_success_and_next_run(self) -> None:
         calls: list[str] = []
 
-        def ok():
+        def ok() -> None:
             calls.append("ok")
 
-        def bad():
-            raise RuntimeError("boom")
+        def bad() -> Never:
+            msg = "boom"
+            raise RuntimeError(msg)
 
         sched = JobScheduler()
         good = sched.register("g", ok, kind="interval", interval=30)
@@ -258,12 +264,12 @@ class TestJobScheduler:
         assert bad_job.success is False
         assert bad_job.last_error == "boom"
 
-    def test_disabled_job_is_never_due(self):
+    def test_disabled_job_is_never_due(self) -> None:
         sched = JobScheduler()
         sched.register("d", lambda: None, kind="interval", interval=60, enabled=False)
         assert sched.due(1234.0) == []
 
-    def test_tick_once_returns_run_count(self):
+    def test_tick_once_returns_run_count(self) -> None:
         sched = JobScheduler()
         sched.register("a", lambda: None, kind="interval", interval=60)
         assert sched.tick_once(3000.0) == 1
@@ -276,30 +282,28 @@ class TestJobScheduler:
 
 
 class TestNextRun:
-    def test_interval_next_run_computation(self):
+    def test_interval_next_run_computation(self) -> None:
         sched = JobScheduler()
         job = sched.register("i", lambda: None, kind="interval", interval=300)
         job.last_run = 1000.0
         assert sched.next_run(job, 1000.0) == 1300.0
         assert sched.next_run(job, 1299.0) == 1300.0
 
-    def test_cron_next_run_computation(self):
+    def test_cron_next_run_computation(self) -> None:
         sched = JobScheduler()
         job = sched.register("c", lambda: None, kind="cron", expr="0 9 * * *")
         base = utc_ts(2026, 1, 1, 8, 0)  # before 09:00
         nxt = sched.next_run(job, base)
         assert nxt == utc_ts(2026, 1, 1, 9, 0)
 
-    def test_cron_next_run_strictly_after_last_run(self):
+    def test_cron_next_run_strictly_after_last_run(self) -> None:
         sched = JobScheduler()
-        job = sched.register(
-            "c", lambda: None, kind="cron", expr="30 14 * * *"
-        )
+        job = sched.register("c", lambda: None, kind="cron", expr="30 14 * * *")
         job.last_run = utc_ts(2026, 1, 1, 14, 30)
         nxt = sched.next_run(job, job.last_run)
         assert nxt == utc_ts(2026, 1, 2, 14, 30)
 
-    def test_cron_job_due_at_scheduled_time(self):
+    def test_cron_job_due_at_scheduled_time(self) -> None:
         clock = FakeClock(utc_ts(2026, 1, 1, 9, 0))
         sched = JobScheduler(clock=clock, runnable=RecordingRunnable())
         job = sched.register("c", lambda: None, kind="cron", expr="0 9 * * *")
@@ -316,14 +320,15 @@ class TestNextRun:
 
 
 class TestChannelConfigLoader:
-    def test_loads_webhook_channel(self):
+    def test_loads_webhook_channel(self) -> None:
         loader = ChannelConfigLoader(Gateway())
         n = loader.load({"alerts": {"type": "webhook", "url": "http://example.test/h"}})
         assert n == 1
         ch = loader.gateway.get_channels().get("alerts")
-        assert ch is not None and ch.recipient == "http://example.test/h"
+        assert ch is not None
+        assert ch.recipient == "http://example.test/h"
 
-    def test_loads_telegram_and_discord(self):
+    def test_loads_telegram_and_discord(self) -> None:
         loader = ChannelConfigLoader(Gateway())
         cfg = {
             "tg": {"type": "telegram", "token": "t", "chat_id": "42"},
@@ -332,7 +337,7 @@ class TestChannelConfigLoader:
         assert loader.load(cfg) == 2
         assert set(loader.gateway.get_channels().keys()) == {"tg", "dc"}
 
-    def test_skips_unconfigured_channels(self):
+    def test_skips_unconfigured_channels(self) -> None:
         loader = ChannelConfigLoader(Gateway())
         cfg = {
             "badtype": {"type": "carrier-pigeon"},
@@ -342,7 +347,7 @@ class TestChannelConfigLoader:
         assert loader.load(cfg) == 1
         assert set(loader.gateway.get_channels().keys()) == {"ok"}
 
-    def test_load_from_config_section(self):
+    def test_load_from_config_section(self) -> None:
         loader = ChannelConfigLoader(Gateway())
         n = loader.load_from_config(
             {"channels": {"ops": {"type": "webhook", "url": "http://e.test/o"}}}
@@ -356,17 +361,12 @@ class TestChannelConfigLoader:
 
 
 class TestPushTestRealHttp:
-    def test_push_test_delivers_over_real_http_and_server_receives_payload(self):
+    def test_push_test_delivers_over_real_http_and_server_receives_payload(self) -> None:
         server = start_echo_server()
         try:
             gateway = Gateway()
             loader = ChannelConfigLoader(gateway=gateway)
-            assert (
-                loader.load(
-                    {"echo": {"type": "webhook", "url": server.url}}
-                )
-                == 1
-            )
+            assert loader.load({"echo": {"type": "webhook", "url": server.url}}) == 1
 
             receipt = push_test(gateway, "echo", "hello over real http")
 
@@ -379,15 +379,13 @@ class TestPushTestRealHttp:
         finally:
             server.shutdown()
 
-    def test_send_with_retry_succeeds_over_real_http(self):
+    def test_send_with_retry_succeeds_over_real_http(self) -> None:
         server = start_echo_server()
         try:
             gateway = Gateway()
             from enterprise.modules.gateway import build_channel
 
-            gateway.register_channel(
-                "echo", build_channel("webhook", {"url": server.url})
-            )
+            gateway.register_channel("echo", build_channel("webhook", {"url": server.url}))
             receipt = gateway.send_with_retry("echo", "retried payload")
             assert receipt.passed is True
             assert receipt.attempts == 1
@@ -396,7 +394,7 @@ class TestPushTestRealHttp:
         finally:
             server.shutdown()
 
-    def test_telegram_discord_use_fake_opener_no_network(self):
+    def test_telegram_discord_use_fake_opener_no_network(self) -> None:
         # Telegram/Discord cannot talk to a real public API in a hermetic test,
         # so we prove they route through an injected opener that records instead.
         gateway = Gateway()
@@ -422,16 +420,14 @@ class TestPushTestRealHttp:
 
 
 class TestWireConfig:
-    def test_wire_config_populates_gateway_and_jobs(self):
+    def test_wire_config_populates_gateway_and_jobs(self) -> None:
         gateway = Gateway()
         sched = JobScheduler()
         summary = wire_config(
             gateway,
             sched,
             {
-                "channels": {
-                    "ops": {"type": "webhook", "url": "http://example.test/o"}
-                },
+                "channels": {"ops": {"type": "webhook", "url": "http://example.test/o"}},
                 "jobs": [
                     {
                         "id": "daily_universal_score",
@@ -445,11 +441,9 @@ class TestWireConfig:
         assert summary == {"channels": 1, "jobs": 1}
         assert "ops" in gateway.get_channels()
         assert sched.registry.get("daily_universal_score") is not None
-        assert (
-            sched.registry.get("daily_universal_score").kind == "cron"
-        )
+        assert sched.registry.get("daily_universal_score").kind == "cron"
 
-    def test_wire_config_is_non_destructive_when_empty(self):
+    def test_wire_config_is_non_destructive_when_empty(self) -> None:
         gateway = Gateway()
         sched = JobScheduler()
         summary = wire_config(gateway, sched, {})

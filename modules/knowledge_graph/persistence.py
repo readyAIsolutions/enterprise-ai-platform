@@ -37,13 +37,13 @@ import os
 import sqlite3
 import threading
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
-from .entities import Entity, EntityType, EntityRegistry
-from .relationships import Relationship, RelationshipType, RelationshipRegistry
-from .provenance import Provenance
 from .contradiction import ContradictionManager, ContradictionRecord
+from .entities import Entity, EntityRegistry
+from .provenance import Provenance
+from .relationships import Relationship, RelationshipRegistry
 
 __all__ = [
     "KGPersistence",
@@ -52,7 +52,7 @@ __all__ = [
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _jdefault(o: Any) -> Any:
@@ -66,7 +66,7 @@ def _jdefault(o: Any) -> Any:
     return str(o)
 
 
-def _entity_type_str(data: Dict[str, Any]) -> str:
+def _entity_type_str(data: dict[str, Any]) -> str:
     """Extract the entity type string from a dict/Entity payload."""
     if isinstance(data, Entity):
         return data.entity_type.value
@@ -76,7 +76,7 @@ def _entity_type_str(data: Dict[str, Any]) -> str:
     return str(t)
 
 
-def _entity_id_str(data: Dict[str, Any]) -> str:
+def _entity_id_str(data: dict[str, Any]) -> str:
     if isinstance(data, Entity):
         return data.id
     if isinstance(data, dict):
@@ -122,9 +122,9 @@ class _MemoryStore:
     """In-memory backend with an identical shape to the SQLite tables."""
 
     def __init__(self) -> None:
-        self.entities: Dict[tuple, Dict[str, Any]] = {}
-        self.relationships: Dict[str, Dict[str, Any]] = {}
-        self.provenance: Dict[str, List[Dict[str, Any]]] = {}
+        self.entities: dict[tuple, dict[str, Any]] = {}
+        self.relationships: dict[str, dict[str, Any]] = {}
+        self.provenance: dict[str, list[dict[str, Any]]] = {}
 
     def execute_script(self, _sql: str) -> None:
         return None
@@ -139,10 +139,10 @@ class KGPersistence:
             path is given, a ``knowledge_graph.db`` file is created inside it.
     """
 
-    def __init__(self, db_path: Optional[str] = None) -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         self.db_path = None
-        self._memory: Optional[_MemoryStore] = None
-        self._conn: Optional[sqlite3.Connection] = None
+        self._memory: _MemoryStore | None = None
+        self._conn: sqlite3.Connection | None = None
         self._lock = threading.RLock()
 
         if db_path is None:
@@ -153,7 +153,10 @@ class KGPersistence:
             # existing file).
             p = os.fspath(db_path)
             looks_like_file = os.path.splitext(p)[1].lower() in (
-                ".db", ".sqlite", ".sqlite3", ".db3"
+                ".db",
+                ".sqlite",
+                ".sqlite3",
+                ".db3",
             ) or os.path.isfile(p)
             if not looks_like_file:
                 p = os.path.join(p, "knowledge_graph.db")
@@ -163,10 +166,9 @@ class KGPersistence:
             self.db_path = p
             self._conn = sqlite3.connect(p, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
-            with self._lock:
-                with self._conn:
-                    self._conn.execute("PRAGMA foreign_keys=ON")
-                    self._conn.executescript(_SCHEMA)
+            with self._lock, self._conn:
+                self._conn.execute("PRAGMA foreign_keys=ON")
+                self._conn.executescript(_SCHEMA)
 
     # ------------------------------------------------------------------ #
     # connection lifecycle
@@ -179,7 +181,7 @@ class KGPersistence:
                 self._conn.close()
                 self._conn = None
 
-    def __enter__(self) -> "KGPersistence":
+    def __enter__(self) -> KGPersistence:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -193,13 +195,13 @@ class KGPersistence:
     def _is_memory(self) -> bool:
         return self._memory is not None
 
-    def _row_to_entity(self, row: Dict[str, Any]) -> Dict[str, Any]:
+    def _row_to_entity(self, row: dict[str, Any]) -> dict[str, Any]:
         data = json.loads(row["attrs_json"])
         data.setdefault("id", row["id"])
         data.setdefault("entity_type", row["type"])
         return data
 
-    def _row_to_relationship(self, row: Dict[str, Any]) -> Dict[str, Any]:
+    def _row_to_relationship(self, row: dict[str, Any]) -> dict[str, Any]:
         data = json.loads(row["attrs_json"])
         data.setdefault("id", row["id"])
         data.setdefault("source_id", row["from_id"])
@@ -211,7 +213,7 @@ class KGPersistence:
     # entities
     # ------------------------------------------------------------------ #
 
-    def upsert_entity(self, entity: Any, attrs: Optional[Dict[str, Any]] = None) -> str:
+    def upsert_entity(self, entity: Any, attrs: dict[str, Any] | None = None) -> str:
         """Insert or update an entity, deduplicating by (type, id).
 
         Accepts a dict (from ``Entity.to_dict``), an ``Entity`` instance, or
@@ -222,7 +224,8 @@ class KGPersistence:
         elif isinstance(entity, dict):
             data = dict(entity)
         else:
-            raise TypeError(f"Unsupported entity payload: {type(entity)!r}")
+            msg = f"Unsupported entity payload: {type(entity)!r}"
+            raise TypeError(msg)
 
         if attrs:
             data.update(attrs)
@@ -257,7 +260,7 @@ class KGPersistence:
                     )
         return eid
 
-    def get_entity(self, entity_id: str, entity_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_entity(self, entity_id: str, entity_type: str | None = None) -> dict[str, Any] | None:
         """Retrieve an entity dict by id (and optional type)."""
         with self._lock:
             if self._is_memory:
@@ -278,9 +281,9 @@ class KGPersistence:
                 return None
             return self._row_to_entity(dict(rows[0]))
 
-    def list_entities(self, entity_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_entities(self, entity_type: str | None = None) -> list[dict[str, Any]]:
         """List all entities (optionally filtered by type) as dicts."""
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         with self._lock:
             if self._is_memory:
                 for (etype, _eid), rec in self._memory.entities.items():  # type: ignore[union-attr]
@@ -306,10 +309,10 @@ class KGPersistence:
     def upsert_relationship(
         self,
         relationship: Any,
-        from_id: Optional[str] = None,
-        to_id: Optional[str] = None,
-        rel_type: Optional[str] = None,
-        attrs: Optional[Dict[str, Any]] = None,
+        from_id: str | None = None,
+        to_id: str | None = None,
+        rel_type: str | None = None,
+        attrs: dict[str, Any] | None = None,
     ) -> str:
         """Insert or update a relationship by id. Returns the relationship id."""
         if isinstance(relationship, Relationship):
@@ -317,7 +320,8 @@ class KGPersistence:
         elif isinstance(relationship, dict):
             data = dict(relationship)
         else:
-            raise TypeError(f"Unsupported relationship payload: {type(relationship)!r}")
+            msg = f"Unsupported relationship payload: {type(relationship)!r}"
+            raise TypeError(msg)
 
         if attrs:
             data.update(attrs)
@@ -363,9 +367,9 @@ class KGPersistence:
                     )
         return rid
 
-    def get_relationships(self, from_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_relationships(self, from_id: str | None = None) -> list[dict[str, Any]]:
         """List relationships as dicts, optionally filtered by source id."""
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         with self._lock:
             if self._is_memory:
                 for rec in self._memory.relationships.values():  # type: ignore[union-attr]
@@ -392,7 +396,7 @@ class KGPersistence:
         self,
         entity_id: str,
         source: str,
-        evidence: Optional[str] = None,
+        evidence: str | None = None,
         confidence: float = 0.5,
     ) -> str:
         """Record provenance for an entity. Returns the provenance record id."""
@@ -419,7 +423,7 @@ class KGPersistence:
                     )
         return pid
 
-    def get_provenance(self, entity_id: str) -> List[Dict[str, Any]]:
+    def get_provenance(self, entity_id: str) -> list[dict[str, Any]]:
         """Return provenance records for an entity (chronological)."""
         if self._is_memory:
             recs = self._memory.provenance.get(entity_id, [])  # type: ignore[union-attr]
@@ -444,7 +448,7 @@ class KGPersistence:
             if self._is_memory:
                 # find matching key
                 key = None
-                for (etype, eid) in list(self._memory.entities.keys()):  # type: ignore[union-attr]
+                for etype, eid in list(self._memory.entities.keys()):  # type: ignore[union-attr]
                     if eid == entity_id:
                         key = (etype, eid)
                         break
@@ -453,7 +457,8 @@ class KGPersistence:
                 del self._memory.entities[key]  # type: ignore[union-attr]
                 # cascade relationships
                 rel_ids = [
-                    rid for rid, rec in self._memory.relationships.items()  # type: ignore[union-attr]
+                    rid
+                    for rid, rec in self._memory.relationships.items()  # type: ignore[union-attr]
                     if rec["from_id"] == entity_id or rec["to_id"] == entity_id
                 ]
                 for rid in rel_ids:
@@ -481,7 +486,7 @@ class KGPersistence:
     # stats
     # ------------------------------------------------------------------ #
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         """Return counts of persisted entities, relationships, and provenance."""
         if self._is_memory:
             rel_count = sum(len(v) for v in self._memory.relationships.values())  # type: ignore[union-attr]
@@ -508,7 +513,7 @@ class KGPersistence:
     # graph sync / load
     # ------------------------------------------------------------------ #
 
-    def sync(self, graph: Any) -> Dict[str, int]:
+    def sync(self, graph: Any) -> dict[str, int]:
         """Snapshot an in-memory graph into the store.
 
         ``graph`` must expose ``entity_registry`` and ``relationship_registry``
@@ -527,7 +532,10 @@ class KGPersistence:
             if prov:
                 if isinstance(prov, Provenance):
                     self.add_provenance(
-                        data["id"], prov.source, prov.evidence_url or prov.evidence_hash, prov.confidence
+                        data["id"],
+                        prov.source,
+                        prov.evidence_url or prov.evidence_hash,
+                        prov.confidence,
                     )
                 elif isinstance(prov, dict):
                     self.add_provenance(
@@ -541,14 +549,19 @@ class KGPersistence:
                         if isinstance(p, Provenance):
                             self.add_provenance(data["id"], p.source, p.evidence_url, p.confidence)
                         elif isinstance(p, dict):
-                            self.add_provenance(data["id"], p.get("source", ""), p.get("evidence", ""), p.get("confidence", 0.5))
+                            self.add_provenance(
+                                data["id"],
+                                p.get("source", ""),
+                                p.get("evidence", ""),
+                                p.get("confidence", 0.5),
+                            )
 
         for rel in rel_dicts:
             self.upsert_relationship(rel)
 
         return self.stats()
 
-    def load(self, graph: Optional[Any] = None) -> Any:
+    def load(self, graph: Any | None = None) -> Any:
         """Rebuild an in-memory graph from the store.
 
         If ``graph`` is provided it is populated (entities + relationships
@@ -582,13 +595,14 @@ class KGPersistence:
             if graph_rr is not None:
                 for r in rr:
                     graph_rr.add(r)
-            provenance = {eid: self.get_provenance(eid) for eid in {d["id"] for d in self.list_entities()}}
+            provenance = {
+                eid: self.get_provenance(eid) for eid in {d["id"] for d in self.list_entities()}
+            }
             graph.provenance = provenance  # type: ignore[attr-defined]
             return graph
 
         provenance = {
-            eid: self.get_provenance(eid)
-            for eid in {d["id"] for d in self.list_entities()}
+            eid: self.get_provenance(eid) for eid in {d["id"] for d in self.list_entities()}
         }
         return _GraphContainer(er, rr, provenance)
 
@@ -598,11 +612,11 @@ class KGPersistence:
 
     def scan_contradictions(
         self,
-        manager: Optional[ContradictionManager] = None,
-        entities: Optional[List[Entity]] = None,
-        relationships: Optional[List[Relationship]] = None,
+        manager: ContradictionManager | None = None,
+        entities: list[Entity] | None = None,
+        relationships: list[Relationship] | None = None,
         annotate_sources: bool = True,
-    ) -> List[ContradictionRecord]:
+    ) -> list[ContradictionRecord]:
         """Run contradiction detection over the persisted graph.
 
         When ``annotate_sources`` is True each side of every detected
@@ -647,13 +661,13 @@ class _GraphContainer:
         self,
         entity_registry: EntityRegistry,
         relationship_registry: RelationshipRegistry,
-        provenance: Dict[str, List[Dict[str, Any]]],
+        provenance: dict[str, list[dict[str, Any]]],
     ) -> None:
         self.entity_registry = entity_registry
         self.relationship_registry = relationship_registry
         self.provenance = provenance
 
 
-def create_persistence(db_path: Optional[str] = None) -> KGPersistence:
+def create_persistence(db_path: str | None = None) -> KGPersistence:
     """Factory: create a KGPersistence instance (None => in-memory)."""
     return KGPersistence(db_path)

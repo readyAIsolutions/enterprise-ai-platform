@@ -21,26 +21,26 @@ __module__ = "kb_bridge"
 import asyncio
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     EventBus,
-    EventPriority,
+    EventPriority,  # noqa: F401
     HealthStatus,
     Module,
     module,
 )
 
-from .kb_bridge import KnowledgeBaseBridge, KBHealthCheck
+from .kb_bridge import KBHealthCheck, KnowledgeBaseBridge
 from .sources import (
-    KbDoc,
-    SourceAdapter,
     FileSourceAdapter,
-    SqliteSourceAdapter,
     JsonSourceAdapter,
-    SourceRegistry,
+    KbDoc,
     KbMerger,
     KbQueryBridge,
+    SourceAdapter,
+    SourceRegistry,
+    SqliteSourceAdapter,
 )
 
 __all__ = [
@@ -84,24 +84,24 @@ class ENIKBModule(Module):
       - kb.health.status
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._bridge: Optional[KnowledgeBaseBridge] = None
-        self._health_checker: Optional[KBHealthCheck] = None
-        self._event_bus: Optional[EventBus] = None
+        self._bridge: KnowledgeBaseBridge | None = None
+        self._health_checker: KBHealthCheck | None = None
+        self._event_bus: EventBus | None = None
         self._lock: threading.RLock = threading.RLock()
-        self._bridge_config: Dict[str, Any] = {}
+        self._bridge_config: dict[str, Any] = {}
 
     # ── Properties ───────────────────────────────────────────────────────
 
     @property
-    def bridge(self) -> Optional[KnowledgeBaseBridge]:
+    def bridge(self) -> KnowledgeBaseBridge | None:
         """Return the active KnowledgeBaseBridge, if initialized."""
         with self._lock:
             return self._bridge
 
     @property
-    def health_checker(self) -> Optional[KBHealthCheck]:
+    def health_checker(self) -> KBHealthCheck | None:
         """Return the active KBHealthCheck, if initialized."""
         with self._lock:
             return self._health_checker
@@ -213,7 +213,7 @@ class ENIKBModule(Module):
 
 
 def create_kb_bridge_module(
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> ENIKBModule:
     """Create an :class:`ENIKBModule` from an optional config dict.
 
@@ -253,6 +253,7 @@ def create_kb_bridge_module(
             elif kind == "json":
                 bridge.register(JsonSourceAdapter(source_cfg["path"]))
             else:  # pragma: no cover - defensive
-                raise ValueError(f"Unknown source type: {kind!r}")
+                msg = f"Unknown source type: {kind!r}"
+                raise ValueError(msg)
         module._kb_sources = bridge  # type: ignore[attr-defined]
     return module

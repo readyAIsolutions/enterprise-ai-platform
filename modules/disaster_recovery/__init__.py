@@ -59,37 +59,33 @@ __all__ = [
     "ExerciseManager",
 ]
 
-from .bia import CriticalityLevel, ImpactCategory, BIAAsset, BIAEngine
-from .rto_rpo import RecoveryTier, RTOPlan, RTOPlanner
-from .scenarios import ScenarioType, Scenario, ScenarioLibrary
-from .backup import BackupType, BackupPolicy, BackupManager
-from .snapshot import SnapshotEngine, Snapshot, ManifestEntry, RestoreReport, snapshot_to_dict
-from .recovery import RecoveryMode, RecoveryPlan, RecoveryEngine
-from .cyber_recovery import CyberRecoveryPhase, CyberRecoveryPlan, CyberRecoveryManager
-from .ai_continuity import AIDisruptionType, AIContinuityPlan, AIContinuityManager
-from .crisis import CrisisRole, CrisisTeam, CrisisPlan, CrisisManager
-from .exercises import ExerciseType, Exercise, ExerciseManager
-
 # --------------------------------------------------------------------------
-
 # --------------------------------------------------------------------------
-
 # --------------------------------------------------------------------------
-
 # --------------------------------------------------------------------------
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio
+import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
+from .ai_continuity import AIContinuityManager, AIContinuityPlan, AIDisruptionType
+from .backup import BackupManager, BackupPolicy, BackupType
+from .bia import BIAAsset, BIAEngine, CriticalityLevel, ImpactCategory
+from .crisis import CrisisManager, CrisisPlan, CrisisRole, CrisisTeam
+from .cyber_recovery import CyberRecoveryManager, CyberRecoveryPhase, CyberRecoveryPlan
+from .exercises import Exercise, ExerciseManager, ExerciseType
+from .recovery import RecoveryEngine, RecoveryMode, RecoveryPlan
+from .rto_rpo import RecoveryTier, RTOPlan, RTOPlanner
+from .scenarios import Scenario, ScenarioLibrary, ScenarioType
+from .snapshot import ManifestEntry, RestoreReport, Snapshot, SnapshotEngine, snapshot_to_dict
+
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 
-from .recovery import RecoveryEngine
 
 _logger = logging.getLogger("enterprise.disaster_recovery")
 
@@ -104,7 +100,7 @@ class DisasterRecoveryModule(Module):
     UNHEALTHY rather than crashing the platform.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._lock = threading.RLock()
         self._component = None
@@ -140,6 +136,8 @@ class DisasterRecoveryModule(Module):
             self._init_error = None
 
 
-def create_disaster_recovery_module(config: Optional[Dict[str, Any]] = None) -> DisasterRecoveryModule:
+def create_disaster_recovery_module(
+    config: dict[str, Any] | None = None,
+) -> DisasterRecoveryModule:
     """Factory: create a disaster_recovery module instance."""
     return DisasterRecoveryModule(config)

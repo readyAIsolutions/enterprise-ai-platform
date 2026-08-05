@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     EventBus,
@@ -27,6 +27,13 @@ from enterprise.platform_kernel import (
     module,
 )
 
+from .hybrid import (
+    AddResult,
+    HybridRetriever,
+    HybridSemanticMemory,
+    keyword_score,
+    tokenize,
+)
 from .semantic_memory import (
     Document,
     Embedder,
@@ -38,13 +45,6 @@ from .semantic_memory import (
     cosine_similarity,
     dot,
     normalize,
-)
-from .hybrid import (
-    AddResult,
-    HybridRetriever,
-    HybridSemanticMemory,
-    keyword_score,
-    tokenize,
 )
 
 __version__ = "2.0.0"
@@ -104,7 +104,7 @@ class SemanticMemoryModule(Module):
         self._lock = threading.RLock()
         self._dim: int = int(self._config.get("dim", 256) or 256)
         self._top_k: int = int(self._config.get("top_k", 5) or 5)
-        self._db_path: str | None = (self._config.get("db_path") or None)
+        self._db_path: str | None = self._config.get("db_path") or None
         if self._db_path is not None:
             self._db_path = str(self._db_path)
 
@@ -154,9 +154,7 @@ class SemanticMemoryModule(Module):
         )
         try:
             embedder = HashEmbedder(dim=self._dim)
-            self._memory = HybridSemanticMemory(
-                embedder=embedder, db_path=self._db_path
-            )
+            self._memory = HybridSemanticMemory(embedder=embedder, db_path=self._db_path)
             self._status = HealthStatus.HEALTHY
             _logger.info("Semantic memory initialized successfully")
         except Exception as exc:
@@ -220,7 +218,8 @@ class SemanticMemoryModule(Module):
         Emits ``memory.doc.indexed`` on the event bus when available.
         """
         if self._memory is None:
-            raise RuntimeError("Semantic memory module is not initialized")
+            msg = "Semantic memory module is not initialized"
+            raise RuntimeError(msg)
         doc_id = self._memory.remember(id, text, metadata)
         self._publish(
             "memory.doc.indexed",
@@ -239,7 +238,8 @@ class SemanticMemoryModule(Module):
         Emits ``memory.query`` on the event bus when available.
         """
         if self._memory is None:
-            raise RuntimeError("Semantic memory module is not initialized")
+            msg = "Semantic memory module is not initialized"
+            raise RuntimeError(msg)
         limit = k if k is not None else self._top_k
         results = self._memory.recall(query, k=limit, metadata_filter=metadata_filter)
         self._publish(
@@ -272,37 +272,43 @@ class SemanticMemoryModule(Module):
     def recall_since(self, since: Any) -> list[dict[str, Any]]:
         """Pass-through: memories created at/after ``since`` (temporal recall)."""
         if self._memory is None:
-            raise RuntimeError("Semantic memory module is not initialized")
-        fn = getattr(self._memory, "recall_since")
+            msg = "Semantic memory module is not initialized"
+            raise RuntimeError(msg)
+        fn = self._memory.recall_since
         if not callable(fn):
-            raise AttributeError("memory does not support recall_since")
+            msg = "memory does not support recall_since"
+            raise AttributeError(msg)
         return fn(since)
 
-    def group_by_time_bucket(
-        self, bucket: str = "day", key: str = "updated_at"
-    ) -> dict[str, Any]:
+    def group_by_time_bucket(self, bucket: str = "day", key: str = "updated_at") -> dict[str, Any]:
         """Pass-through: group memories into time buckets (Zep temporal recall)."""
         if self._memory is None:
-            raise RuntimeError("Semantic memory module is not initialized")
-        fn = getattr(self._memory, "group_by_time_bucket")
+            msg = "Semantic memory module is not initialized"
+            raise RuntimeError(msg)
+        fn = self._memory.group_by_time_bucket
         if not callable(fn):
-            raise AttributeError("memory does not support group_by_time_bucket")
+            msg = "memory does not support group_by_time_bucket"
+            raise AttributeError(msg)
         return fn(bucket, key=key)
 
     def ranking(self, limit=None, **kwargs) -> list[dict[str, Any]]:
         """Pass-through: rank memories by recency + importance (mem0-style)."""
         if self._memory is None:
-            raise RuntimeError("Semantic memory module is not initialized")
-        fn = getattr(self._memory, "ranking")
+            msg = "Semantic memory module is not initialized"
+            raise RuntimeError(msg)
+        fn = self._memory.ranking
         if not callable(fn):
-            raise AttributeError("memory does not support ranking")
+            msg = "memory does not support ranking"
+            raise AttributeError(msg)
         return fn(limit=limit, **kwargs)
 
     def consolidate(self, max_age=None, min_importance=None, merge_threshold=0.7) -> dict[str, Any]:
         """Pass-through: prune/merge stale + low-importance memories."""
         if self._memory is None:
-            raise RuntimeError("Semantic memory module is not initialized")
-        fn = getattr(self._memory, "consolidate")
+            msg = "Semantic memory module is not initialized"
+            raise RuntimeError(msg)
+        fn = self._memory.consolidate
         if not callable(fn):
-            raise AttributeError("memory does not support consolidate")
+            msg = "memory does not support consolidate"
+            raise AttributeError(msg)
         return fn(max_age=max_age, min_importance=min_importance, merge_threshold=merge_threshold)

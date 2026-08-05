@@ -30,7 +30,7 @@ __module__ = "skill_factory"
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     Event,
@@ -41,6 +41,15 @@ from enterprise.platform_kernel import (
     module,
 )
 
+from .evolution import (
+    DEFAULT_PROMOTE_THRESHOLD,
+    RESULT_FAIL,
+    RESULT_SUCCESS,
+    EvolutionEngine,
+    SkillFeedbackStore,
+    SkillScore,
+    compute_evolution_score,
+)
 from .skill_factory import (
     MAX_STEPS,
     SCORE_ALPHA,
@@ -61,15 +70,6 @@ from .skills_import import (
     SkillsImportFacade,
     import_skill_from_markdown,
     parse_skill_markdown,
-)
-from .evolution import (
-    DEFAULT_PROMOTE_THRESHOLD,
-    EvolutionEngine,
-    RESULT_FAIL,
-    RESULT_SUCCESS,
-    SkillFeedbackStore,
-    SkillScore,
-    compute_evolution_score,
 )
 
 __all__ = [
@@ -149,9 +149,7 @@ class SkillFactoryModule(Module):
         self._status = HealthStatus.STARTING
         try:
             data_dir = Path(self._config.get("data_dir", str(_DEFAULT_DATA_DIR)))
-            _logger.info(
-                "SkillFactory module initializing (data_dir=%s)", data_dir
-            )
+            _logger.info("SkillFactory module initializing (data_dir=%s)", data_dir)
 
             self._factory = SkillFactory(data_dir=data_dir)
             if self._event_bus is not None:

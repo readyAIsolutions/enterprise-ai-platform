@@ -6,6 +6,7 @@ MessagePart, Message) and in-memory orchestration state (TaskState, Task,
 TaskManager, AgentRegistry, A2AExchange, handoff helpers and A2AFacade).
 """
 
+import builtins
 import json
 import logging
 import os
@@ -14,9 +15,9 @@ import threading
 import uuid
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Deque, Dict, List, Optional
+from datetime import UTC, datetime
+from enum import Enum, StrEnum
+from typing import Any
 
 __all__ = [
     "AgentCard",
@@ -52,14 +53,18 @@ _logger = logging.getLogger("enterprise.a2a")
 
 # ============================================================ Errors
 
+
 class A2AError(Exception):
     """Base error for all A2A protocol violations."""
+
 
 class TaskNotFoundError(A2AError, KeyError):
     """Raised when a task id cannot be resolved."""
 
+
 class InvalidTransitionError(A2AError):
     """Raised when a task tries to move to a disallowed state."""
+
 
 class AgentNotRegisteredError(A2AError):
     """Raised when an operation references an unknown agent card."""
@@ -76,15 +81,19 @@ class NoAgentForCapabilityError(A2AError, KeyError):
 class TaskStoreError(A2AError):
     """Raised when the SQLite-backed TaskStore cannot operate (I/O, schema)."""
 
+
 # ============================================================ Small helpers
 
+
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
+
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:16]}"
 
-def _copy_mapping(value: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+
+def _copy_mapping(value: dict[str, Any] | None) -> dict[str, Any]:
     """Best-effort deep copy so callers can't alias the stored mapping."""
     if value is None:
         return {}
@@ -93,7 +102,9 @@ def _copy_mapping(value: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     except (TypeError, ValueError):
         return dict(value)
 
+
 # ============================================================ Enums
+
 
 class TaskState(Enum):
     """Life-cycle of an A2A task."""
@@ -104,38 +115,57 @@ class TaskState(Enum):
     COMPLETED = "completed"
     CANCELED = "canceled"
     FAILED = "failed"
+
     def can_transition_to(self, target: "TaskState") -> bool:
         """Return True if moving from this state to ``target`` is allowed."""
         return target in _TASK_TRANSITIONS.get(self, [])
 
+
 # Module-level (NOT inside the Enum body: single-underscore names become Enum
 # members and would shadow this dict).
-_TASK_TRANSITIONS: Dict[TaskState, List[TaskState]] = {
-    TaskState.SUBMITTED: [TaskState.WORKING, TaskState.INPUT_REQUIRED,
-                          TaskState.COMPLETED, TaskState.CANCELED, TaskState.FAILED],
-    TaskState.WORKING: [TaskState.INPUT_REQUIRED, TaskState.COMPLETED,
-                        TaskState.CANCELED, TaskState.FAILED],
-    TaskState.INPUT_REQUIRED: [TaskState.WORKING, TaskState.COMPLETED,
-                               TaskState.CANCELED, TaskState.FAILED],
+_TASK_TRANSITIONS: dict[TaskState, list[TaskState]] = {
+    TaskState.SUBMITTED: [
+        TaskState.WORKING,
+        TaskState.INPUT_REQUIRED,
+        TaskState.COMPLETED,
+        TaskState.CANCELED,
+        TaskState.FAILED,
+    ],
+    TaskState.WORKING: [
+        TaskState.INPUT_REQUIRED,
+        TaskState.COMPLETED,
+        TaskState.CANCELED,
+        TaskState.FAILED,
+    ],
+    TaskState.INPUT_REQUIRED: [
+        TaskState.WORKING,
+        TaskState.COMPLETED,
+        TaskState.CANCELED,
+        TaskState.FAILED,
+    ],
     TaskState.COMPLETED: [],
     TaskState.CANCELED: [],
     TaskState.FAILED: [TaskState.SUBMITTED],  # retry re-submits a failed task
 }
 
-class MessageRole(str, Enum):
+
+class MessageRole(StrEnum):
     """Authoring role of a message."""
 
     AGENT = "agent"
     USER = "user"
     SYSTEM = "system"
 
-class Cardinality(str, Enum):
+
+class Cardinality(StrEnum):
     """Negotiated capability cardinality (A2A-style)."""
 
     SINGLE = "single"
     MULTIPLE = "multiple"
 
+
 # ============================================================ Message primitives
+
 
 @dataclass
 class MessagePart:
@@ -143,12 +173,13 @@ class MessagePart:
 
     text: str
     kind: str = "text"
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    def to_dict(self) -> Dict[str, Any]:
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
         return {"kind": self.kind, "text": self.text, "metadata": dict(self.metadata)}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MessagePart":
+    def from_dict(cls, data: dict[str, Any]) -> "MessagePart":
         return cls(
             text=data.get("text", ""),
             kind=data.get("kind", "text"),
@@ -159,48 +190,56 @@ class MessagePart:
     def text_part(cls, text: str) -> "MessagePart":
         return cls(text=text, kind="text")
 
+
 @dataclass
 class Message:
     """An A2A message exchange envelope."""
 
     message_id: str
     role: MessageRole
-    parts: List[MessagePart] = field(default_factory=list)
+    parts: list[MessagePart] = field(default_factory=list)
     timestamp: str = field(default_factory=_now_iso)
-    context: Dict[str, Any] = field(default_factory=dict)
-    def to_dict(self) -> Dict[str, Any]:
+    context: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "messageId": self.message_id, "role": self.role.value,
-            "parts": [p.to_dict() for p in self.parts], "timestamp": self.timestamp,
+            "messageId": self.message_id,
+            "role": self.role.value,
+            "parts": [p.to_dict() for p in self.parts],
+            "timestamp": self.timestamp,
             "context": dict(self.context),
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Message":
+    def from_dict(cls, data: dict[str, Any]) -> "Message":
         parts = [
-            MessagePart.from_dict(p) if isinstance(p, dict) else p
-            for p in data.get("parts", [])
+            MessagePart.from_dict(p) if isinstance(p, dict) else p for p in data.get("parts", [])
         ]
         role_raw = data.get("role", "agent")
         role = role_raw if isinstance(role_raw, MessageRole) else MessageRole(role_raw)
         return cls(
-            message_id=data["messageId"], role=role, parts=parts,
+            message_id=data["messageId"],
+            role=role,
+            parts=parts,
             timestamp=data.get("timestamp", _now_iso()),
             context=dict(data.get("context") or {}),
         )
 
     @classmethod
-    def user_text(cls, text: str, context: Optional[Dict[str, Any]] = None) -> "Message":
+    def user_text(cls, text: str, context: dict[str, Any] | None = None) -> "Message":
         return cls(
             message_id=_new_id("msg"),
             role=MessageRole.USER,
             parts=[MessagePart.text_part(text)],
             context=context or {},
         )
+
     def text(self) -> str:
         return "".join(p.text for p in self.parts)
 
+
 # ============================================================ Agent primitives
+
 
 @dataclass
 class AgentCard:
@@ -210,9 +249,10 @@ class AgentCard:
     description: str = ""
     url: str = ""
     version: str = "1.0.0"
-    capabilities: List[str] = field(default_factory=list)
-    skills: List[str] = field(default_factory=list)
-    def to_dict(self) -> Dict[str, Any]:
+    capabilities: list[str] = field(default_factory=list)
+    skills: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "description": self.description,
@@ -223,7 +263,7 @@ class AgentCard:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AgentCard":
+    def from_dict(cls, data: dict[str, Any]) -> "AgentCard":
         return cls(
             name=data["name"],
             description=data.get("description", ""),
@@ -233,25 +273,30 @@ class AgentCard:
             skills=list(data.get("skills") or []),
         )
 
+
 @dataclass
 class AgentKey:
     """Stable address for an agent inside the ENI platform."""
 
     agent_id: str
     name: str = ""
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         return {"agentId": self.agent_id, "name": self.name}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AgentKey":
+    def from_dict(cls, data: dict[str, Any]) -> "AgentKey":
         return cls(agent_id=data["agentId"], name=data.get("name", ""))
+
 
 class AgentRegistry:
     """Thread-safe catalogue mapping agent ids to their AgentCard."""
+
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._cards: Dict[str, AgentCard] = {}
-        self._by_name: Dict[str, str] = {}  # name -> agent_id
+        self._cards: dict[str, AgentCard] = {}
+        self._by_name: dict[str, str] = {}  # name -> agent_id
+
     def register(self, card: AgentCard) -> AgentKey:
         """Register (or refresh) a card, returning its AgentKey."""
         agent_id = _slug(card.name)
@@ -259,6 +304,7 @@ class AgentRegistry:
             self._cards[agent_id] = card
             self._by_name[card.name] = agent_id
         return AgentKey(agent_id=agent_id, name=card.name)
+
     def unregister(self, agent_id: str) -> bool:
         with self._lock:
             card = self._cards.pop(agent_id, None)
@@ -266,10 +312,12 @@ class AgentRegistry:
                 self._by_name.pop(card.name, None)
                 return True
             return False
-    def get(self, agent_id: str) -> Optional[AgentCard]:
+
+    def get(self, agent_id: str) -> AgentCard | None:
         with self._lock:
             return self._cards.get(agent_id)
-    def resolve(self, ref: str) -> Optional[AgentKey]:
+
+    def resolve(self, ref: str) -> AgentKey | None:
         """Resolve an agent id or agent name into an AgentKey (or None)."""
         with self._lock:
             if ref in self._cards:
@@ -278,39 +326,40 @@ class AgentRegistry:
             if name_ref is not None:
                 return AgentKey(agent_id=name_ref, name=self._cards[name_ref].name)
             return None
-    def list(self) -> List[Dict[str, Any]]:
+
+    def list(self) -> list[dict[str, Any]]:
         """Return serialized cards, sorted by agent name."""
         with self._lock:
-            return [
-                c.to_dict()
-                for _, c in sorted(self._cards.items(), key=lambda kv: kv[1].name)
-            ]
-    def as_keys(self) -> List[AgentKey]:
+            return [c.to_dict() for _, c in sorted(self._cards.items(), key=lambda kv: kv[1].name)]
+
+    def as_keys(self) -> builtins.list[AgentKey]:
         with self._lock:
-            return [
-                AgentKey(agent_id=aid, name=c.name)
-                for aid, c in self._cards.items()
-            ]
+            return [AgentKey(agent_id=aid, name=c.name) for aid, c in self._cards.items()]
+
     def count(self) -> int:
         with self._lock:
             return len(self._cards)
-    def get_card(self, agent_id: str) -> Optional[AgentCard]:
+
+    def get_card(self, agent_id: str) -> AgentCard | None:
         """Return the AgentCard for ``agent_id`` (or None if unknown)."""
         return self.get(agent_id)
-    def agents_by_capability(self, capability: str) -> List[AgentCard]:
+
+    def agents_by_capability(self, capability: str) -> builtins.list[AgentCard]:
         """Return every registered card that offers ``capability`` (sorted)."""
         with self._lock:
             return sorted(
                 (c for c in self._cards.values() if capability in c.capabilities),
                 key=lambda c: c.name,
             )
-    def agents_by_skill(self, skill: str) -> List[AgentCard]:
+
+    def agents_by_skill(self, skill: str) -> builtins.list[AgentCard]:
         """Return every registered card that lists ``skill`` (sorted)."""
         with self._lock:
             return sorted(
                 (c for c in self._cards.values() if skill in c.skills),
                 key=lambda c: c.name,
             )
+
 
 def _slug(name: str) -> str:
     """Turn an agent name into a URL-friendly agent id."""
@@ -322,7 +371,9 @@ def _slug(name: str) -> str:
             out.append("-")
     return "".join(out).strip("-.") or "agent"
 
+
 # ============================================================ Task model
+
 
 @dataclass
 class Task:
@@ -331,31 +382,39 @@ class Task:
     task_id: str
     state: TaskState
     agent_id: str
-    session_id: Optional[str] = None
-    artifacts: List[Dict[str, Any]] = field(default_factory=list)
-    messages: List[Message] = field(default_factory=list)
-    context: Dict[str, Any] = field(default_factory=dict)
-    idempotency_key: Optional[str] = None
-    parent_task_id: Optional[str] = None
+    session_id: str | None = None
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
+    messages: list[Message] = field(default_factory=list)
+    context: dict[str, Any] = field(default_factory=dict)
+    idempotency_key: str | None = None
+    parent_task_id: str | None = None
     created_at: str = field(default_factory=_now_iso)
     updated_at: str = field(default_factory=_now_iso)
     retries: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    def to_dict(self) -> Dict[str, Any]:
-        d = {
-            "taskId": self.task_id, "state": self.state.value, "agentId": self.agent_id,
-            "sessionId": self.session_id, "artifacts": list(self.artifacts),
-            "messages": [m.to_dict() for m in self.messages], "context": dict(self.context),
-            "idempotencyKey": self.idempotency_key, "parentTaskId": self.parent_task_id,
-            "createdAt": self.created_at, "updatedAt": self.updated_at,
-            "retries": self.retries, "metadata": dict(self.metadata),
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "taskId": self.task_id,
+            "state": self.state.value,
+            "agentId": self.agent_id,
+            "sessionId": self.session_id,
+            "artifacts": list(self.artifacts),
+            "messages": [m.to_dict() for m in self.messages],
+            "context": dict(self.context),
+            "idempotencyKey": self.idempotency_key,
+            "parentTaskId": self.parent_task_id,
+            "createdAt": self.created_at,
+            "updatedAt": self.updated_at,
+            "retries": self.retries,
+            "metadata": dict(self.metadata),
         }
-        return d
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Task":
+    def from_dict(cls, data: dict[str, Any]) -> "Task":
         return cls(
-            task_id=data["taskId"], state=TaskState(data["state"]),
+            task_id=data["taskId"],
+            state=TaskState(data["state"]),
             agent_id=data["agentId"],
             session_id=data.get("sessionId"),
             artifacts=list(data.get("artifacts") or []),
@@ -369,7 +428,9 @@ class Task:
             metadata=dict(data.get("metadata") or {}),
         )
 
+
 # ============================================================ TaskManager
+
 
 class TaskManager:
     """Thread-safe, in-memory store for A2A tasks.
@@ -378,26 +439,29 @@ class TaskManager:
     life-cycle transitions (rejecting invalid ones); message appending;
     bounded retries for re-submitting failed tasks; lookup / listing.
     """
+
     def __init__(self, max_tasks: int = 100000) -> None:
         self._lock = threading.RLock()
-        self._tasks: Dict[str, Task] = {}
-        self._by_idempotency: Dict[str, str] = {}
+        self._tasks: dict[str, Task] = {}
+        self._by_idempotency: dict[str, str] = {}
         self._max_tasks = max(1, int(max_tasks))
+
     def create_task(
         self,
         agent_id: str,
-        message: Optional[Message] = None,
+        message: Message | None = None,
         *,
-        idempotency_key: Optional[str] = None,
-        parent_task_id: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        session_id: Optional[str] = None,
+        idempotency_key: str | None = None,
+        parent_task_id: str | None = None,
+        context: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> Task:
         """Create a new task, idempotent when ``idempotency_key`` is supplied."""
         with self._lock:
             if len(self._tasks) >= self._max_tasks:
-                raise A2AError(f"Task store is full ({self._max_tasks} tasks max)")
+                msg = f"Task store is full ({self._max_tasks} tasks max)"
+                raise A2AError(msg)
             if idempotency_key is not None:
                 existing_id = self._by_idempotency.get(idempotency_key)
                 if existing_id is not None:
@@ -417,18 +481,20 @@ class TaskManager:
             if idempotency_key is not None:
                 self._by_idempotency[idempotency_key] = task.task_id
             return task
+
     def get_task(self, task_id: str) -> Task:
         with self._lock:
             task = self._tasks.get(task_id)
             if task is None:
-                raise TaskNotFoundError(f"Unknown task id: {task_id!r}")
+                msg = f"Unknown task id: {task_id!r}"
+                raise TaskNotFoundError(msg)
             return task
+
     def has_task(self, task_id: str) -> bool:
         with self._lock:
             return task_id in self._tasks
-    def list_tasks(
-        self, agent_id: Optional[str] = None, state: Optional[TaskState] = None
-    ) -> List[Task]:
+
+    def list_tasks(self, agent_id: str | None = None, state: TaskState | None = None) -> list[Task]:
         with self._lock:
             result = list(self._tasks.values())
         if agent_id is not None:
@@ -436,11 +502,14 @@ class TaskManager:
         if state is not None:
             result = [t for t in result if t.state is state]
         return result
-    def tasks_for_agent(self, agent_id: str) -> List[Task]:
+
+    def tasks_for_agent(self, agent_id: str) -> list[Task]:
         return self.list_tasks(agent_id=agent_id)
+
     def count(self) -> int:
         with self._lock:
             return len(self._tasks)
+
     def transition(self, task_id: str, new_state: TaskState) -> Task:
         """Move a task to ``new_state``, enforcing valid transitions."""
         with self._lock:
@@ -448,64 +517,71 @@ class TaskManager:
             if task.state is new_state:
                 return task
             if not task.state.can_transition_to(new_state):
-                raise InvalidTransitionError(
+                msg = (
                     f"Illegal transition for task {task_id!r}: "
                     f"{task.state.value} -> {new_state.value}"
                 )
+                raise InvalidTransitionError(msg)
             task.state = new_state
             task.updated_at = _now_iso()
             return task
+
     def add_message(self, task_id: str, message: Message) -> Message:
         with self._lock:
             task = self.get_task(task_id)
             if task.state in (TaskState.COMPLETED, TaskState.CANCELED):
-                raise InvalidTransitionError(
-                    f"Cannot append to task {task_id!r} in terminal state "
-                    f"{task.state.value}"
-                )
+                msg = f"Cannot append to task {task_id!r} in terminal state {task.state.value}"
+                raise InvalidTransitionError(msg)
             task.messages.append(message)
             task.updated_at = _now_iso()
             return message
-    def add_artifact(self, task_id: str, artifact: Dict[str, Any]) -> Dict[str, Any]:
+
+    def add_artifact(self, task_id: str, artifact: dict[str, Any]) -> dict[str, Any]:
         """Append an artifact (result payload) to a stored task."""
         with self._lock:
             task = self.get_task(task_id)
             if task.state in (TaskState.COMPLETED, TaskState.CANCELED):
-                raise InvalidTransitionError(
-                    f"Cannot add artifact to task {task_id!r} in terminal state "
-                    f"{task.state.value}"
+                msg = (
+                    f"Cannot add artifact to task {task_id!r} in terminal state {task.state.value}"
                 )
+                raise InvalidTransitionError(msg)
             entry = dict(artifact)
             entry.setdefault("id", _new_id("art"))
             entry.setdefault("createdAt", _now_iso())
             task.artifacts.append(entry)
             task.updated_at = _now_iso()
             return entry
+
     def cancel(self, task_id: str) -> Task:
         return self.transition(task_id, TaskState.CANCELED)
+
     def complete(self, task_id: str) -> Task:
         return self.transition(task_id, TaskState.COMPLETED)
+
     def fail(self, task_id: str) -> Task:
         return self.transition(task_id, TaskState.FAILED)
+
     def mark_working(self, task_id: str) -> Task:
         return self.transition(task_id, TaskState.WORKING)
+
     def request_input(self, task_id: str) -> Task:
         return self.transition(task_id, TaskState.INPUT_REQUIRED)
+
     def retry(self, task_id: str, max_retries: int = 3) -> Task:
         """Re-submit a failed task, incrementing its retry counter."""
         with self._lock:
             task = self.get_task(task_id)
             if task.retries >= max_retries:
-                raise A2AError(f"Task {task_id!r} exceeded max retries ({max_retries})")
+                msg = f"Task {task_id!r} exceeded max retries ({max_retries})"
+                raise A2AError(msg)
             if task.state is not TaskState.FAILED:
-                raise InvalidTransitionError(
-                    f"Only failed tasks can be retried; task {task_id!r} is "
-                    f"{task.state.value}"
-                )
+                msg = f"Only failed tasks can be retried; task {task_id!r} is {task.state.value}"
+                raise InvalidTransitionError(msg)
             task.retries += 1
             task.state = TaskState.SUBMITTED
             task.updated_at = _now_iso()
             return task
+
     def set_context(self, task_id: str, key: str, value: Any) -> Task:
         with self._lock:
             task = self.get_task(task_id)
@@ -513,7 +589,9 @@ class TaskManager:
             task.updated_at = _now_iso()
             return task
 
+
 # ============================================================ Negotiation / exchange
+
 
 class A2AExchange:
     """Handshake + negotiation helper between agents.
@@ -521,20 +599,21 @@ class A2AExchange:
     Wraps an AgentRegistry plus a TaskManager to model the A2A flow: address an
     agent by key, negotiate capabilities, and route message payloads into tasks.
     """
+
     def __init__(
-        self, registry: Optional[AgentRegistry] = None, tasks: Optional[TaskManager] = None
+        self, registry: AgentRegistry | None = None, tasks: TaskManager | None = None
     ) -> None:
         self.registry = registry if registry is not None else AgentRegistry()
         self.tasks = tasks if tasks is not None else TaskManager()
+
     def negotiate(
-        self, source: AgentKey, target: AgentKey, required_capability: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, source: AgentKey, target: AgentKey, required_capability: str | None = None
+    ) -> dict[str, Any]:
         """Produce a negotiation offer from ``source`` to ``target``."""
         target_card = self.registry.get(target.agent_id)
         if target_card is None:
-            raise AgentNotRegisteredError(
-                f"Negotiation target {target.agent_id!r} is not registered"
-            )
+            msg = f"Negotiation target {target.agent_id!r} is not registered"
+            raise AgentNotRegisteredError(msg)
         accepted = True
         reason = "capability matched"
         if required_capability is not None:
@@ -552,21 +631,21 @@ class A2AExchange:
             "accepted": accepted,
             "reason": reason,
         }
+
     def send_to_agent(
         self,
         source: AgentKey,
         target: AgentKey,
         message: Message,
         *,
-        idempotency_key: Optional[str] = None,
-        parent_task_id: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        idempotency_key: str | None = None,
+        parent_task_id: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> Task:
         """Route a message from ``source`` to ``target`` as a new task."""
         if self.registry.get(target.agent_id) is None:
-            raise AgentNotRegisteredError(
-                f"Target agent {target.agent_id!r} is not registered"
-            )
+            msg = f"Target agent {target.agent_id!r} is not registered"
+            raise AgentNotRegisteredError(msg)
         joined_context = _copy_mapping(context)
         joined_context.setdefault("from", source.agent_id)
         return self.tasks.create_task(
@@ -577,17 +656,19 @@ class A2AExchange:
             context=joined_context,
         )
 
+
 # ============================================================ Handoff
+
 
 def handoff(
     exchange_or_registry: Any,
-    tasks: Optional[TaskManager],
+    tasks: TaskManager | None,
     parent_task: Task,
     target: AgentKey,
-    message: Optional[Message] = None,
+    message: Message | None = None,
     *,
-    context: Optional[Dict[str, Any]] = None,
-    idempotency_key: Optional[str] = None,
+    context: dict[str, Any] | None = None,
+    idempotency_key: str | None = None,
 ) -> Task:
     """Hand a task off to another agent.
 
@@ -606,9 +687,8 @@ def handoff(
     if task_store is None:
         task_store = TaskManager()
     if registry.get(target.agent_id) is None:
-        raise AgentNotRegisteredError(
-            f"Handoff target {target.agent_id!r} is not registered"
-        )
+        msg = f"Handoff target {target.agent_id!r} is not registered"
+        raise AgentNotRegisteredError(msg)
     child_context = _copy_mapping(parent_task.context)
     child_context.update(_copy_mapping(context))
     child_context.setdefault("parent_task_id", parent_task.task_id)
@@ -616,8 +696,7 @@ def handoff(
     if child_message is None:
         last = parent_task.messages[-1] if parent_task.messages else None
         child_message = Message.user_text(
-            f"Handoff from {parent_task.task_id}"
-            + (f": {last.text()}" if last else ""),
+            f"Handoff from {parent_task.task_id}" + (f": {last.text()}" if last else ""),
             context={"inherited_from": parent_task.task_id},
         )
     return task_store.create_task(
@@ -629,7 +708,9 @@ def handoff(
         metadata={"handoff_from": parent_task.task_id},
     )
 
+
 # ============================================================ Facade
+
 
 class A2AFacade:
     """High-level entry point for the A2A protocol on the ENI platform.
@@ -643,32 +724,38 @@ class A2AFacade:
       * send_message(task_id, text_or_message, ...) -> Message
       * handoff(task_id, target, ...) -> Task
     """
+
     def __init__(
         self,
-        registry: Optional[AgentRegistry] = None,
-        tasks: Optional[TaskManager] = None,
+        registry: AgentRegistry | None = None,
+        tasks: TaskManager | None = None,
     ) -> None:
         self.registry = registry if registry is not None else AgentRegistry()
         self.tasks = tasks if tasks is not None else TaskManager()
         self.exchange = A2AExchange(registry=self.registry, tasks=self.tasks)
+
     def register_agent_card(self, card: AgentCard) -> AgentKey:
         return self.registry.register(card)
+
     def unregister_agent(self, agent_id: str) -> bool:
         return self.registry.unregister(agent_id)
-    def list_agents(self) -> List[Dict[str, Any]]:
+
+    def list_agents(self) -> list[dict[str, Any]]:
         return self.registry.list()
-    def resolve_agent(self, ref: str) -> Optional[AgentKey]:
+
+    def resolve_agent(self, ref: str) -> AgentKey | None:
         return self.registry.resolve(ref)
+
     def create_task(
         self,
         agent_ref: str,
-        message: Optional[Any] = None,
+        message: Any | None = None,
         *,
-        idempotency_key: Optional[str] = None,
-        parent_task_id: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        session_id: Optional[str] = None,
+        idempotency_key: str | None = None,
+        parent_task_id: str | None = None,
+        context: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> Task:
         """Create a task for the agent addressed by ``agent_ref``.
 
@@ -685,24 +772,27 @@ class A2AFacade:
             metadata=metadata,
             session_id=session_id,
         )
+
     def get_task(self, task_id: str) -> Task:
         return self.tasks.get_task(task_id)
+
     def list_tasks(
-        self, agent_ref: Optional[str] = None, state: Optional[TaskState] = None
-    ) -> List[Task]:
+        self, agent_ref: str | None = None, state: TaskState | None = None
+    ) -> list[Task]:
         agent_id = None
         if agent_ref is not None:
             key = self.registry.resolve(agent_ref)
             if key is not None:
                 agent_id = key.agent_id
         return self.tasks.list_tasks(agent_id=agent_id, state=state)
+
     def send_message(
         self,
         task_id: str,
         message: Any,
         *,
         role: MessageRole = MessageRole.USER,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> Message:
         """Append a message to an existing task (Message or plain string)."""
         if isinstance(message, Message):
@@ -715,24 +805,27 @@ class A2AFacade:
                 context=context or {},
             )
         else:
-            raise TypeError(
-                f"message must be a str or Message, got {type(message).__name__}"
-            )
+            msg_0 = f"message must be a str or Message, got {type(message).__name__}"
+            raise TypeError(msg_0)
         return self.tasks.add_message(task_id, msg)
+
     def transition(self, task_id: str, state: TaskState) -> Task:
         return self.tasks.transition(task_id, state)
+
     def complete_task(self, task_id: str) -> Task:
         return self.tasks.complete(task_id)
+
     def cancel_task(self, task_id: str) -> Task:
         return self.tasks.cancel(task_id)
+
     def handoff(
         self,
         task_id: str,
         target_ref: str,
         message: Any = None,
         *,
-        context: Optional[Dict[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
+        context: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
     ) -> Task:
         """Hand the task identified by ``task_id`` off to ``target_ref``.
 
@@ -751,34 +844,38 @@ class A2AFacade:
             context=child_context,
             metadata={"handoff_from": parent.task_id},
         )
+
     def negotiate(
         self,
         source_ref: str,
         target_ref: str,
-        required_capability: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        required_capability: str | None = None,
+    ) -> dict[str, Any]:
         source = self._require_agent(source_ref)
         target = self._require_agent(target_ref)
         return self.exchange.negotiate(source, target, required_capability)
+
     def _require_agent(self, agent_ref: str) -> AgentKey:
         key = self.registry.resolve(agent_ref)
         if key is None:
-            raise AgentNotRegisteredError(
-                f"Unknown agent: {agent_ref!r}. Register it first."
-            )
+            msg = f"Unknown agent: {agent_ref!r}. Register it first."
+            raise AgentNotRegisteredError(msg)
         return key
 
-def _coerce_message(message: Any) -> Optional[Message]:
+
+def _coerce_message(message: Any) -> Message | None:
     """Normalise a message argument into a Message or None."""
     if message is None or isinstance(message, Message):
         return message
     if isinstance(message, str):
         return Message.user_text(message)
-    raise TypeError(f"message must be a str, Message or None, got {type(message).__name__}")
+    msg = f"message must be a str, Message or None, got {type(message).__name__}"
+    raise TypeError(msg)
+
 
 def _merged_context(
-    parent_context: Dict[str, Any], overrides: Optional[Dict[str, Any]]
-) -> Dict[str, Any]:
+    parent_context: dict[str, Any], overrides: dict[str, Any] | None
+) -> dict[str, Any]:
     merged = _copy_mapping(parent_context)
     merged.update(_copy_mapping(overrides))
     return merged
@@ -793,7 +890,7 @@ def _json_dumps(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"))
 
 
-def _json_loads(value: Optional[str], fallback: Any) -> Any:
+def _json_loads(value: str | None, fallback: Any) -> Any:
     if value is None:
         return fallback
     try:
@@ -840,12 +937,12 @@ class TaskStore:
     CREATE INDEX IF NOT EXISTS idx_tasks_idem ON tasks(idempotency_key);
     """
 
-    def __init__(self, db_path: Optional[str] = None) -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         self._db_path = str(db_path or _DEFAULT_TASK_DB)
         self._lock = threading.RLock()
-        self._conn: Optional[sqlite3.Connection] = None
-        self._tasks: Dict[str, Task] = {}
-        self._by_idempotency: Dict[str, str] = {}
+        self._conn: sqlite3.Connection | None = None
+        self._tasks: dict[str, Task] = {}
+        self._by_idempotency: dict[str, str] = {}
 
     # -- lifecycle ------------------------------------------------------
 
@@ -871,7 +968,8 @@ class TaskStore:
             conn.executescript(self._SCHEMA)
             conn.commit()
         except sqlite3.Error as exc:  # noqa: BLE001 - surface as module error
-            raise TaskStoreError(f"Failed to open SQLite task store: {exc}") from exc
+            msg = f"Failed to open SQLite task store: {exc}"
+            raise TaskStoreError(msg) from exc
         with self._lock:
             self._conn = conn
             self._reload()
@@ -889,9 +987,19 @@ class TaskStore:
                 "updated_at, retries, metadata FROM tasks"
             ):
                 (
-                    task_id, session_id, agent_id, state_raw, messages_raw,
-                    artifacts_raw, context_raw, idem, parent, created, updated,
-                    retries, metadata_raw,
+                    task_id,
+                    session_id,
+                    agent_id,
+                    state_raw,
+                    messages_raw,
+                    artifacts_raw,
+                    context_raw,
+                    idem,
+                    parent,
+                    created,
+                    updated,
+                    retries,
+                    metadata_raw,
                 ) = row
                 task = Task(
                     task_id=task_id,
@@ -899,9 +1007,7 @@ class TaskStore:
                     agent_id=agent_id,
                     session_id=session_id,
                     artifacts=_json_loads(artifacts_raw, []),
-                    messages=[
-                        Message.from_dict(m) for m in _json_loads(messages_raw, [])
-                    ],
+                    messages=[Message.from_dict(m) for m in _json_loads(messages_raw, [])],
                     context=_json_loads(context_raw, {}) or {},
                     idempotency_key=idem,
                     parent_task_id=parent,
@@ -914,7 +1020,8 @@ class TaskStore:
                 if idem is not None:
                     self._by_idempotency[idem] = task_id
         except (sqlite3.Error, ValueError) as exc:  # noqa: BLE001
-            raise TaskStoreError(f"Failed to reload task store: {exc}") from exc
+            msg = f"Failed to reload task store: {exc}"
+            raise TaskStoreError(msg) from exc
 
     def close(self) -> None:
         """Flush and close the SQLite connection (idempotent)."""
@@ -940,7 +1047,8 @@ class TaskStore:
 
     def _require_conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            raise TaskStoreError("TaskStore not initialized (call initialize())")
+            msg = "TaskStore not initialized (call initialize())"
+            raise TaskStoreError(msg)
         return self._conn
 
     def _insert(self, task: Task) -> None:
@@ -950,11 +1058,19 @@ class TaskStore:
             "artifacts, context, idempotency_key, parent_task_id, created_at, "
             "updated_at, retries, metadata) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                task.task_id, task.session_id, task.agent_id, task.state.value,
+                task.task_id,
+                task.session_id,
+                task.agent_id,
+                task.state.value,
                 _json_dumps([m.to_dict() for m in task.messages]),
-                _json_dumps(task.artifacts), _json_dumps(task.context),
-                task.idempotency_key, task.parent_task_id, task.created_at,
-                task.updated_at, task.retries, _json_dumps(task.metadata),
+                _json_dumps(task.artifacts),
+                _json_dumps(task.context),
+                task.idempotency_key,
+                task.parent_task_id,
+                task.created_at,
+                task.updated_at,
+                task.retries,
+                _json_dumps(task.metadata),
             ),
         )
         conn.commit()
@@ -967,8 +1083,11 @@ class TaskStore:
             (
                 task.state.value,
                 _json_dumps([m.to_dict() for m in task.messages]),
-                _json_dumps(task.artifacts), _json_dumps(task.context),
-                task.updated_at, task.retries, _json_dumps(task.metadata),
+                _json_dumps(task.artifacts),
+                _json_dumps(task.context),
+                task.updated_at,
+                task.retries,
+                _json_dumps(task.metadata),
                 task.task_id,
             ),
         )
@@ -979,13 +1098,13 @@ class TaskStore:
     def create_task(
         self,
         agent_id: str,
-        message: Optional[Message] = None,
+        message: Message | None = None,
         *,
-        idempotency_key: Optional[str] = None,
-        parent_task_id: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        session_id: Optional[str] = None,
+        idempotency_key: str | None = None,
+        parent_task_id: str | None = None,
+        context: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> Task:
         with self._lock:
             if idempotency_key is not None:
@@ -1013,16 +1132,15 @@ class TaskStore:
         with self._lock:
             task = self._tasks.get(task_id)
             if task is None:
-                raise TaskNotFoundError(f"Unknown task id: {task_id!r}")
+                msg = f"Unknown task id: {task_id!r}"
+                raise TaskNotFoundError(msg)
             return task
 
     def has_task(self, task_id: str) -> bool:
         with self._lock:
             return task_id in self._tasks
 
-    def list_tasks(
-        self, agent_id: Optional[str] = None, state: Optional[TaskState] = None
-    ) -> List[Task]:
+    def list_tasks(self, agent_id: str | None = None, state: TaskState | None = None) -> list[Task]:
         with self._lock:
             result = list(self._tasks.values())
         if agent_id is not None:
@@ -1031,10 +1149,10 @@ class TaskStore:
             result = [t for t in result if t.state is state]
         return result
 
-    def tasks_for_agent(self, agent_id: str) -> List[Task]:
+    def tasks_for_agent(self, agent_id: str) -> list[Task]:
         return self.list_tasks(agent_id=agent_id)
 
-    def tasks_for_session(self, session_id: str) -> List[Task]:
+    def tasks_for_session(self, session_id: str) -> list[Task]:
         with self._lock:
             return [t for t in self._tasks.values() if t.session_id == session_id]
 
@@ -1048,10 +1166,11 @@ class TaskStore:
             if task.state is new_state:
                 return task
             if not task.state.can_transition_to(new_state):
-                raise InvalidTransitionError(
+                msg = (
                     f"Illegal transition for task {task_id!r}: "
                     f"{task.state.value} -> {new_state.value}"
                 )
+                raise InvalidTransitionError(msg)
             task.state = new_state
             task.updated_at = _now_iso()
             self._update_row(task)
@@ -1061,23 +1180,21 @@ class TaskStore:
         with self._lock:
             task = self.get_task(task_id)
             if task.state in (TaskState.COMPLETED, TaskState.CANCELED):
-                raise InvalidTransitionError(
-                    f"Cannot append to task {task_id!r} in terminal state "
-                    f"{task.state.value}"
-                )
+                msg = f"Cannot append to task {task_id!r} in terminal state {task.state.value}"
+                raise InvalidTransitionError(msg)
             task.messages.append(message)
             task.updated_at = _now_iso()
             self._update_row(task)
             return message
 
-    def add_artifact(self, task_id: str, artifact: Dict[str, Any]) -> Dict[str, Any]:
+    def add_artifact(self, task_id: str, artifact: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
             task = self.get_task(task_id)
             if task.state in (TaskState.COMPLETED, TaskState.CANCELED):
-                raise InvalidTransitionError(
-                    f"Cannot add artifact to task {task_id!r} in terminal state "
-                    f"{task.state.value}"
+                msg = (
+                    f"Cannot add artifact to task {task_id!r} in terminal state {task.state.value}"
                 )
+                raise InvalidTransitionError(msg)
             entry = dict(artifact)
             entry.setdefault("id", _new_id("art"))
             entry.setdefault("createdAt", _now_iso())
@@ -1105,12 +1222,11 @@ class TaskStore:
         with self._lock:
             task = self.get_task(task_id)
             if task.retries >= max_retries:
-                raise A2AError(f"Task {task_id!r} exceeded max retries ({max_retries})")
+                msg = f"Task {task_id!r} exceeded max retries ({max_retries})"
+                raise A2AError(msg)
             if task.state is not TaskState.FAILED:
-                raise InvalidTransitionError(
-                    f"Only failed tasks can be retried; task {task_id!r} is "
-                    f"{task.state.value}"
-                )
+                msg = f"Only failed tasks can be retried; task {task_id!r} is {task.state.value}"
+                raise InvalidTransitionError(msg)
             task.retries += 1
             task.state = TaskState.SUBMITTED
             task.updated_at = _now_iso()
@@ -1128,6 +1244,7 @@ class TaskStore:
 
 # ============================================================ In-memory transport
 
+
 class InMemoryTransport:
     """Injectable, network-free transport for A2A ``send``/``get``.
 
@@ -1139,7 +1256,7 @@ class InMemoryTransport:
     """
 
     def __init__(self) -> None:
-        self._queues: Dict[str, Deque[Dict[str, Any]]] = defaultdict(deque)
+        self._queues: dict[str, deque[dict[str, Any]]] = defaultdict(deque)
         self._lock = threading.RLock()
         self._closed = False
 
@@ -1152,12 +1269,13 @@ class InMemoryTransport:
         to: str,
         payload: Any,
         *,
-        _from: Optional[str] = None,
-        task_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        _from: str | None = None,
+        task_id: str | None = None,
+    ) -> dict[str, Any]:
         """Queue an envelope addressed to ``to``."""
         if self._closed:
-            raise A2AError("InMemoryTransport is closed")
+            msg = "InMemoryTransport is closed"
+            raise A2AError(msg)
         envelope = {
             "to": to,
             "from": _from,
@@ -1169,20 +1287,22 @@ class InMemoryTransport:
             self._queues[to].append(envelope)
         return envelope
 
-    def send_envelope(self, envelope: Dict[str, Any]) -> Dict[str, Any]:
+    def send_envelope(self, envelope: dict[str, Any]) -> dict[str, Any]:
         """Queue a pre-built envelope dict (``'to'`` is required)."""
         if self._closed:
-            raise A2AError("InMemoryTransport is closed")
+            msg = "InMemoryTransport is closed"
+            raise A2AError(msg)
         to = envelope.get("to")
         if not to:
-            raise A2AError("Envelope missing required 'to' address")
+            msg = "Envelope missing required 'to' address"
+            raise A2AError(msg)
         env = dict(envelope)
         env.setdefault("sentAt", _now_iso())
         with self._lock:
             self._queues[to].append(env)
         return env
 
-    def receive(self, address: str) -> Optional[Dict[str, Any]]:
+    def receive(self, address: str) -> dict[str, Any] | None:
         """Return the oldest envelope for ``address`` or None if the queue is empty."""
         with self._lock:
             q = self._queues.get(address)
@@ -1190,7 +1310,7 @@ class InMemoryTransport:
                 return None
             return q.popleft()
 
-    def get(self, address: str, timeout: float = 0.0) -> Optional[Dict[str, Any]]:
+    def get(self, address: str, timeout: float = 0.0) -> dict[str, Any] | None:
         """Block (up to ``timeout`` seconds) for the next envelope at ``address``.
 
         ``timeout`` of 0 returns immediately; a negative timeout blocks forever.
@@ -1208,7 +1328,7 @@ class InMemoryTransport:
                 return None
             _time.sleep(0.001)
 
-    def pending(self, address: Optional[str] = None) -> int:
+    def pending(self, address: str | None = None) -> int:
         with self._lock:
             if address is not None:
                 return len(self._queues.get(address, ()))
@@ -1223,14 +1343,15 @@ class InMemoryTransport:
 
     # -- async wrappers -------------------------------------------------
 
-    async def asend(self, to: str, payload: Any, **kw: Any) -> Dict[str, Any]:
+    async def asend(self, to: str, payload: Any, **kw: Any) -> dict[str, Any]:
         return self.send(to, payload, **kw)
 
-    async def aget(self, address: str, timeout: float = 0.0) -> Optional[Dict[str, Any]]:
+    async def aget(self, address: str, timeout: float = 0.0) -> dict[str, Any] | None:
         return self.get(address, timeout=timeout)
 
 
 # ============================================================ Router / exchange
+
 
 @dataclass
 class RouteResult:
@@ -1241,9 +1362,9 @@ class RouteResult:
     agent_id: str
     capability: str
     state: TaskState
-    transitions: List[str] = field(default_factory=list)
+    transitions: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "taskId": self.task_id,
             "agentId": self.agent_id,
@@ -1270,18 +1391,17 @@ class TaskRouter:
 
     def __init__(
         self,
-        registry: Optional[AgentRegistry] = None,
-        store: Optional[Any] = None,
+        registry: AgentRegistry | None = None,
+        store: Any | None = None,
     ) -> None:
         self.registry = registry if registry is not None else AgentRegistry()
         self.store = store if store is not None else TaskManager()
 
-    def _select_agent(self, capability: str, prefer: Optional[str]) -> AgentCard:
+    def _select_agent(self, capability: str, prefer: str | None) -> AgentCard:
         cards = self.registry.agents_by_capability(capability)
         if not cards:
-            raise NoAgentForCapabilityError(
-                f"No registered agent offers capability {capability!r}"
-            )
+            msg = f"No registered agent offers capability {capability!r}"
+            raise NoAgentForCapabilityError(msg)
         if prefer is not None:
             for card in cards:
                 if card.name == prefer:
@@ -1293,10 +1413,10 @@ class TaskRouter:
         capability: str,
         message: Any = None,
         *,
-        session_id: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        prefer: Optional[str] = None,
-        source: Optional[str] = None,
+        session_id: str | None = None,
+        context: dict[str, Any] | None = None,
+        prefer: str | None = None,
+        source: str | None = None,
     ) -> RouteResult:
         """Route a message to an agent offering ``capability``."""
         card = self._select_agent(capability, prefer)
@@ -1305,9 +1425,7 @@ class TaskRouter:
         joined = _copy_mapping(context)
         if source is not None:
             joined.setdefault("from", source)
-        task = self.store.create_task(
-            agent_id, msg, session_id=session_id, context=joined
-        )
+        task = self.store.create_task(agent_id, msg, session_id=session_id, context=joined)
         transitions = [task.state.value]
         task = self.store.mark_working(task.task_id)
         transitions.append(task.state.value)
@@ -1329,13 +1447,14 @@ class TaskRouter:
         agent_ref: str,
         message: Any = None,
         *,
-        session_id: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        session_id: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> RouteResult:
         """Route directly to a specific agent, rejecting unknown targets."""
         key = self.registry.resolve(agent_ref)
         if key is None:
-            raise AgentNotFoundError(f"Unknown agent: {agent_ref!r}")
+            msg = f"Unknown agent: {agent_ref!r}"
+            raise AgentNotFoundError(msg)
         task = self.store.create_task(
             key.agent_id,
             _coerce_message(message),
@@ -1356,6 +1475,7 @@ class TaskRouter:
 
 
 # ============================================================ encode / decode
+
 
 def encode_message(message: Message) -> str:
     """Serialize a :class:`Message` to a compact JSON string (wire format)."""
@@ -1383,12 +1503,12 @@ def decode_task(text: str) -> Task:
     return Task.from_dict(data)
 
 
-def encode_artifact(artifact: Dict[str, Any]) -> str:
+def encode_artifact(artifact: dict[str, Any]) -> str:
     """Serialize an artifact dict to a JSON string."""
     return _json_dumps(artifact)
 
 
-def decode_artifact(text: str) -> Dict[str, Any]:
+def decode_artifact(text: str) -> dict[str, Any]:
     """Deserialize a JSON string back into an artifact dict."""
     data = json.loads(text)
     if isinstance(data, str):
@@ -1411,13 +1531,13 @@ def decode_sse(text: str):
 
     Returns ``(event, None)`` when no ``event:`` line is present.
     """
-    event: Optional[str] = None
-    data_lines: List[str] = []
+    event: str | None = None
+    data_lines: list[str] = []
     for line in str(text).splitlines():
         if line.startswith("event:"):
-            event = line[len("event:"):].strip()
+            event = line[len("event:") :].strip()
         elif line.startswith("data:"):
-            data_lines.append(line[len("data:"):].strip())
+            data_lines.append(line[len("data:") :].strip())
     if not data_lines:
         return event, None
     raw = "\n".join(data_lines)

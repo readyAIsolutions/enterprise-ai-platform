@@ -11,47 +11,45 @@ Usage:
 
 import os
 import sys
-from datetime import datetime, timezone
-
-import pytest
 
 sys.path.insert(0, "/home/hunter/Desktop/Enterprise Builder")
 
+from enterprise.modules.knowledge_graph.contradiction import ContradictionManager
+from enterprise.modules.knowledge_graph.entities import (
+    Entity,
+    EntityRegistry,
+    EntityType,
+)
 from enterprise.modules.knowledge_graph.persistence import (
     KGPersistence,
     create_persistence,
 )
-from enterprise.modules.knowledge_graph.entities import (
-    Entity,
-    EntityType,
-    EntityRegistry,
-)
+from enterprise.modules.knowledge_graph.provenance import Provenance
 from enterprise.modules.knowledge_graph.relationships import (
     Relationship,
-    RelationshipType,
     RelationshipRegistry,
+    RelationshipType,
 )
-from enterprise.modules.knowledge_graph.provenance import Provenance
-from enterprise.modules.knowledge_graph.contradiction import ContradictionManager
-
 
 # --------------------------------------------------------------------------- #
 # helpers
 # --------------------------------------------------------------------------- #
+
 
 def _dir_path(tmp_path):
     return str(tmp_path / "kg")
 
 
 def _entity(entity_type=EntityType.PROJECT, name="Alpha", **kw):
-    e = Entity(entity_type=entity_type, name=name, **kw)
-    return e
+    return Entity(entity_type=entity_type, name=name, **kw)
 
 
 def _make_graph(entities=None, relationships=None):
     """Build a minimal graph container exposing entity/relationship registries."""
+
     class _Graph:
         pass
+
     g = _Graph()
     er = EntityRegistry()
     rr = RelationshipRegistry()
@@ -68,14 +66,15 @@ def _make_graph(entities=None, relationships=None):
 # construction / backends
 # --------------------------------------------------------------------------- #
 
-def test_memory_backend_when_none():
+
+def test_memory_backend_when_none() -> None:
     p = KGPersistence(None)
     assert p._is_memory is True
     assert p.db_path is None
     p.close()
 
 
-def test_sqlite_backend_with_file(tmp_path):
+def test_sqlite_backend_with_file(tmp_path) -> None:
     db = str(tmp_path / "kg" / "kb.db")
     p = KGPersistence(db)
     assert p._is_memory is False
@@ -84,7 +83,7 @@ def test_sqlite_backend_with_file(tmp_path):
     p.close()
 
 
-def test_sqlite_backend_with_directory(tmp_path):
+def test_sqlite_backend_with_directory(tmp_path) -> None:
     d = str(tmp_path / "some_dir")
     p = KGPersistence(d)
     assert p._is_memory is False
@@ -93,7 +92,7 @@ def test_sqlite_backend_with_directory(tmp_path):
     p.close()
 
 
-def test_create_persistence_factory(tmp_path):
+def test_create_persistence_factory(tmp_path) -> None:
     p = create_persistence()
     assert p._is_memory is True
     p.close()
@@ -106,7 +105,8 @@ def test_create_persistence_factory(tmp_path):
 # entity CRUD
 # --------------------------------------------------------------------------- #
 
-def test_upsert_and_get_entity(tmp_path):
+
+def test_upsert_and_get_entity(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e = _entity()
         pid = p.upsert_entity(e.to_dict())
@@ -117,12 +117,12 @@ def test_upsert_and_get_entity(tmp_path):
         assert got["entity_type"] == e.entity_type.value
 
 
-def test_get_missing_entity_returns_none(tmp_path):
+def test_get_missing_entity_returns_none(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         assert p.get_entity("nope") is None
 
 
-def test_get_entity_by_type(tmp_path):
+def test_get_entity_by_type(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e = _entity()
         p.upsert_entity(e.to_dict())
@@ -130,7 +130,7 @@ def test_get_entity_by_type(tmp_path):
         assert p.get_entity(e.id, entity_type=EntityType.USER.value) is None
 
 
-def test_list_entities_and_type_filter(tmp_path):
+def test_list_entities_and_type_filter(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         p.upsert_entity(_entity(EntityType.PROJECT, "P1").to_dict())
         p.upsert_entity(_entity(EntityType.PROJECT, "P2").to_dict())
@@ -142,14 +142,14 @@ def test_list_entities_and_type_filter(tmp_path):
         assert names == {"P1", "P2"}
 
 
-def test_accepts_entity_object_directly(tmp_path):
+def test_accepts_entity_object_directly(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e = _entity()
         p.upsert_entity(e)
         assert p.get_entity(e.id)["name"] == "Alpha"
 
 
-def test_upsert_with_extra_attrs(tmp_path):
+def test_upsert_with_extra_attrs(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e = _entity()
         p.upsert_entity(e.to_dict(), attrs={"metadata": {"owner": "team"}})
@@ -161,7 +161,8 @@ def test_upsert_with_extra_attrs(tmp_path):
 # dedup by (type, id)
 # --------------------------------------------------------------------------- #
 
-def test_dedup_entities_by_type_and_id(tmp_path):
+
+def test_dedup_entities_by_type_and_id(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e = _entity(EntityType.PROJECT, "Alpha")
         p.upsert_entity(e.to_dict())
@@ -170,7 +171,7 @@ def test_dedup_entities_by_type_and_id(tmp_path):
         assert p.stats()["entities"] == 1
 
 
-def test_dedup_same_id_different_type_still_deduped_if_added_again():
+def test_dedup_same_id_different_type_still_deduped_if_added_again() -> None:
     # Same id + same type -> one row. Verify upsert updates in place.
     with KGPersistence(None) as p:
         e = _entity(EntityType.PROJECT, "Alpha")
@@ -181,7 +182,7 @@ def test_dedup_same_id_different_type_still_deduped_if_added_again():
         assert rows[0]["name"] == "Alpha v2"
 
 
-def test_dedup_distinct_ids_are_separate(tmp_path):
+def test_dedup_distinct_ids_are_separate(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         p.upsert_entity(_entity(EntityType.PROJECT, "A").to_dict())
         p.upsert_entity(_entity(EntityType.PROJECT, "B").to_dict())
@@ -192,7 +193,8 @@ def test_dedup_distinct_ids_are_separate(tmp_path):
 # relationships
 # --------------------------------------------------------------------------- #
 
-def test_upsert_and_get_relationships(tmp_path):
+
+def test_upsert_and_get_relationships(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e1 = _entity(EntityType.SERVICE, "svc")
         e2 = _entity(EntityType.DATABASE, "db")
@@ -210,23 +212,35 @@ def test_upsert_and_get_relationships(tmp_path):
         assert rels[0]["relationship_type"] == "Uses"
 
 
-def test_get_relationships_filtered_by_from_id(tmp_path):
+def test_get_relationships_filtered_by_from_id(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         a = _entity(EntityType.SERVICE, "a")
         b = _entity(EntityType.SERVICE, "b")
         c = _entity(EntityType.SERVICE, "c")
         for e in (a, b, c):
             p.upsert_entity(e.to_dict())
-        p.upsert_relationship(Relationship(source_id=a.id, target_id=b.id, relationship_type=RelationshipType.USES).to_dict())
-        p.upsert_relationship(Relationship(source_id=a.id, target_id=c.id, relationship_type=RelationshipType.USES).to_dict())
-        p.upsert_relationship(Relationship(source_id=b.id, target_id=c.id, relationship_type=RelationshipType.DEPENDS_ON).to_dict())
+        p.upsert_relationship(
+            Relationship(
+                source_id=a.id, target_id=b.id, relationship_type=RelationshipType.USES
+            ).to_dict()
+        )
+        p.upsert_relationship(
+            Relationship(
+                source_id=a.id, target_id=c.id, relationship_type=RelationshipType.USES
+            ).to_dict()
+        )
+        p.upsert_relationship(
+            Relationship(
+                source_id=b.id, target_id=c.id, relationship_type=RelationshipType.DEPENDS_ON
+            ).to_dict()
+        )
         out_a = p.get_relationships(from_id=a.id)
         assert len(out_a) == 2
         assert all(r["source_id"] == a.id for r in out_a)
         assert len(p.get_relationships()) == 3
 
 
-def test_upsert_relationship_deduplicates_by_id(tmp_path):
+def test_upsert_relationship_deduplicates_by_id(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         a = _entity(EntityType.SERVICE, "a")
         b = _entity(EntityType.SERVICE, "b")
@@ -242,7 +256,8 @@ def test_upsert_relationship_deduplicates_by_id(tmp_path):
 # provenance
 # --------------------------------------------------------------------------- #
 
-def test_add_and_get_provenance(tmp_path):
+
+def test_add_and_get_provenance(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e = _entity()
         p.upsert_entity(e.to_dict())
@@ -255,7 +270,7 @@ def test_add_and_get_provenance(tmp_path):
         assert prov[0]["confidence"] == 0.9
 
 
-def test_multiple_provenance_records_ordered(tmp_path):
+def test_multiple_provenance_records_ordered(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e = _entity()
         p.upsert_entity(e.to_dict())
@@ -266,7 +281,7 @@ def test_multiple_provenance_records_ordered(tmp_path):
         assert [r["source"] for r in prov] == ["src-1", "src-2"]
 
 
-def test_provenance_filters_by_entity(tmp_path):
+def test_provenance_filters_by_entity(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e1 = _entity(EntityType.PROJECT, "A")
         e2 = _entity(EntityType.PROJECT, "B")
@@ -277,7 +292,7 @@ def test_provenance_filters_by_entity(tmp_path):
         assert len(p.get_provenance(e2.id)) == 0
 
 
-def test_provenance_from_provenance_object(tmp_path):
+def test_provenance_from_provenance_object(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e = _entity()
         p.upsert_entity(e.to_dict())
@@ -292,14 +307,23 @@ def test_provenance_from_provenance_object(tmp_path):
 # delete cascade
 # --------------------------------------------------------------------------- #
 
-def test_delete_entity_cascades(tmp_path):
+
+def test_delete_entity_cascades(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         a = _entity(EntityType.SERVICE, "a")
         b = _entity(EntityType.DATABASE, "b")
         p.upsert_entity(a.to_dict())
         p.upsert_entity(b.to_dict())
-        p.upsert_relationship(Relationship(source_id=a.id, target_id=b.id, relationship_type=RelationshipType.USES).to_dict())
-        p.upsert_relationship(Relationship(source_id=b.id, target_id=a.id, relationship_type=RelationshipType.USES).to_dict())
+        p.upsert_relationship(
+            Relationship(
+                source_id=a.id, target_id=b.id, relationship_type=RelationshipType.USES
+            ).to_dict()
+        )
+        p.upsert_relationship(
+            Relationship(
+                source_id=b.id, target_id=a.id, relationship_type=RelationshipType.USES
+            ).to_dict()
+        )
         p.add_provenance(a.id, "s1", "e", 0.8)
 
         assert p.delete_entity(a.id) is True
@@ -310,7 +334,7 @@ def test_delete_entity_cascades(tmp_path):
         assert p.get_entity(a.id) is None
 
 
-def test_delete_missing_entity_returns_false(tmp_path):
+def test_delete_missing_entity_returns_false(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         assert p.delete_entity("missing") is False
 
@@ -319,7 +343,8 @@ def test_delete_missing_entity_returns_false(tmp_path):
 # stats
 # --------------------------------------------------------------------------- #
 
-def test_stats_counts(tmp_path):
+
+def test_stats_counts(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e = _entity()
         p.upsert_entity(e.to_dict())
@@ -334,7 +359,8 @@ def test_stats_counts(tmp_path):
 # persistence round-trip across reopen
 # --------------------------------------------------------------------------- #
 
-def test_round_trip_across_reopen(tmp_path):
+
+def test_round_trip_across_reopen(tmp_path) -> None:
     db = str(tmp_path / "kg.db")
     e = _entity(EntityType.REQUIREMENT, "REQ-1", description="initial")
     e2 = _entity(EntityType.USER, "u1")
@@ -356,7 +382,7 @@ def test_round_trip_across_reopen(tmp_path):
         assert p2.stats()["entities"] == 2
 
 
-def test_data_survives_module_default_path(tmp_path):
+def test_data_survives_module_default_path(tmp_path) -> None:
     # Directory-based persistence across reopen via the same path.
     d = str(tmp_path / "store")
     with KGPersistence(d) as p:
@@ -371,7 +397,8 @@ def test_data_survives_module_default_path(tmp_path):
 # sync / load
 # --------------------------------------------------------------------------- #
 
-def test_sync_persists_graph(tmp_path):
+
+def test_sync_persists_graph(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         a = _entity(EntityType.SERVICE, "svc")
         b = _entity(EntityType.DATABASE, "db")
@@ -382,11 +409,13 @@ def test_sync_persists_graph(tmp_path):
         assert stats["relationships"] == 1
 
 
-def test_load_rebuilds_graph(tmp_path):
+def test_load_rebuilds_graph(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         a = _entity(EntityType.SERVICE, "svc")
         b = _entity(EntityType.DATABASE, "db")
-        r = Relationship(source_id=a.id, target_id=b.id, relationship_type=RelationshipType.DEPENDS_ON)
+        r = Relationship(
+            source_id=a.id, target_id=b.id, relationship_type=RelationshipType.DEPENDS_ON
+        )
         p.upsert_entity(a.to_dict())
         p.upsert_entity(b.to_dict())
         p.upsert_relationship(r.to_dict())
@@ -401,7 +430,7 @@ def test_load_rebuilds_graph(tmp_path):
         assert rel.relationship_type == RelationshipType.DEPENDS_ON
 
 
-def test_sync_then_reopen_then_load(tmp_path):
+def test_sync_then_reopen_then_load(tmp_path) -> None:
     db = str(tmp_path / "kg.db")
     a = _entity(EntityType.SERVICE, "svc")
     b = _entity(EntityType.DATABASE, "db")
@@ -417,14 +446,16 @@ def test_sync_then_reopen_then_load(tmp_path):
         assert len(rebuilt.relationship_registry) == 1
 
 
-def test_load_populates_existing_graph(tmp_path):
+def test_load_populates_existing_graph(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         a = _entity(EntityType.SERVICE, "svc")
         p.upsert_entity(a.to_dict())
         er = EntityRegistry()
         rr = RelationshipRegistry()
+
         class G:
             pass
+
         g = G()
         g.entity_registry = er
         g.relationship_registry = rr
@@ -433,7 +464,7 @@ def test_load_populates_existing_graph(tmp_path):
         assert len(er) == 1
 
 
-def test_sync_persists_embedded_provenance(tmp_path):
+def test_sync_persists_embedded_provenance(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         a = _entity(EntityType.SERVICE, "svc")
         prov = Provenance(source="extractor", confidence=0.9, evidence_url="http://e")
@@ -452,7 +483,8 @@ def test_sync_persists_embedded_provenance(tmp_path):
 # contradiction detection with provenance
 # --------------------------------------------------------------------------- #
 
-def test_contradiction_still_reported_with_provenance(tmp_path):
+
+def test_contradiction_still_reported_with_provenance(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         # Duplicate names -> DUPLICATE_CLAIM contradiction.
         e1 = _entity(EntityType.SERVICE, "dup")
@@ -475,7 +507,7 @@ def test_contradiction_still_reported_with_provenance(tmp_path):
         assert any("src-B" in s for s in sources)
 
 
-def test_contradiction_cycle_detected_with_sources(tmp_path):
+def test_contradiction_cycle_detected_with_sources(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         a = _entity(EntityType.SERVICE, "a")
         b = _entity(EntityType.SERVICE, "b")
@@ -483,8 +515,12 @@ def test_contradiction_cycle_detected_with_sources(tmp_path):
         p.upsert_entity(b.to_dict())
         p.add_provenance(a.id, "dep-scan-a", "ea", 0.7)
         p.add_provenance(b.id, "dep-scan-b", "eb", 0.7)
-        rab = Relationship(source_id=a.id, target_id=b.id, relationship_type=RelationshipType.DEPENDS_ON)
-        rba = Relationship(source_id=b.id, target_id=a.id, relationship_type=RelationshipType.DEPENDS_ON)
+        rab = Relationship(
+            source_id=a.id, target_id=b.id, relationship_type=RelationshipType.DEPENDS_ON
+        )
+        rba = Relationship(
+            source_id=b.id, target_id=a.id, relationship_type=RelationshipType.DEPENDS_ON
+        )
         p.upsert_relationship(rab.to_dict())
         p.upsert_relationship(rba.to_dict())
 
@@ -496,7 +532,7 @@ def test_contradiction_cycle_detected_with_sources(tmp_path):
         assert any("dep-scan-a" in s for s in sources)
 
 
-def test_contradiction_without_provenance_has_empty_sources(tmp_path):
+def test_contradiction_without_provenance_has_empty_sources(tmp_path) -> None:
     with KGPersistence(_dir_path(tmp_path)) as p:
         e1 = _entity(EntityType.SERVICE, "dup")
         e2 = _entity(EntityType.SERVICE, "dup")
@@ -509,12 +545,13 @@ def test_contradiction_without_provenance_has_empty_sources(tmp_path):
         assert dup[0].metadata.get("provenance_sources", []) == []
 
 
-def test_module_persistence_exposed(tmp_path):
+def test_module_persistence_exposed(tmp_path) -> None:
     from enterprise.modules.knowledge_graph import (
-        create_knowledge_graph_module,
         KGPersistence,
+        create_knowledge_graph_module,
         create_persistence,
     )
+
     assert KGPersistence is not None
     assert callable(create_persistence)
     m = create_knowledge_graph_module({"db_path": None})

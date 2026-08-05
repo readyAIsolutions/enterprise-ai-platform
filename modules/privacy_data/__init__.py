@@ -114,109 +114,110 @@ __all__ = [
 ]
 
 # Convenience imports
+from . import masking
+from .ai_data import (
+    AIDataGovernor,
+    AIMemory,
+    DataSourceQuality,
+    EmbeddingStatus,
+    EmbeddingVersion,
+    HallucinationRisk,
+    MemoryStatus,
+    RAGKnowledgeEntry,
+    SourceAttribution,
+    TrainingDataRecord,
+    ValidationStatus,
+)
 from .classifier import (
-    DataClassifier,
+    PII_PATTERNS,
+    ClassificationConfidence,
     ClassificationResult,
     ClassificationRule,
-    ClassificationConfidence,
+    DataClassifier,
     DataType,
     SensitivityLevel,
-    PII_PATTERNS,
+)
+from .compliance import (
+    ComplianceControl,
+    ComplianceMapper,
+    ComplianceReportGenerator,
+    ControlAssessment,
+    ControlDomain,
+    Framework,
+    FrameworkCompliance,
 )
 from .lifecycle import (
-    LifecycleManager,
     DataAsset,
+    LifecycleEvent,
+    LifecycleManager,
+    LifecyclePolicy,
     LifecycleStage,
     StageStatus,
-    LifecyclePolicy,
-    LifecycleEvent,
+)
+from .masking import (
+    MASKER_REGISTRY,
+    CreditCardMasker,
+    EmailMasker,
+    GenericMasker,
+    InMemoryVault,
+    Masker,
+    MaskingPolicy,
+    MaskType,
+    NameMasker,
+    PhoneMasker,
+    SQLiteVault,
+    SsnMasker,
+    TokenizationEngine,
+    Vault,
+)
+from .monitoring import (
+    AccessEvent,
+    AlertSeverity,
+    MetricSnapshot,
+    MonitorAlert,
+    MonitorCategory,
+    MonitorRule,
+    PrivacyMonitor,
+)
+from .privacy import (
+    ConsentRecord,
+    ConsentStatus,
+    DataResidency,
+    LegalHold,
+    PrivacyManager,
+    PrivacyRequest,
+    PrivacyRequestStatus,
+    PrivacyRequestType,
+    PurposeCategory,
+    RetentionPolicy,
+    RetentionRule,
 )
 from .quality import (
+    DataAnomaly,
+    QualityDimension,
     QualityEngine,
     QualityMetric,
     QualityRule,
-    QualityDimension,
     QualityStatus,
-    DataAnomaly,
-)
-from .privacy import (
-    PrivacyManager,
-    ConsentRecord,
-    ConsentStatus,
-    PrivacyRequest,
-    PrivacyRequestType,
-    PrivacyRequestStatus,
-    RetentionRule,
-    RetentionPolicy,
-    LegalHold,
-    PurposeCategory,
-    DataResidency,
 )
 from .security import (
-    EncryptionService,
-    KeyManager,
-    EncryptionKey,
-    EncryptionAlgorithm,
-    DataMasker,
-    MaskingStrategy,
-    TokenizationService,
-    TokenizationFormat,
     AnonymizationService,
-    ImmutableAuditLog,
     AuditEntry,
+    DataMasker,
+    EncryptionAlgorithm,
+    EncryptionKey,
+    EncryptionService,
+    ImmutableAuditLog,
+    KeyManager,
+    MaskingStrategy,
     SecretsManager,
-    TransportSecurity,
-    TLSConfig,
     SecurityContext,
+    TLSConfig,
+    TokenizationFormat,
+    TokenizationService,
+    TransportSecurity,
 )
-from .compliance import (
-    ComplianceMapper,
-    Framework,
-    ControlDomain,
-    ComplianceControl,
-    ControlAssessment,
-    FrameworkCompliance,
-    ComplianceReportGenerator,
-)
-from .ai_data import (
-    AIDataGovernor,
-    TrainingDataRecord,
-    EmbeddingVersion,
-    AIMemory,
-    RAGKnowledgeEntry,
-    SourceAttribution,
-    EmbeddingStatus,
-    MemoryStatus,
-    HallucinationRisk,
-    DataSourceQuality,
-    ValidationStatus,
-)
-from .monitoring import (
-    PrivacyMonitor,
-    MonitorAlert,
-    AlertSeverity,
-    MonitorCategory,
-    MetricSnapshot,
-    AccessEvent,
-    MonitorRule,
-)
-from . import masking
-from .masking import (
-    MaskType,
-    Masker,
-    EmailMasker,
-    PhoneMasker,
-    SsnMasker,
-    CreditCardMasker,
-    NameMasker,
-    GenericMasker,
-    MaskingPolicy,
-    Vault,
-    InMemoryVault,
-    SQLiteVault,
-    TokenizationEngine,
-    MASKER_REGISTRY,
-)
+
 # The masker facade is exposed under an unambiguous alias to keep the
 # pre-existing security.DataMasker (strategy-based masker) export intact.
 PolicyDataMasker = masking.DataMasker
@@ -232,16 +233,15 @@ PolicyDataMasker = masking.DataMasker
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio
+import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 
-from .classifier import DataClassifier
 
 _logger = logging.getLogger("enterprise.privacy_data")
 
@@ -256,7 +256,7 @@ class PrivacyDataModule(Module):
     UNHEALTHY rather than crashing the platform.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._lock = threading.RLock()
         self._component = None
@@ -292,6 +292,6 @@ class PrivacyDataModule(Module):
             self._init_error = None
 
 
-def create_privacy_data_module(config: Optional[Dict[str, Any]] = None) -> PrivacyDataModule:
+def create_privacy_data_module(config: dict[str, Any] | None = None) -> PrivacyDataModule:
     """Factory: create a privacy_data module instance."""
     return PrivacyDataModule(config)

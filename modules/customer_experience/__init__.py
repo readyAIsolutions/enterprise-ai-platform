@@ -11,47 +11,47 @@ Version: 1.0.0
 __version__ = "1.0.0"
 __module_name__ = "customer_experience"
 
-from .journey import (
-    JourneyStage,
-    JourneyTouchpoint,
-    JourneyMap,
-    JourneyEngine,
-)
-from .support import (
-    SeverityLevel,
-    TicketStatus,
-    SupportTicket,
-    SupportEngine,
-)
 from .ai_support import (
-    AISupportRule,
-    AISupportInteraction,
     AISupportGuard,
-)
-from .metrics import (
-    CXMetric,
-    MetricSnapshot,
-    CXMetricsEngine,
-)
-from .feedback import (
-    FeedbackSource,
-    FeedbackEntry,
-    FeedbackEngine,
-)
-from .templates import (
-    TemplateType,
-    CommsTemplate,
-    TemplateManager,
+    AISupportInteraction,
+    AISupportRule,
 )
 from .analytics import (
-    FunnelAnalyst,
-    StageConversion,
     NPS,
-    NPSBand,
     ChurnRisk,
     ChurnRiskLevel,
     CustomerSignals,
+    FunnelAnalyst,
     JourneyAnalytics,
+    NPSBand,
+    StageConversion,
+)
+from .feedback import (
+    FeedbackEngine,
+    FeedbackEntry,
+    FeedbackSource,
+)
+from .journey import (
+    JourneyEngine,
+    JourneyMap,
+    JourneyStage,
+    JourneyTouchpoint,
+)
+from .metrics import (
+    CXMetric,
+    CXMetricsEngine,
+    MetricSnapshot,
+)
+from .support import (
+    SeverityLevel,
+    SupportEngine,
+    SupportTicket,
+    TicketStatus,
+)
+from .templates import (
+    CommsTemplate,
+    TemplateManager,
+    TemplateType,
 )
 
 __all__ = [
@@ -102,16 +102,15 @@ __all__ = [
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio
+import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 
-from .journey import JourneyEngine
 
 _logger = logging.getLogger("enterprise.customer_experience")
 
@@ -126,7 +125,7 @@ class CustomerExperienceModule(Module):
     UNHEALTHY rather than crashing the platform.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._lock = threading.RLock()
         self._component = None
@@ -162,6 +161,8 @@ class CustomerExperienceModule(Module):
             self._init_error = None
 
 
-def create_customer_experience_module(config: Optional[Dict[str, Any]] = None) -> CustomerExperienceModule:
+def create_customer_experience_module(
+    config: dict[str, Any] | None = None,
+) -> CustomerExperienceModule:
     """Factory: create a customer_experience module instance."""
     return CustomerExperienceModule(config)

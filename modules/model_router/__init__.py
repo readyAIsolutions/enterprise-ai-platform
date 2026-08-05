@@ -13,13 +13,17 @@ All components are stdlib-only (zero external dependencies beyond the kernel).
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
-from enterprise.platform_kernel import EventBus, HealthStatus, Module, module
+from enterprise.platform_kernel import EventBus, HealthStatus, Module, module  # noqa: F401
 
+from .live import (
+    LiveFailoverSmoke,
+    LiveProbe,
+    ProbeResult,
+    ping_local_free_router,
+)
 from .model_router import (
-    AuthenticationError,
-    BaseProviderAdapter,
     CAT_AUTH,
     CAT_OK,
     CAT_PROTOCOL,
@@ -27,29 +31,24 @@ from .model_router import (
     CAT_TIMEOUT,
     CAT_UNAVAILABLE,
     CAT_UNKNOWN,
+    AuthenticationError,
+    BaseProviderAdapter,
     CooldownCache,
     DeploymentModel,
     EchoAdapter,
     HTTPAdapter,
     ModelRouter,
     ModelRouterModule,
-    NoopAdapter,
     NoDeploymentAvailableError,
+    NoopAdapter,
     ProviderError,
     ProviderResponse,
     ProviderTimeoutError,
     RateLimitError,
-    RouteResult,
     Router,
+    RouteResult,
     ServiceUnavailableError,
     classify_http_error,
-)
-
-from .live import (
-    LiveFailoverSmoke,
-    LiveProbe,
-    ProbeResult,
-    ping_local_free_router,
 )
 
 __version__ = "1.0.0"
@@ -98,7 +97,7 @@ _logger = logging.getLogger("enterprise.model_router")
 
 
 def create_model_router_module(
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> ModelRouterModule:
     """Create a :class:`ModelRouterModule` from an optional config dict.
 

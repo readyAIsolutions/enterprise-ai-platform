@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     Event,
@@ -36,8 +36,8 @@ from enterprise.platform_kernel import (
 )
 
 from .agent_graph import (
-    START,
     END,
+    START,
     AgentGraph,
     AgentGraphFacade,
     DiGraphBuilder,
@@ -96,7 +96,7 @@ class AgentGraphModule(Module):
         - agent_graph.run.completed — a graph run finished.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._facade: AgentGraphFacade | None = None
         self._event_bus: EventBus | None = None
@@ -104,7 +104,7 @@ class AgentGraphModule(Module):
         self._max_steps: int = int(self._config.get("max_steps", 1000) or 1000)
         # db_path for the durable state-graph store. None -> in-memory (tests).
         raw_db = self._config.get("db_path")
-        self._db_path: Optional[str] = None if raw_db is None else str(raw_db)
+        self._db_path: str | None = None if raw_db is None else str(raw_db)
         self._state_store: SqliteCheckpointStore | None = None
 
     # -- Properties ---------------------------------------------------------
@@ -190,16 +190,14 @@ class AgentGraphModule(Module):
 
     def build_graph(self, start: str = START, end: str = END) -> AgentGraph:
         """Create (or replace) the active graph bound to this module's store."""
-        return self._require_facade().build_graph(
-            start=start, end=end, max_steps=self._max_steps
-        )
+        return self._require_facade().build_graph(start=start, end=end, max_steps=self._max_steps)
 
     def build_state_graph(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
         start: str = START,
         end: str = END,
-        store: Optional[SqliteCheckpointStore] = None,
+        store: SqliteCheckpointStore | None = None,
     ) -> StateGraph:
         """Create a durable :class:`StateGraph` bound to this module's store.
 
@@ -231,9 +229,9 @@ class AgentGraphModule(Module):
 
     def run_graph(
         self,
-        initial_state: Optional[Dict[str, Any]] = None,
+        initial_state: dict[str, Any] | None = None,
         mode: str = "default",
-        run_id: Optional[str] = None,
+        run_id: str | None = None,
     ) -> GraphRun:
         """Run the active graph, emit a completion event, and return the run."""
         facade = self._require_facade()
@@ -244,11 +242,11 @@ class AgentGraphModule(Module):
         )
         return run
 
-    def get_checkpoint(self, run_id: str) -> List[Dict[str, Any]]:
+    def get_checkpoint(self, run_id: str) -> list[dict[str, Any]]:
         """Return persisted state history for ``run_id``."""
         return self._require_facade().get_checkpoint(run_id)
 
-    def list_runs(self) -> List[str]:
+    def list_runs(self) -> list[str]:
         """Return all persisted run ids."""
         return self._require_facade().list_runs()
 
@@ -257,16 +255,18 @@ class AgentGraphModule(Module):
     def _require_facade(self) -> AgentGraphFacade:
         facade = self.facade
         if facade is None:
-            raise RuntimeError("agent_graph module is not initialized")
+            msg = "agent_graph module is not initialized"
+            raise RuntimeError(msg)
         return facade
 
     def _require_facade_state_store(self) -> SqliteCheckpointStore:
         store = self.state_store
         if store is None:
-            raise RuntimeError("agent_graph module is not initialized")
+            msg = "agent_graph module is not initialized"
+            raise RuntimeError(msg)
         return store
 
-    def _emit(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _emit(self, topic: str, payload: dict[str, Any]) -> None:
         """Publish an event on the wired bus (no-op if none is set)."""
         with self._lock:
             bus = self._event_bus
@@ -285,7 +285,7 @@ class AgentGraphModule(Module):
             _logger.warning("Failed to publish event %s: %s", topic, exc)
 
 
-def create_agent_graph_module(config: Optional[Dict[str, Any]] = None) -> AgentGraphModule:
+def create_agent_graph_module(config: dict[str, Any] | None = None) -> AgentGraphModule:
     """Factory: create an :class:`AgentGraphModule` instance.
 
     Accepts optional config keys ``max_steps`` (cycle bound) and ``db_path``

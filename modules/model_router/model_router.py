@@ -40,9 +40,12 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from enterprise.platform_kernel import EventBus, HealthStatus, Module, module
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger("enterprise.model_router")
 
@@ -59,7 +62,7 @@ class ProviderError(Exception):
 class RateLimitError(ProviderError):
     """Upstream returned 429 / rate-limited; safe to retry."""
 
-    def __init__(self, message: str = "", retry_after: Optional[str] = None) -> None:
+    def __init__(self, message: str = "", retry_after: str | None = None) -> None:
         super().__init__(message)
         self.retry_after = retry_after
 
@@ -94,7 +97,7 @@ CAT_UNKNOWN = "unknown"
 CAT_OK = "ok"
 
 
-def classify_http_error(error: Exception, endpoint: Optional[str] = None):
+def classify_http_error(error: Exception, endpoint: str | None = None):
     """Map an exception to a ``(category, human_readable_reason)`` pair.
 
     Works on both the router's own :class:`ProviderError` subclasses and on raw
@@ -148,7 +151,6 @@ def classify_http_error(error: Exception, endpoint: Optional[str] = None):
     return CAT_UNKNOWN, f"unclassified error: {error}{ep}"
 
 
-
 # =============================================================================
 # Data models
 # =============================================================================
@@ -177,21 +179,30 @@ class DeploymentModel:
     model: str = ""
     provider: str = ""
     base_url: str = ""
-    api_key_env: Optional[str] = None
+    api_key_env: str | None = None
     weight: int = 1
     allowed_fails: int = 3
     cooldown_time: float = 60.0
     max_fallbacks: int = 2
-    retry_policy: Dict[str, int] = field(default_factory=dict)
+    retry_policy: dict[str, int] = field(default_factory=dict)
     group: str = "default"
     blacklisted: bool = False
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "DeploymentModel":
+    def from_dict(cls, d: dict[str, Any]) -> DeploymentModel:
         known = {
-            "id", "model", "provider", "base_url", "api_key_env", "weight",
-            "allowed_fails", "cooldown_time", "max_fallbacks", "retry_policy",
-            "group", "blacklisted",
+            "id",
+            "model",
+            "provider",
+            "base_url",
+            "api_key_env",
+            "weight",
+            "allowed_fails",
+            "cooldown_time",
+            "max_fallbacks",
+            "retry_policy",
+            "group",
+            "blacklisted",
         }
         kw = {k: v for k, v in d.items() if k in known}
         return cls(**kw)
@@ -203,7 +214,7 @@ class ProviderResponse:
 
     content: Any = None
     status: str = "success"
-    tokens: Dict[str, int] = field(default_factory=dict)
+    tokens: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -213,11 +224,11 @@ class RouteResult:
     messages: Any = None
     status: str = "error"  # "success" | "error"
     latency_ms: float = 0.0
-    deployment_id: Optional[str] = None
+    deployment_id: str | None = None
     attempts: int = 0
     fallbacks_used: int = 0
-    final_error: Optional[str] = None
-    tokens: Optional[Dict[str, int]] = None
+    final_error: str | None = None
+    tokens: dict[str, int] | None = None
 
 
 # =============================================================================
@@ -240,10 +251,10 @@ class CooldownCache:
     - After ``cooldown_time`` elapses the deployment is eligible again.
     """
 
-    def __init__(self, clock: Optional[Callable[[], float]] = None) -> None:
+    def __init__(self, clock: Callable[[], float] | None = None) -> None:
         self._now = clock or time.monotonic
-        self._cooldowns: Dict[str, float] = {}   # deployment_id -> cooldown_until
-        self._failed_calls: Dict[str, int] = {}  # deployment_id -> consecutive fails
+        self._cooldowns: dict[str, float] = {}  # deployment_id -> cooldown_until
+        self._failed_calls: dict[str, int] = {}  # deployment_id -> consecutive fails
         self._lock = threading.RLock()
 
     # -- failure accounting --------------------------------------------------
@@ -303,7 +314,7 @@ class CooldownCache:
             rem = until - self._now()
             return rem if rem > 0 else 0.0
 
-    def active_cooldowns(self) -> Dict[str, float]:
+    def active_cooldowns(self) -> dict[str, float]:
         """Return deployment_id -> remaining seconds for currently-active cooldowns."""
         return {
             rid: self.cooldown_remaining(rid)
@@ -338,24 +349,23 @@ class HTTPAdapter(BaseProviderAdapter):
     def __init__(
         self,
         timeout: float = 60.0,
-        env: Optional[Dict[str, str]] = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         self.timeout = timeout
         self._env = env if env is not None else os.environ
         # Last-outcome bookkeeping so operators can inspect a failed call.
-        self.last_status_code: Optional[int] = None
-        self.last_retry_after: Optional[str] = None
-        self.last_endpoint: Optional[str] = None
-        self.last_error: Optional[Exception] = None
+        self.last_status_code: int | None = None
+        self.last_retry_after: str | None = None
+        self.last_endpoint: str | None = None
+        self.last_error: Exception | None = None
 
-    def _record_outcome(self, status_code: Optional[int], exc: Optional[Exception] = None) -> None:
+    def _record_outcome(self, status_code: int | None, exc: Exception | None = None) -> None:
         self.last_status_code = status_code
         self.last_error = exc
         if exc is not None:
             self.last_retry_after = getattr(exc, "retry_after", None)
 
-    def diagnose(self, endpoint: Optional[str] = None,
-                 error: Optional[Exception] = None) -> str:
+    def diagnose(self, endpoint: str | None = None, error: Exception | None = None) -> str:
         """Return a human-readable reason for a provider failure.
 
         ``classify_http_error`` is the guts of this method — it turns any caught
@@ -377,7 +387,9 @@ class HTTPAdapter(BaseProviderAdapter):
             if self.last_status_code is not None:
                 status = self.last_status_code
                 if status == 429:
-                    retry = f" (Retry-After: {self.last_retry_after}s)" if self.last_retry_after else ""
+                    retry = (
+                        f" (Retry-After: {self.last_retry_after}s)" if self.last_retry_after else ""
+                    )
                     return f"HTTP 429 rate-limited{retry}{ep}"
                 if status in (401, 403):
                     return f"HTTP {status} authentication failed{ep}"
@@ -417,18 +429,23 @@ class HTTPAdapter(BaseProviderAdapter):
                 err.retry_after = retry_after
                 raise err
             if code in (401, 403):
-                raise AuthenticationError(f"HTTP {code} auth for {deployment.id}")
+                msg = f"HTTP {code} auth for {deployment.id}"
+                raise AuthenticationError(msg)
             if 500 <= code <= 599:
-                raise ServiceUnavailableError(f"HTTP {code} unavailable for {deployment.id}")
-            raise ProviderError(f"HTTP {code} for {deployment.id}")
-        except (urllib.error.URLError, TimeoutError, socket.timeout) as e:
+                msg = f"HTTP {code} unavailable for {deployment.id}"
+                raise ServiceUnavailableError(msg)
+            msg = f"HTTP {code} for {deployment.id}"
+            raise ProviderError(msg)
+        except (urllib.error.URLError, TimeoutError) as e:
             self._record_outcome(None, e)
-            raise ProviderTimeoutError(f"timeout/runtime error for {deployment.id}: {e}")
+            msg = f"timeout/runtime error for {deployment.id}: {e}"
+            raise ProviderTimeoutError(msg)
 
         try:
             content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
-            raise ProviderError(f"malformed response from {deployment.id}")
+            msg = f"malformed response from {deployment.id}"
+            raise ProviderError(msg)
         tokens = data.get("usage") or {}
         return ProviderResponse(content=content, status="success", tokens=tokens)
 
@@ -442,8 +459,8 @@ class EchoAdapter(BaseProviderAdapter):
     fallback deterministically with zero network.
     """
 
-    def __init__(self, fail_map: Optional[Dict[str, List[BaseException]]] = None) -> None:
-        self.fail_map: Dict[str, List[BaseException]] = fail_map or {}
+    def __init__(self, fail_map: dict[str, list[BaseException]] | None = None) -> None:
+        self.fail_map: dict[str, list[BaseException]] = fail_map or {}
         self.calls = 0
 
     async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:
@@ -473,7 +490,7 @@ class NoopAdapter(BaseProviderAdapter):
 # =============================================================================
 
 
-_DEFAULT_RETRY_POLICY: Dict[str, int] = {
+_DEFAULT_RETRY_POLICY: dict[str, int] = {
     "RateLimitError": 1,
     "ProviderTimeoutError": 2,
     "TimeoutError": 2,
@@ -493,27 +510,27 @@ class Router:
 
     def __init__(
         self,
-        config: Optional[Dict[str, Any]] = None,
-        adapter: Optional[BaseProviderAdapter] = None,
-        adapter_map: Optional[Dict[str, BaseProviderAdapter]] = None,
-        clock: Optional[Callable[[], float]] = None,
-        rng: Optional[random.Random] = None,
+        config: dict[str, Any] | None = None,
+        adapter: BaseProviderAdapter | None = None,
+        adapter_map: dict[str, BaseProviderAdapter] | None = None,
+        clock: Callable[[], float] | None = None,
+        rng: random.Random | None = None,
     ) -> None:
         self._config = config or {}
         self._now = clock or time.monotonic
         self._rng = rng or random.Random()
-        self.adapter: Optional[BaseProviderAdapter] = adapter
-        self.adapter_map: Dict[str, BaseProviderAdapter] = dict(adapter_map or {})
+        self.adapter: BaseProviderAdapter | None = adapter
+        self.adapter_map: dict[str, BaseProviderAdapter] = dict(adapter_map or {})
 
         self.cooldown = CooldownCache(clock=self._now)
-        self.deployments: Dict[str, DeploymentModel] = {}
+        self.deployments: dict[str, DeploymentModel] = {}
         self._blacklist: set = set(self._config.get("blacklist", []))
 
         # Metrics
-        self._success_counts: Dict[str, int] = {}
-        self._fail_counts: Dict[str, int] = {}
-        self._latency_sum: Dict[str, float] = {}
-        self._latency_count: Dict[str, int] = {}
+        self._success_counts: dict[str, int] = {}
+        self._fail_counts: dict[str, int] = {}
+        self._latency_sum: dict[str, float] = {}
+        self._latency_count: dict[str, int] = {}
         self._request_count: int = 0
         self._fallbacks_used: int = 0
         self._lock = threading.RLock()
@@ -522,7 +539,7 @@ class Router:
         self._metrics_enabled = bool(route_metrics)
 
         # Seed deployments from config
-        for d in (self._config.get("deployments") or []):
+        for d in self._config.get("deployments") or []:
             self.add_deployment(DeploymentModel.from_dict(d))
 
     # -- deployment management ------------------------------------------------
@@ -534,7 +551,7 @@ class Router:
             self.cooldown.remove_cooldown(deployment.id)
             self.cooldown.reset_failures(deployment.id)
 
-    def remove_deployment(self, deployment_id: str) -> Optional[DeploymentModel]:
+    def remove_deployment(self, deployment_id: str) -> DeploymentModel | None:
         with self._lock:
             dep = self.deployments.pop(deployment_id, None)
             if dep:
@@ -542,10 +559,10 @@ class Router:
                 self.cooldown.reset_failures(deployment_id)
             return dep
 
-    def get_deployment(self, deployment_id: str) -> Optional[DeploymentModel]:
+    def get_deployment(self, deployment_id: str) -> DeploymentModel | None:
         return self.deployments.get(deployment_id)
 
-    def deployments_for_group(self, group_id: str) -> List[DeploymentModel]:
+    def deployments_for_group(self, group_id: str) -> list[DeploymentModel]:
         return [d for d in self.deployments.values() if d.group == group_id]
 
     # -- health / selection ----------------------------------------------------
@@ -553,15 +570,13 @@ class Router:
     def _is_healthy(self, deployment: DeploymentModel) -> bool:
         if deployment.blacklisted:
             return False
-        if self.cooldown.is_deployment_cooldowned(deployment.id):
-            return False
-        return True
+        return not self.cooldown.is_deployment_cooldowned(deployment.id)
 
     def _select_weighted(
         self,
         group_id: str,
-        exclude: Optional[set] = None,
-    ) -> Optional[DeploymentModel]:
+        exclude: set | None = None,
+    ) -> DeploymentModel | None:
         """Hash-bucket weighted selection among healthy deployments.
 
         Each deployment contributes ``weight`` buckets to the range
@@ -570,7 +585,8 @@ class Router:
         """
         exclude = exclude or set()
         candidates = [
-            d for d in self.deployments_for_group(group_id)
+            d
+            for d in self.deployments_for_group(group_id)
             if self._is_healthy(d) and d.id not in exclude
         ]
         if not candidates:
@@ -587,7 +603,8 @@ class Router:
 
     def _adapter_for(self, deployment: DeploymentModel) -> BaseProviderAdapter:
         if not deployment:
-            raise ProviderError("no deployment")
+            msg = "no deployment"
+            raise ProviderError(msg)
         a = self.adapter_map.get(deployment.id)
         if a is not None:
             return a
@@ -601,7 +618,7 @@ class Router:
         request: Any,
     ) -> ProviderResponse:
         """Call adapter for this deployment applying per-exception-type retries."""
-        retry_policy: Dict[str, int] = {
+        retry_policy: dict[str, int] = {
             **_DEFAULT_RETRY_POLICY,
             **(deployment.retry_policy or {}),
         }
@@ -619,7 +636,11 @@ class Router:
                 if attempt <= max_retries:
                     logger.debug(
                         "retrying %s on %s (attempt %d/%d): %s",
-                        request, deployment.id, attempt, max_retries, key,
+                        request,
+                        deployment.id,
+                        attempt,
+                        max_retries,
+                        key,
                     )
                     await asyncio.sleep(0)  # yield; deterministic offline
                     continue
@@ -632,12 +653,14 @@ class Router:
                 self._fail_counts[deployment_id] = self._fail_counts.get(deployment_id, 0) + 1
         return entered
 
-    def _record_success(self, deployment_id: str, tokens: Optional[Dict], latency_ms: float) -> None:
+    def _record_success(self, deployment_id: str, tokens: dict | None, latency_ms: float) -> None:
         self.cooldown.reset_failures(deployment_id)
         if self._metrics_enabled:
             with self._lock:
                 self._success_counts[deployment_id] = self._success_counts.get(deployment_id, 0) + 1
-                self._latency_sum[deployment_id] = self._latency_sum.get(deployment_id, 0.0) + latency_ms
+                self._latency_sum[deployment_id] = (
+                    self._latency_sum.get(deployment_id, 0.0) + latency_ms
+                )
                 self._latency_count[deployment_id] = self._latency_count.get(deployment_id, 0) + 1
 
     async def route(self, group_id: str, request: Any, **kw: Any) -> RouteResult:
@@ -664,8 +687,8 @@ class Router:
         tried: set = set()
         fallbacks_used = 0
         attempts = 0
-        last_error: Optional[BaseException] = None
-        last_deployment: Optional[str] = None
+        last_error: BaseException | None = None
+        last_deployment: str | None = None
 
         deployment = self._select_weighted(group_id, exclude=tried)
         while deployment is not None:
@@ -720,7 +743,7 @@ class Router:
                 return 0.0
             return self._latency_sum.get(deployment_id, 0.0) / n
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """Return a full metrics snapshot (success/fail, cooldowns, latency...)."""
         with self._lock:
             deps = {}
@@ -745,7 +768,7 @@ class Router:
                 "route_metrics_enabled": self._metrics_enabled,
             }
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         healthy = [rid for rid, dep in self.deployments.items() if self._is_healthy(dep)]
         return {
             "deployments": list(self.deployments),
@@ -796,19 +819,19 @@ class ModelRouterModule(Module):
         blacklist (list[str]): deployment ids never selected.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._event_bus: Optional[EventBus] = None
-        self._router: Optional[ModelRouter] = None
+        self._event_bus: EventBus | None = None
+        self._router: ModelRouter | None = None
         self._lock = threading.RLock()
 
     @property
-    def router(self) -> Optional[ModelRouter]:
+    def router(self) -> ModelRouter | None:
         with self._lock:
             return self._router
 
     @property
-    def event_bus(self) -> Optional[EventBus]:
+    def event_bus(self) -> EventBus | None:
         with self._lock:
             return self._event_bus
 

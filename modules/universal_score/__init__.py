@@ -13,7 +13,7 @@ Version: 1.0.0
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.modules.universal_score.coverage_fleet import (
     CoverageError,
@@ -22,12 +22,12 @@ from enterprise.modules.universal_score.coverage_fleet import (
     run_fleet_coverage,
 )
 from enterprise.modules.universal_score.universal_score import (
-    CertificationLevel,
     DIMENSION_WEIGHTS,
+    SECRET_PATTERNS,
+    CertificationLevel,
     Dimension,
     DimensionResult,
     HardGate,
-    SECRET_PATTERNS,
     SubSignal,
     UniversalBuildScore,
     UniversalScoreModule,

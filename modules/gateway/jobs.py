@@ -24,19 +24,20 @@ Version aligned with the gateway module: 1.0.0
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from .gateway import (
     DeliveryPolicy,
     DeliveryReceipt,
     Gateway,
-    Scheduler,
     build_channel,
     cron_next,
     interval_next,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # ---------------------------------------------------------------------------
 # Job Registry — named scheduled jobs bound to real callables
@@ -181,9 +182,7 @@ class JobScheduler:
         self.registry = registry or JobRegistry()
         self._clock: Callable[[], float] = clock or time.time
         # The runnable is what "executes" a due job. Inject a fake in tests.
-        self._runnable: Callable[[RegisteredJob], None] = (
-            runnable or self._default_runnable
-        )
+        self._runnable: Callable[[RegisteredJob], None] = runnable or self._default_runnable
 
     def _default_runnable(self, job: RegisteredJob) -> None:
         """Execute ``job.func()`` and record the outcome."""
@@ -222,7 +221,9 @@ class JobScheduler:
         """
         now = now_ts if now_ts is not None else self._clock()
         if job.kind == "interval":
-            return interval_next(job.interval if job.interval is not None else 0.0, job.last_run, now)
+            return interval_next(
+                job.interval if job.interval is not None else 0.0, job.last_run, now
+            )
         if job.kind == "cron" and job.expr:
             base = job.last_run if job.last_run is not None else now
             return cron_next(job.expr, base)
@@ -354,9 +355,7 @@ def push_test(
     Returns:
         A ``DeliveryReceipt`` describing the delivery attempt(s).
     """
-    return gateway.send_with_retry(
-        channel_name, message, policy=policy, sleep_fn=sleep_fn
-    )
+    return gateway.send_with_retry(channel_name, message, policy=policy, sleep_fn=sleep_fn)
 
 
 # ---------------------------------------------------------------------------

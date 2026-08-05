@@ -36,36 +36,40 @@ Key mappings:
 from __future__ import annotations
 
 import abc
-import asyncio
 import logging
 import threading
 from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 try:
     from prompt_toolkit.application import Application
     from prompt_toolkit.buffer import Buffer
-    from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
+    from prompt_toolkit.formatted_text import FormattedText  # noqa: F401
+    from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings  # noqa: F401
+    from prompt_toolkit.keys import Keys  # noqa: F401
     from prompt_toolkit.layout import Layout
     from prompt_toolkit.layout.containers import (
-        Float,
-        FloatContainer,
+        Float,  # noqa: F401
+        FloatContainer,  # noqa: F401
         HSplit,
-        VSplit,
+        VSplit,  # noqa: F401
         Window,
-        WindowAlign,
+        WindowAlign,  # noqa: F401
     )
     from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
-    from prompt_toolkit.styles import Style, merge_styles
-    from prompt_toolkit.formatted_text import FormattedText
-    from prompt_toolkit.keys import Keys
+    from prompt_toolkit.styles import Style, merge_styles  # noqa: F401
 
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
 
-from enterprise.platform_kernel import EventBus, Event, HealthStatus
+import contextlib
+
+from enterprise.platform_kernel import Event, EventBus, HealthStatus
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _logger: logging.Logger = logging.getLogger("enterprise.agent_infra.tui")
 
@@ -74,8 +78,10 @@ _logger: logging.Logger = logging.getLogger("enterprise.agent_infra.tui")
 # Enums & Constants
 # =============================================================================
 
+
 class TUIMode(Enum):
     """TUI rendering mode."""
+
     NORMAL = "normal"
     INSERT = "insert"
     VISUAL = "visual"
@@ -84,6 +90,7 @@ class TUIMode(Enum):
 
 class ComponentLifecycle(Enum):
     """Component lifecycle state."""
+
     CREATED = "created"
     MOUNTING = "mounting"
     MOUNTED = "mounted"
@@ -97,9 +104,11 @@ class ComponentLifecycle(Enum):
 # Theme Engine
 # =============================================================================
 
+
 @dataclass
 class ThemePalette:
     """Color palette for a TUI theme."""
+
     name: str
     background: str = "#1a1b26"
     foreground: str = "#a9b1d6"
@@ -118,42 +127,44 @@ class ThemePalette:
 
     def to_prompt_toolkit_style(self) -> Style:
         """Convert theme palette to prompt_toolkit Style."""
-        return Style.from_dict({
-            # Base
-            "": f"bg:{self.background} fg:{self.foreground}",
-            # Components
-            "window.border": f"fg:{self.border}",
-            "window.title": f"fg:{self.primary} bold",
-            "text.primary": f"fg:{self.foreground}",
-            "text.secondary": f"fg:{self.muted}",
-            "text.accent": f"fg:{self.accent}",
-            "text.success": f"fg:{self.success}",
-            "text.warning": f"fg:{self.warning}",
-            "text.error": f"fg:{self.error}",
-            "text.info": f"fg:{self.info}",
-            "text.muted": f"fg:{self.muted}",
-            # Interactive
-            "button": f"bg:{self.primary} fg:{self.background} bold",
-            "button.focused": f"bg:{self.accent} fg:{self.background} bold",
-            "input": f"bg:{self.highlight} fg:{self.foreground}",
-            "input.border": f"fg:{self.border}",
-            "input.focused": f"bg:{self.highlight} fg:{self.foreground}",
-            "input.focused.border": f"fg:{self.primary}",
-            # Selection
-            "selection": f"bg:{self.selection} fg:{self.foreground}",
-            # Cursor
-            "cursor": f"fg:{self.cursor}",
-            "cursor-line": f"bg:{self.highlight}",
-            # Status bar
-            "status-bar": f"bg:{self.highlight} fg:{self.foreground}",
-            "status-bar.mode": f"bg:{self.primary} fg:{self.background} bold",
-            # Scrollbar
-            "scrollbar": f"bg:{self.border}",
-            "scrollbar.arrow": f"fg:{self.muted}",
-            # Menu
-            "menu": f"bg:{self.highlight} fg:{self.foreground}",
-            "menu.selected": f"bg:{self.selection} fg:{self.foreground}",
-        })
+        return Style.from_dict(
+            {
+                # Base
+                "": f"bg:{self.background} fg:{self.foreground}",
+                # Components
+                "window.border": f"fg:{self.border}",
+                "window.title": f"fg:{self.primary} bold",
+                "text.primary": f"fg:{self.foreground}",
+                "text.secondary": f"fg:{self.muted}",
+                "text.accent": f"fg:{self.accent}",
+                "text.success": f"fg:{self.success}",
+                "text.warning": f"fg:{self.warning}",
+                "text.error": f"fg:{self.error}",
+                "text.info": f"fg:{self.info}",
+                "text.muted": f"fg:{self.muted}",
+                # Interactive
+                "button": f"bg:{self.primary} fg:{self.background} bold",
+                "button.focused": f"bg:{self.accent} fg:{self.background} bold",
+                "input": f"bg:{self.highlight} fg:{self.foreground}",
+                "input.border": f"fg:{self.border}",
+                "input.focused": f"bg:{self.highlight} fg:{self.foreground}",
+                "input.focused.border": f"fg:{self.primary}",
+                # Selection
+                "selection": f"bg:{self.selection} fg:{self.foreground}",
+                # Cursor
+                "cursor": f"fg:{self.cursor}",
+                "cursor-line": f"bg:{self.highlight}",
+                # Status bar
+                "status-bar": f"bg:{self.highlight} fg:{self.foreground}",
+                "status-bar.mode": f"bg:{self.primary} fg:{self.background} bold",
+                # Scrollbar
+                "scrollbar": f"bg:{self.border}",
+                "scrollbar.arrow": f"fg:{self.muted}",
+                # Menu
+                "menu": f"bg:{self.highlight} fg:{self.foreground}",
+                "menu.selected": f"bg:{self.selection} fg:{self.foreground}",
+            }
+        )
 
 
 class ThemeEngine:
@@ -163,7 +174,7 @@ class ThemeEngine:
     catppuccin) and allows registration of custom themes.
     """
 
-    BUILTIN_THEMES: Dict[str, ThemePalette] = {
+    BUILTIN_THEMES: dict[str, ThemePalette] = {
         "dark": ThemePalette(
             name="dark",
             background="#1a1b26",
@@ -268,8 +279,10 @@ class ThemeEngine:
         ),
     }
 
-    def __init__(self, theme_name: str = "dark", custom_themes: Optional[Dict[str, ThemePalette]] = None) -> None:
-        self._custom_themes: Dict[str, ThemePalette] = custom_themes or {}
+    def __init__(
+        self, theme_name: str = "dark", custom_themes: dict[str, ThemePalette] | None = None
+    ) -> None:
+        self._custom_themes: dict[str, ThemePalette] = custom_themes or {}
         self._active_theme_name: str = theme_name
 
     @property
@@ -291,7 +304,7 @@ class ThemeEngine:
         self._custom_themes[palette.name] = palette
         _logger.info("Custom theme registered: %s", palette.name)
 
-    def list_themes(self) -> List[str]:
+    def list_themes(self) -> list[str]:
         """Return all available theme names."""
         return list(self.BUILTIN_THEMES) + list(self._custom_themes)
 
@@ -304,18 +317,20 @@ class ThemeEngine:
 # Component System (Ink-inspired component tree)
 # =============================================================================
 
+
 @dataclass
 class ComponentProps:
     """Base props for all components. Extensible via subclassing."""
-    id: Optional[str] = None
-    class_name: Optional[str] = None
+
+    id: str | None = None
+    class_name: str | None = None
     visible: bool = True
     focusable: bool = False
-    width: Union[int, str] = "auto"
-    height: Union[int, str] = "auto"
-    border: Optional[str] = None  # "rounded", "single", "double", "none"
+    width: int | str = "auto"
+    height: int | str = "auto"
+    border: str | None = None  # "rounded", "single", "double", "none"
     padding: int = 1
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -327,12 +342,12 @@ class ComponentNode:
 
     name: str
     props: ComponentProps = field(default_factory=ComponentProps)
-    children: List["ComponentNode"] = field(default_factory=list)
-    parent: Optional["ComponentNode"] = None
+    children: list[ComponentNode] = field(default_factory=list)
+    parent: ComponentNode | None = None
     lifecycle: ComponentLifecycle = ComponentLifecycle.CREATED
-    state: Dict[str, Any] = field(default_factory=dict)
+    state: dict[str, Any] = field(default_factory=dict)
 
-    def mount(self, child: "ComponentNode") -> "ComponentNode":
+    def mount(self, child: ComponentNode) -> ComponentNode:
         """Mount a child component onto this node."""
         child.parent = self
         child.lifecycle = ComponentLifecycle.MOUNTING
@@ -353,7 +368,7 @@ class ComponentNode:
         self.state.update(kwargs)
         self.lifecycle = ComponentLifecycle.UPDATING
 
-    def find(self, component_id: str) -> Optional["ComponentNode"]:
+    def find(self, component_id: str) -> ComponentNode | None:
         """Find a descendant by its component id."""
         if self.props.id == component_id:
             return self
@@ -363,7 +378,7 @@ class ComponentNode:
                 return found
         return None
 
-    def walk(self) -> List["ComponentNode"]:
+    def walk(self) -> list[ComponentNode]:
         """Return all nodes in the tree as a flat list (pre-order traversal)."""
         nodes = [self]
         for child in self.children:
@@ -419,8 +434,7 @@ class SplitPane(Component):
     """A split-pane container (horizontal or vertical)."""
 
     def render(self, props: ComponentProps) -> ComponentNode:
-        node = ComponentNode(name="split_pane", props=props)
-        return node
+        return ComponentNode(name="split_pane", props=props)
 
 
 class StatusBar(Component):
@@ -434,9 +448,11 @@ class StatusBar(Component):
 # Keybinding Registry
 # =============================================================================
 
+
 @dataclass
 class Keybinding:
     """A single keybinding registration."""
+
     keys: str
     action: str
     description: str
@@ -455,9 +471,9 @@ class KeybindingRegistry:
     """
 
     def __init__(self) -> None:
-        self._bindings: Dict[TUIMode, Set[Keybinding]] = {m: set() for m in TUIMode}
+        self._bindings: dict[TUIMode, set[Keybinding]] = {m: set() for m in TUIMode}
         self._mode: TUIMode = TUIMode.NORMAL
-        self._action_handlers: Dict[str, Callable[[], Any]] = {}
+        self._action_handlers: dict[str, Callable[[], Any]] = {}
         self._register_defaults()
 
     @property
@@ -469,18 +485,25 @@ class KeybindingRegistry:
         self._mode = value
         _logger.debug("Keybinding mode switched to: %s", value.value)
 
-    def register(self, keys: str, action: str, description: str = "",
-                 mode: TUIMode = TUIMode.NORMAL, priority: int = 0) -> None:
+    def register(
+        self,
+        keys: str,
+        action: str,
+        description: str = "",
+        mode: TUIMode = TUIMode.NORMAL,
+        priority: int = 0,
+    ) -> None:
         """Register a new keybinding."""
-        kb = Keybinding(keys=keys, action=action, description=description,
-                        mode=mode, priority=priority)
+        kb = Keybinding(
+            keys=keys, action=action, description=description, mode=mode, priority=priority
+        )
         self._bindings[mode].add(kb)
 
     def unregister(self, keys: str, mode: TUIMode) -> None:
         """Remove a keybinding."""
         self._bindings[mode] = {kb for kb in self._bindings[mode] if kb.keys != keys}
 
-    def get_bindings_for_mode(self, mode: Optional[TUIMode] = None) -> Set[Keybinding]:
+    def get_bindings_for_mode(self, mode: TUIMode | None = None) -> set[Keybinding]:
         """Return all keybindings for the given mode."""
         return self._bindings.get(mode or self._mode, set())
 
@@ -488,11 +511,11 @@ class KeybindingRegistry:
         """Bind a handler to an action name."""
         self._action_handlers[action] = handler
 
-    def get_handler(self, action: str) -> Optional[Callable[[], Any]]:
+    def get_handler(self, action: str) -> Callable[[], Any] | None:
         """Get the handler for an action."""
         return self._action_handlers.get(action)
 
-    def to_prompt_toolkit_bindings(self) -> "KeyBindings":
+    def to_prompt_toolkit_bindings(self) -> KeyBindings:
         """Convert registered bindings to prompt_toolkit KeyBindings.
 
         Returns an empty KeyBindings if prompt_toolkit is not available.
@@ -512,6 +535,7 @@ class KeybindingRegistry:
                 def _make_handler(h: Callable[[], Any]) -> Callable:
                     def _wrapped(event: Any) -> None:
                         h()
+
                     return _wrapped
 
                 kb.add(binding.keys)(_make_handler(handler))
@@ -520,9 +544,9 @@ class KeybindingRegistry:
 
         return kb
 
-    def get_default_bindings(self) -> Dict[TUIMode, List[Tuple[str, str, str]]]:
+    def get_default_bindings(self) -> dict[TUIMode, list[tuple[str, str, str]]]:
         """Return default keybinding definitions as (keys, action, description)."""
-        defaults: Dict[TUIMode, List[Tuple[str, str, str]]] = {
+        defaults: dict[TUIMode, list[tuple[str, str, str]]] = {
             TUIMode.NORMAL: [
                 ("q", "quit", "Quit application"),
                 ("c-q", "force_quit", "Force quit"),
@@ -566,9 +590,11 @@ class KeybindingRegistry:
 # TUI Engine (main orchestrator)
 # =============================================================================
 
+
 @dataclass
 class TUIConfig:
     """Configuration for the TUI engine."""
+
     theme: str = "dark"
     full_screen: bool = True
     mouse_support: bool = True
@@ -580,7 +606,7 @@ class TUIConfig:
 class TUIHealthCheck:
     """Health check for the TUI engine."""
 
-    def __init__(self, engine: "TUIEngine") -> None:
+    def __init__(self, engine: TUIEngine) -> None:
         self._engine = engine
 
     async def run(self) -> bool:
@@ -610,8 +636,8 @@ class TUIEngine:
 
     def __init__(
         self,
-        event_bus: Optional[EventBus] = None,
-        config: Optional[Dict[str, Any]] = None,
+        event_bus: EventBus | None = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         cfg = config or {}
         self._event_bus = event_bus
@@ -625,8 +651,8 @@ class TUIEngine:
         )
         self._theme_engine = ThemeEngine(theme_name=self._config.theme)
         self._keybindings = KeybindingRegistry()
-        self._root: Optional[ComponentNode] = None
-        self._application: Optional[Any] = None
+        self._root: ComponentNode | None = None
+        self._application: Any | None = None
         self._initialized: bool = False
         self._running: bool = False
         self._lock = threading.RLock()
@@ -641,7 +667,7 @@ class TUIEngine:
         return self._keybindings
 
     @property
-    def root(self) -> Optional[ComponentNode]:
+    def root(self) -> ComponentNode | None:
         return self._root
 
     @property
@@ -667,7 +693,7 @@ class TUIEngine:
             self._initialized = True
             self._status = HealthStatus.HEALTHY
 
-    async def start(self, component: Optional[ComponentNode] = None) -> None:
+    async def start(self, component: ComponentNode | None = None) -> None:
         """Start the TUI event loop with the given root component."""
         if not self._initialized:
             await self.initialize()
@@ -684,23 +710,25 @@ class TUIEngine:
             style = self._theme_engine.get_prompt_toolkit_style()
 
             layout = Layout(
-                container=HSplit([
-                    Window(
-                        content=FormattedTextControl(
-                            text="Claude Code Superior — ENI Enterprise"
+                container=HSplit(
+                    [
+                        Window(
+                            content=FormattedTextControl(
+                                text="Claude Code Superior — ENI Enterprise"
+                            ),
+                            height=1,
                         ),
-                        height=1,
-                    ),
-                    Window(
-                        content=FormattedTextControl(
-                            text="Prompt ready. Type /help for commands."
+                        Window(
+                            content=FormattedTextControl(
+                                text="Prompt ready. Type /help for commands."
+                            ),
                         ),
-                    ),
-                    Window(
-                        content=BufferControl(buffer=Buffer()),
-                        height=1,
-                    ),
-                ]),
+                        Window(
+                            content=BufferControl(buffer=Buffer()),
+                            height=1,
+                        ),
+                    ]
+                ),
             )
 
             app: Application = Application(
@@ -715,11 +743,13 @@ class TUIEngine:
             self._running = True
 
             if self._event_bus:
-                self._event_bus.publish(Event.create(
-                    "claude.infra.tui.rendering",
-                    "tui_engine",
-                    {"status": "running"},
-                ))
+                self._event_bus.publish(
+                    Event.create(
+                        "claude.infra.tui.rendering",
+                        "tui_engine",
+                        {"status": "running"},
+                    )
+                )
 
             _logger.info("TUI Engine started")
             await app.run_async()
@@ -733,10 +763,8 @@ class TUIEngine:
         """Stop the TUI event loop."""
         self._running = False
         if self._application is not None and PROMPT_TOOLKIT_AVAILABLE:
-            try:
+            with contextlib.suppress(Exception):
                 self._application.exit()
-            except Exception:
-                pass
         _logger.info("TUI Engine stopped")
 
     async def health_check(self) -> bool:
@@ -761,13 +789,13 @@ class TUIEngine:
         p = ComponentProps(**props) if props else ComponentProps(id="app-root")
         return ComponentNode(name="root", props=p)
 
-    def get_focused(self) -> Optional[ComponentNode]:
+    def get_focused(self) -> ComponentNode | None:
         """Get the currently focused component, if any."""
         if self._root is None:
             return None
         return self._find_focused(self._root)
 
-    def _find_focused(self, node: ComponentNode) -> Optional[ComponentNode]:
+    def _find_focused(self, node: ComponentNode) -> ComponentNode | None:
         """Recursively find a focused node."""
         if node.props.focusable and node.props.visible:
             return node
@@ -781,11 +809,9 @@ class TUIEngine:
         """Default quit action."""
         _logger.info("Quit action triggered")
         if self._event_bus:
-            self._event_bus.publish(Event.create(
-                "claude.infra.tui.quit", "tui_engine", {}
-            ))
+            self._event_bus.publish(Event.create("claude.infra.tui.quit", "tui_engine", {}))
 
-    def _publish(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _publish(self, topic: str, payload: dict[str, Any]) -> None:
         """Publish an event if the event bus is available."""
         if self._event_bus:
             self._event_bus.publish(Event.create(topic, "tui_engine", payload))

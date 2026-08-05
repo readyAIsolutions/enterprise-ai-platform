@@ -7,24 +7,24 @@ instead of hardcoded empty/static values. Fully degradable: if the kernel can
 not be imported, the endpoints still return well-formed, live-shaped data
 with ``live: false`` so the dashboard never crashes.
 """
-import asyncio
+
 import json
 import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 VALIDATION_SCRIPT = str(HERE / "run_validation.py")
 
+from jinja2 import Environment, FileSystemLoader
 from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 from starlette.staticfiles import StaticFiles
-from starlette.middleware.cors import CORSMiddleware
-from jinja2 import Environment, FileSystemLoader
 
 # ── Kernel live telemetry ─────────────────────────────────────────────────────
 # Pull the real kernel primitives so the dashboard surfaces LIVE events, health
@@ -35,15 +35,16 @@ try:
         Event,
         EventBus,
         EventPriority,
+        HealthChecker,
+        HealthStatus,
         MetricsCollector,
         Module,
         ModuleRecord,
         ModuleRegistry,
-        HealthChecker,
-        HealthStatus,
         _json_safe,
         module,
     )
+
     _KERNEL_OK = True
     _KERNEL_ERR = None
 except Exception as exc:  # pragma: no cover - import fallback path
@@ -65,8 +66,10 @@ def _run_validation():
     try:
         result = subprocess.run(
             [sys.executable, VALIDATION_SCRIPT],
-            capture_output=True, text=True, timeout=30,
-            cwd="/home/hunter/Desktop/Enterprise Builder"
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd="/home/hunter/Desktop/Enterprise Builder",
         )
         if result.returncode == 0 and result.stdout.strip():
             return json.loads(result.stdout)
@@ -85,40 +88,73 @@ def _get_validation():
         _cache = data
         _cache_time = now
         return data
-    return {"final_score": "—", "certification": "Offline", "module_count": 0,
-            "total_tests": "—", "base_score": "—", "transcendent_bonus": "—",
-            "modules": {}, "bonuses": dict.fromkeys([
-                "swarm_intelligence", "recursive_self_improve", "compression_transcend",
-                "zero_cost_operation", "adaptive_resilience", "cross_domain_intel",
-                "hermeneutic_closure", "temporal_autonomy"], 0),
-            "recommendations": ["Validation engine offline"], "signal_dbm": "—"}
+    return {
+        "final_score": "—",
+        "certification": "Offline",
+        "module_count": 0,
+        "total_tests": "—",
+        "base_score": "—",
+        "transcendent_bonus": "—",
+        "modules": {},
+        "bonuses": dict.fromkeys(
+            [
+                "swarm_intelligence",
+                "recursive_self_improve",
+                "compression_transcend",
+                "zero_cost_operation",
+                "adaptive_resilience",
+                "cross_domain_intel",
+                "hermeneutic_closure",
+                "temporal_autonomy",
+            ],
+            0,
+        ),
+        "recommendations": ["Validation engine offline"],
+        "signal_dbm": "—",
+    }
 
 
 def _get_swarm():
     signal, concurrency = -60, 50
     try:
-        out = subprocess.run(["iw", "dev", "wlp4s0", "link"], capture_output=True, text=True, timeout=3)
+        out = subprocess.run(
+            ["iw", "dev", "wlp4s0", "link"], capture_output=True, text=True, timeout=3
+        )
         import re
+
         m = re.search(r"signal:\s*(-?\d+)\s*dBm", out.stdout)
         if m:
             signal = int(m.group(1))
-            if signal > -48: concurrency = 80
-            elif signal > -52: concurrency = 70
-            elif signal > -56: concurrency = 60
-            elif signal > -60: concurrency = 50
-            elif signal > -65: concurrency = 40
-            elif signal > -70: concurrency = 25
-            else: concurrency = 15
+            if signal > -48:
+                concurrency = 80
+            elif signal > -52:
+                concurrency = 70
+            elif signal > -56:
+                concurrency = 60
+            elif signal > -60:
+                concurrency = 50
+            elif signal > -65:
+                concurrency = 40
+            elif signal > -70:
+                concurrency = 25
+            else:
+                concurrency = 15
     except Exception:
         pass
     turbo = False
     try:
         import urllib.request
+
         with urllib.request.urlopen("http://localhost:8922/health", timeout=2) as r:
             turbo = r.status == 200
     except Exception:
         pass
-    return {"signal_dbm": signal, "concurrency": concurrency, "interface": "wlp4s0", "turbocharger": turbo}
+    return {
+        "signal_dbm": signal,
+        "concurrency": concurrency,
+        "interface": "wlp4s0",
+        "turbocharger": turbo,
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -126,13 +162,14 @@ def _get_swarm():
 # ══════════════════════════════════════════════════════════════════════════════
 _event_bus = EventBus() if _KERNEL_OK else None
 _metrics = MetricsCollector() if _KERNEL_OK else None
-_health_checker = None          # injected / self-check HealthChecker
-_live_os = None                 # optionally injected running kernel
+_health_checker = None  # injected / self-check HealthChecker
+_live_os = None  # optionally injected running kernel
 
 # A real self-check module so per-module health is meaningful even when the
 # dashboard runs standalone (no injected platform). Its probe() performs an
 # actual non-mutating capability check against the live telemetry stores.
 if _KERNEL_OK and Module is not None:
+
     @module(name="dashboard", version="1.0.0")
     class DashboardSelfModule(Module):
         async def initialize(self) -> None:
@@ -158,7 +195,9 @@ if _KERNEL_OK and Module is not None:
     _own_registry = ModuleRegistry(config={})
     with _own_registry._lock:
         _own_registry._records["dashboard"] = ModuleRecord(
-            name="dashboard", path=HERE, version="1.0.0",
+            name="dashboard",
+            path=HERE,
+            version="1.0.0",
             instance=_dashboard_instance,
         )
     _health_checker = HealthChecker(_own_registry, _event_bus)
@@ -168,8 +207,9 @@ else:
     _health_checker = None
 
 
-def configure_live_source(os_instance=None, event_bus=None, metrics=None,
-                          health_checker=None):
+def configure_live_source(
+    os_instance=None, event_bus=None, metrics=None, health_checker=None
+) -> None:
     """Inject a running kernel so the dashboard reflects REAL platform state.
 
     If given a PlatformOS instance, its EventBus, MetricsCollector and
@@ -202,7 +242,7 @@ def publish_event(topic, source="dashboard", payload=None, priority=None):
     return ev
 
 
-def _record_http(name="http.requests"):
+def _record_http(name="http.requests") -> None:
     if _metrics is not None:
         _metrics.increment(name, module="dashboard")
 
@@ -249,13 +289,24 @@ async def _refresh_health():
 
 
 def _build_offline_health():
-    return {"platform": [{
-        "module_name": "platform", "status": "unknown", "response_time_ms": 0.0,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "details": {"modules_checked": 0, "healthy": 0, "unhealthy": 0,
-                    "unhealthy_modules": []},
-        "consecutive_failures": 0, "consecutive_successes": 0,
-    }]}
+    return {
+        "platform": [
+            {
+                "module_name": "platform",
+                "status": "unknown",
+                "response_time_ms": 0.0,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "details": {
+                    "modules_checked": 0,
+                    "healthy": 0,
+                    "unhealthy": 0,
+                    "unhealthy_modules": [],
+                },
+                "consecutive_failures": 0,
+                "consecutive_successes": 0,
+            }
+        ]
+    }
 
 
 async def _get_health_reports():
@@ -271,7 +322,7 @@ async def _get_health_reports():
     return _build_offline_health()
 
 
-def _overall_status(modules):
+def _overall_status(modules) -> str:
     if not modules:
         return "degraded"
     names = [n for n in modules if n != "platform"]
@@ -302,7 +353,13 @@ async def home(req):
     v = _get_validation()
     s = _get_swarm()
     _record_http()
-    ctx = {"request": req, "score": v, "swarm": s, "uptime": int(time.time()-START_TIME), "now": datetime.now().strftime("%H:%M:%S")}
+    ctx = {
+        "request": req,
+        "score": v,
+        "swarm": s,
+        "uptime": int(time.time() - START_TIME),
+        "now": datetime.now().strftime("%H:%M:%S"),
+    }
     return HTMLResponse(jinja_env.get_template("dashboard.html").render(ctx))
 
 
@@ -325,21 +382,24 @@ async def api_events(req):
     _record_http("http.events_requests")
     limit = _qint(req.query_params.get("limit"), 50)
     evs = _event_bus.get_history(limit=limit) if _event_bus else []
-    return JSONResponse({
-        "events": [_event_to_dict(e) for e in evs],
-        "count": len(evs),
-        "live": _event_bus is not None,
-    })
+    return JSONResponse(
+        {
+            "events": [_event_to_dict(e) for e in evs],
+            "count": len(evs),
+            "live": _event_bus is not None,
+        }
+    )
 
 
 async def api_metrics(req):
     _record_http("http.metrics_requests")
     if _metrics is None:
-        return JSONResponse({"counters": {}, "gauges": {}, "histograms": {},
-                             "history_count": 0, "live": False})
+        return JSONResponse(
+            {"counters": {}, "gauges": {}, "histograms": {}, "history_count": 0, "live": False}
+        )
     snap = _metrics.snapshot()
     snap["live"] = True
-    snap["generated_at"] = datetime.now(timezone.utc).isoformat()
+    snap["generated_at"] = datetime.now(UTC).isoformat()
     return JSONResponse(snap)
 
 
@@ -348,30 +408,38 @@ async def api_health(req):
     mods = await _get_health_reports()
     metrics_snap = _metrics.snapshot() if _metrics is not None else {}
     uptime = int(time.time() - START_TIME)
-    return JSONResponse({
-        "status": _overall_status(mods),
-        "uptime": uptime,
-        "live": _event_bus is not None,
-        "modules": mods,
-        "metrics": metrics_snap,
-        "now": datetime.now(timezone.utc).isoformat(),
-    })
+    return JSONResponse(
+        {
+            "status": _overall_status(mods),
+            "uptime": uptime,
+            "live": _event_bus is not None,
+            "modules": mods,
+            "metrics": metrics_snap,
+            "now": datetime.now(UTC).isoformat(),
+        }
+    )
 
 
 app = Starlette(debug=False)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-app.routes.extend([
-    Route("/", home), Route("/api/score", api_score), Route("/api/modules", api_modules),
-    Route("/api/swarm", api_swarm), Route("/api/events", api_events), Route("/api/health", api_health),
-    Route("/api/metrics", api_metrics),
-])
+app.routes.extend(
+    [
+        Route("/", home),
+        Route("/api/score", api_score),
+        Route("/api/modules", api_modules),
+        Route("/api/swarm", api_swarm),
+        Route("/api/events", api_events),
+        Route("/api/health", api_health),
+        Route("/api/metrics", api_metrics),
+    ]
+)
 if (HERE / "static").exists():
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 
 # Warm cache on startup
 v = _get_validation()
-print(f"\n  DASHBOARD: http://0.0.0.0:8421  |  {v.get('final_score', '—')} {v.get('certification', '')}\n")
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8421, log_level="info")

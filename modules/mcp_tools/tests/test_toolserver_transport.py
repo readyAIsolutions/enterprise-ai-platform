@@ -24,7 +24,6 @@ import json
 from typing import Any
 
 import pytest
-
 from enterprise.modules.mcp_tools import (
     MCPToolGatewayModule,
     MemoryTransport,
@@ -37,7 +36,6 @@ from enterprise.modules.mcp_tools import (
     create_mcp_tools_module,
 )
 from enterprise.platform_kernel import HealthStatus
-
 
 # ---------------------------------------------------------------------------
 # Sample function used to assert exact schema derivation
@@ -74,7 +72,8 @@ async def async_sum(values: list[int]) -> int:
 
 def boom(a: int) -> int:
     """Raise an exception to verify tool-raised error handling."""
-    raise RuntimeError("boom exploded")
+    msg = "boom exploded"
+    raise RuntimeError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -175,8 +174,14 @@ class TestToolServerDispatch:
     def test_call_sync_tool(self) -> None:
         server = ToolServer()
         server.register(sample)
-        args = {"text": "hi", "count": 2, "ratio": 1.0, "enabled": True,
-                "labels": ["a"], "meta": {}}
+        args = {
+            "text": "hi",
+            "count": 2,
+            "ratio": 1.0,
+            "enabled": True,
+            "labels": ["a"],
+            "meta": {},
+        }
         assert server.call("sample", args) == "hihi"
 
     def test_call_async_tool_transparently(self) -> None:
@@ -192,8 +197,7 @@ class TestToolServerDispatch:
     async def test_acall_sync_tool(self) -> None:
         server = ToolServer()
         server.register(sample)
-        args = {"text": "x", "count": 3, "ratio": 1.0, "enabled": True,
-                "labels": ["a"], "meta": {}}
+        args = {"text": "x", "count": 3, "ratio": 1.0, "enabled": True, "labels": ["a"], "meta": {}}
         assert await server.acall("sample", args) == "xxx"
 
     def test_call_unknown_tool_raises(self) -> None:
@@ -273,14 +277,28 @@ class TestTransports:
         server.register(sample)
 
         client.send(
-            {"jsonrpc": "2.0", "id": 7, "method": "tools/call",
-             "params": {"name": "sample",
-                        "arguments": {"text": "ab", "count": 2, "ratio": 1.0,
-                                      "enabled": True, "labels": ["a"], "meta": {}}}}
+            {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "tools/call",
+                "params": {
+                    "name": "sample",
+                    "arguments": {
+                        "text": "ab",
+                        "count": 2,
+                        "ratio": 1.0,
+                        "enabled": True,
+                        "labels": ["a"],
+                        "meta": {},
+                    },
+                },
+            }
         )
         request = server_end.receive()
         response = asyncio.run(
-            server.handle_request(request["method"], params=request["params"], request_id=request["id"])
+            server.handle_request(
+                request["method"], params=request["params"], request_id=request["id"]
+            )
         )
         server_end.send(response)
         reply = client.receive()
@@ -291,9 +309,7 @@ class TestTransports:
         server = ToolServer()
         server.register(sample)
 
-        request = json.dumps(
-            {"jsonrpc": "2.0", "id": 3, "method": "tools/list"}
-        ) + "\n"
+        request = json.dumps({"jsonrpc": "2.0", "id": 3, "method": "tools/list"}) + "\n"
         stdin = io.StringIO(request)
         stdout = io.StringIO()
         transport = StdioTransport(stdin=stdin, stdout=stdout)

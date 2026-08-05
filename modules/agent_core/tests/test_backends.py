@@ -10,11 +10,9 @@ integration with AnthropicBackend / OpenAICompatibleBackend. All tests run
 from __future__ import annotations
 
 import json
-import time
 import urllib.error
 
 import pytest
-
 from enterprise.modules.agent_core.providers import (
     AnthropicProvider,
     ChatProvider,
@@ -23,7 +21,6 @@ from enterprise.modules.agent_core.providers import (
     MockProvider,
     OpenAICompatibleProvider,
     ProviderRegistry,
-    ProviderResponse,
     ResilientProvider,
     RetryPolicy,
     get_provider,
@@ -36,14 +33,13 @@ from enterprise.modules.agent_core.query_engine import (
     QueryConfig,
 )
 
-
 # =============================================================================
 # Fake urllib transport (offline)
 # =============================================================================
 
 
 class FakeResponse:
-    def __init__(self, status: int, body: bytes):
+    def __init__(self, status: int, body: bytes) -> None:
         self.status = status
         self._body = body
 
@@ -57,7 +53,7 @@ class FakeResponse:
 class FakeOpener:
     """Injectable opener. ``responses`` is a list; an Exception entry is raised."""
 
-    def __init__(self, responses):
+    def __init__(self, responses) -> None:
         self.responses = list(responses)
         self.calls: list = []
 
@@ -80,9 +76,7 @@ def _openai_body(text="Hello!", model="gpt-4o"):
         {
             "id": "chatcmpl-test",
             "model": model,
-            "choices": [
-                {"message": {"role": "assistant", "content": text}}
-            ],
+            "choices": [{"message": {"role": "assistant", "content": text}}],
             "usage": {
                 "prompt_tokens": 10,
                 "completion_tokens": 5,
@@ -112,27 +106,29 @@ def _msgs(*texts):
 
 
 class TestOpenAICompatibleProvider:
-    def test_default_url_endpoint(self):
+    def test_default_url_endpoint(self) -> None:
         p = OpenAICompatibleProvider()
         assert p.request_url().endswith("/v1/chat/completions")
 
-    def test_authorization_header_when_key(self):
+    def test_authorization_header_when_key(self) -> None:
         p = OpenAICompatibleProvider(api_key="sk-test", base_url="https://x.example/v1")
         h = p.build_headers()
         assert h["Authorization"] == "Bearer sk-test"
 
-    def test_build_request_structure(self):
+    def test_build_request_structure(self) -> None:
         p = OpenAICompatibleProvider(api_key="k")
         body = p.build_request(
-            _msgs("hi"), "gpt-4o",
-            temperature=0.3, max_tokens=64,
+            _msgs("hi"),
+            "gpt-4o",
+            temperature=0.3,
+            max_tokens=64,
         )
         assert body["model"] == "gpt-4o"
         assert body["messages"] == [{"role": "user", "content": "hi"}]
         assert body["temperature"] == 0.3
         assert body["max_tokens"] == 64
 
-    def test_build_request_tool_role_mapping(self):
+    def test_build_request_tool_role_mapping(self) -> None:
         p = OpenAICompatibleProvider(api_key="k")
         body = p.build_request(
             [{"role": "tool", "content": "out", "tool_call_id": "tc1"}],
@@ -141,10 +137,11 @@ class TestOpenAICompatibleProvider:
         assert body["messages"][0]["tool_call_id"] == "tc1"
 
     @pytest.mark.asyncio
-    async def test_parses_openai_response(self):
+    async def test_parses_openai_response(self) -> None:
         opener = FakeOpener([FakeResponse(200, _openai_body())])
         p = OpenAICompatibleProvider(
-            api_key="k", opener=opener,
+            api_key="k",
+            opener=opener,
             retry=RetryPolicy(max_attempts=1, disable_sleep=True),
         )
         resp = await p.complete(_msgs("hi"), "gpt-4o")
@@ -156,10 +153,11 @@ class TestOpenAICompatibleProvider:
         assert opener.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_posts_correct_url_and_payload(self):
+    async def test_posts_correct_url_and_payload(self) -> None:
         opener = FakeOpener([FakeResponse(200, _openai_body())])
         p = OpenAICompatibleProvider(
-            api_key="k", base_url="https://api.test/v1",
+            api_key="k",
+            base_url="https://api.test/v1",
             opener=opener,
             retry=RetryPolicy(max_attempts=1, disable_sleep=True),
         )
@@ -177,17 +175,17 @@ class TestOpenAICompatibleProvider:
 
 
 class TestAnthropicProvider:
-    def test_default_url_endpoint(self):
+    def test_default_url_endpoint(self) -> None:
         p = AnthropicProvider()
         assert p.request_url().endswith("/v1/messages")
 
-    def test_anthropic_headers(self):
+    def test_anthropic_headers(self) -> None:
         p = AnthropicProvider(api_key="sk-ant")
         h = p.build_headers()
         assert h["x-api-key"] == "sk-ant"
         assert h["anthropic-version"] == "2023-06-01"
 
-    def test_build_request_extracts_system_and_maps_roles(self):
+    def test_build_request_extracts_system_and_maps_roles(self) -> None:
         p = AnthropicProvider(api_key="sk-ant")
         body = p.build_request(
             [
@@ -204,10 +202,11 @@ class TestAnthropicProvider:
         assert roles == ["user", "assistant"]
 
     @pytest.mark.asyncio
-    async def test_parses_anthropic_response(self):
+    async def test_parses_anthropic_response(self) -> None:
         opener = FakeOpener([FakeResponse(200, _anthropic_body())])
         p = AnthropicProvider(
-            api_key="k", opener=opener,
+            api_key="k",
+            opener=opener,
             retry=RetryPolicy(max_attempts=1, disable_sleep=True),
         )
         resp = await p.complete(_msgs("hi"), "claude")
@@ -217,10 +216,11 @@ class TestAnthropicProvider:
         assert resp.total_tokens == 11
 
     @pytest.mark.asyncio
-    async def test_posts_anthropic_url(self):
+    async def test_posts_anthropic_url(self) -> None:
         opener = FakeOpener([FakeResponse(200, _anthropic_body())])
         p = AnthropicProvider(
-            api_key="k", base_url="https://api.anthropic.com",
+            api_key="k",
+            base_url="https://api.anthropic.com",
             opener=opener,
             retry=RetryPolicy(max_attempts=1, disable_sleep=True),
         )
@@ -239,7 +239,7 @@ class TestAnthropicProvider:
 
 class TestRetry:
     @pytest.mark.asyncio
-    async def test_retry_on_429_then_success(self):
+    async def test_retry_on_429_then_success(self) -> None:
         opener = FakeOpener(
             [
                 FakeResponse(429, b'{"error":"rate"}'),
@@ -247,7 +247,8 @@ class TestRetry:
             ]
         )
         p = OpenAICompatibleProvider(
-            api_key="k", opener=opener,
+            api_key="k",
+            opener=opener,
             retry=RetryPolicy(max_attempts=3, base_delay=0.0, disable_sleep=True),
         )
         resp = await p.complete(_msgs("hi"), "gpt")
@@ -256,7 +257,7 @@ class TestRetry:
         assert p.metrics["retries"] >= 1
 
     @pytest.mark.asyncio
-    async def test_retry_on_500_then_success(self):
+    async def test_retry_on_500_then_success(self) -> None:
         opener = FakeOpener(
             [
                 FakeResponse(500, b"boom"),
@@ -264,7 +265,8 @@ class TestRetry:
             ]
         )
         p = OpenAICompatibleProvider(
-            api_key="k", opener=opener,
+            api_key="k",
+            opener=opener,
             retry=RetryPolicy(max_attempts=3, disable_sleep=True),
         )
         resp = await p.complete(_msgs("hi"), "gpt")
@@ -272,10 +274,11 @@ class TestRetry:
         assert opener.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_retry_exhausted_raises_httperror(self):
+    async def test_retry_exhausted_raises_httperror(self) -> None:
         opener = FakeOpener([FakeResponse(429, b"rate")] * 5)
         p = OpenAICompatibleProvider(
-            api_key="k", opener=opener,
+            api_key="k",
+            opener=opener,
             retry=RetryPolicy(max_attempts=3, disable_sleep=True),
         )
         with pytest.raises(HttpError) as exc:
@@ -284,10 +287,11 @@ class TestRetry:
         assert opener.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_timeout_raises_after_retries(self):
+    async def test_timeout_raises_after_retries(self) -> None:
         opener = FakeOpener([TimeoutError("timed out")] * 5)
         p = OpenAICompatibleProvider(
-            api_key="k", opener=opener,
+            api_key="k",
+            opener=opener,
             retry=RetryPolicy(max_attempts=2, base_delay=0.0, disable_sleep=True),
         )
         with pytest.raises(TimeoutError):
@@ -296,7 +300,7 @@ class TestRetry:
         assert p.metrics["timeouts"] >= 1
 
     @pytest.mark.asyncio
-    async def test_urlerror_retries(self):
+    async def test_urlerror_retries(self) -> None:
         opener = FakeOpener(
             [
                 urllib.error.URLError("conn reset"),
@@ -304,7 +308,8 @@ class TestRetry:
             ]
         )
         p = OpenAICompatibleProvider(
-            api_key="k", opener=opener,
+            api_key="k",
+            opener=opener,
             retry=RetryPolicy(max_attempts=3, disable_sleep=True),
         )
         resp = await p.complete(_msgs("hi"), "gpt")
@@ -318,7 +323,7 @@ class TestRetry:
 
 class TestFallback:
     @pytest.mark.asyncio
-    async def test_fallback_on_repeated_failure(self):
+    async def test_fallback_on_repeated_failure(self) -> None:
         primary = MockProvider(failures=[HttpError(429, b"rate"), HttpError(500, b"x")])
         fallback = EchoProvider()
         resilient = ResilientProvider(primary=primary, fallback=fallback)
@@ -326,14 +331,14 @@ class TestFallback:
         assert resp.text == "hi [echo]"
 
     @pytest.mark.asyncio
-    async def test_no_fallback_reraises(self):
+    async def test_no_fallback_reraises(self) -> None:
         primary = MockProvider(failures=[HttpError(429, b"rate")])
         resilient = ResilientProvider(primary=primary, fallback=None)
         with pytest.raises(HttpError):
             await resilient.complete(_msgs("hi"), "gpt")
 
     @pytest.mark.asyncio
-    async def test_resilient_pass_through_on_success(self):
+    async def test_resilient_pass_through_on_success(self) -> None:
         primary = MockProvider(responses=["works"])
         resilient = ResilientProvider(primary=primary, fallback=EchoProvider())
         resp = await resilient.complete(_msgs("hi"), "gpt")
@@ -347,14 +352,14 @@ class TestFallback:
 
 class TestMockProviders:
     @pytest.mark.asyncio
-    async def test_mock_provider_deterministic(self):
+    async def test_mock_provider_deterministic(self) -> None:
         m = MockProvider()
         r1 = await m.complete([{"role": "user", "content": "a"}], "m")
         assert r1.text == "mock response"
         assert r1.total_tokens == 9
 
     @pytest.mark.asyncio
-    async def test_mock_provider_scripted_responses(self):
+    async def test_mock_provider_scripted_responses(self) -> None:
         m = MockProvider(responses=["one", "two"])
         assert (await m.complete([], "m")).text == "one"
         assert (await m.complete([], "m")).text == "two"
@@ -362,7 +367,7 @@ class TestMockProviders:
         assert (await m.complete([], "m")).text == "two"
 
     @pytest.mark.asyncio
-    async def test_echo_provider(self):
+    async def test_echo_provider(self) -> None:
         e = EchoProvider()
         resp = await e.complete([{"role": "user", "content": "ping"}], "m")
         assert resp.text == "ping [echo]"
@@ -375,25 +380,25 @@ class TestMockProviders:
 
 
 class TestRegistry:
-    def test_registry_builtin_providers(self):
+    def test_registry_builtin_providers(self) -> None:
         reg = ProviderRegistry()
         assert reg.has("openai")
         assert reg.has("anthropic")
         assert reg.has("mock")
         assert reg.has("echo")
 
-    def test_get_provider_factory(self):
+    def test_get_provider_factory(self) -> None:
         p = get_provider("mock")
         assert isinstance(p, MockProvider)
         p2 = get_provider("echo")
         assert isinstance(p2, EchoProvider)
 
-    def test_unknown_provider_raises(self):
+    def test_unknown_provider_raises(self) -> None:
         reg = ProviderRegistry()
         with pytest.raises(KeyError):
             reg.get("nonexistent")
 
-    def test_custom_registration(self):
+    def test_custom_registration(self) -> None:
         reg = ProviderRegistry()
 
         class MyProvider(ChatProvider):
@@ -412,7 +417,7 @@ class TestRegistry:
 
 class TestBackendIntegration:
     @pytest.mark.asyncio
-    async def test_openai_backend_with_echo_provider(self):
+    async def test_openai_backend_with_echo_provider(self) -> None:
         cfg = QueryConfig(model="gpt-4o", max_output_tokens=64)
         msgs = [Message(role=MessageRole.USER, content="hi there")]
         backend = OpenAICompatibleBackend(provider=EchoProvider())
@@ -422,7 +427,7 @@ class TestBackendIntegration:
         assert result.metadata["provider"] == "openai"
 
     @pytest.mark.asyncio
-    async def test_anthropic_backend_with_echo_provider(self):
+    async def test_anthropic_backend_with_echo_provider(self) -> None:
         cfg = QueryConfig(model="claude", max_output_tokens=64)
         msgs = [Message(role=MessageRole.USER, content="hello")]
         backend = AnthropicBackend(provider=EchoProvider())
@@ -431,7 +436,7 @@ class TestBackendIntegration:
         assert result.metadata["provider"] == "anthropic"
 
     @pytest.mark.asyncio
-    async def test_backends_fall_back_to_sim_without_key(self):
+    async def test_backends_fall_back_to_sim_without_key(self) -> None:
         cfg = QueryConfig(model="gpt-4o")
         msgs = [Message(role=MessageRole.USER, content="x")]
         ob = OpenAICompatibleBackend()
@@ -442,7 +447,7 @@ class TestBackendIntegration:
         assert "no API key configured" in result2.content
 
     @pytest.mark.asyncio
-    async def test_openai_backend_delegates_to_provider_error(self):
+    async def test_openai_backend_delegates_to_provider_error(self) -> None:
         # A failing provider should not crash the engine; falls back to sim
         cfg = QueryConfig(model="gpt-4o")
         msgs = [Message(role=MessageRole.USER, content="x")]

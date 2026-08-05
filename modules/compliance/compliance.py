@@ -37,8 +37,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Union
+from datetime import UTC, datetime
+from typing import Any
 
 from enterprise.platform_kernel import (
     EventBus,
@@ -95,7 +95,7 @@ class Control:
     description: str
     required: bool = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "framework": self.framework,
@@ -117,15 +117,16 @@ class CompControl:
     """
 
     category: str = STATUS_MISSING
-    evidence: List[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
     notes: str = ""
 
     def __post_init__(self) -> None:
         if self.category not in VALID_STATUSES:
-            raise ValueError(
+            msg = (
                 f"Invalid control category {self.category!r}; expected one of "
                 f"{sorted(VALID_STATUSES)}"
             )
+            raise ValueError(msg)
 
     @property
     def implemented(self) -> bool:
@@ -146,7 +147,7 @@ class CompControl:
 # Built-in control catalogue
 # =============================================================================
 
-BUILTIN_CONTROLS: List[Control] = [
+BUILTIN_CONTROLS: list[Control] = [
     # ------------------------------------------------------------------ OWASP
     Control(
         id="LLM01",
@@ -315,10 +316,10 @@ BUILTIN_CONTROLS: List[Control] = [
 ]
 
 # Convenience index by control id.
-_BUILTIN_INDEX: Dict[str, Control] = {c.id: c for c in BUILTIN_CONTROLS}
+_BUILTIN_INDEX: dict[str, Control] = {c.id: c for c in BUILTIN_CONTROLS}
 
 
-def controls_for_framework(framework: Optional[str]) -> List[Control]:
+def controls_for_framework(framework: str | None) -> list[Control]:
     """Return the built-in controls for the given framework (case-insensitive).
 
     ``None`` returns the full catalogue across all frameworks.
@@ -340,7 +341,7 @@ class ControlEvaluation:
 
     control: Control
     status: str
-    evidence: List[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
     notes: str = ""
 
 
@@ -348,8 +349,8 @@ class ControlEvaluation:
 class EvaluationResult:
     """Aggregate output of a ComplianceEvaluator assessment."""
 
-    framework: Optional[str]
-    results: List[ControlEvaluation]
+    framework: str | None
+    results: list[ControlEvaluation]
     coverage: float
     risk_score: float
     passed: bool
@@ -391,17 +392,15 @@ class ComplianceEvaluator:
 
     def __init__(
         self,
-        target: Union[str, float] = DEFAULT_TARGET,
-        controls: Optional[List[Control]] = None,
+        target: str | float = DEFAULT_TARGET,
+        controls: list[Control] | None = None,
     ) -> None:
         self._controls = list(controls) if controls is not None else BUILTIN_CONTROLS
         self._target = target
 
     # -- per-control posture -------------------------------------------------
 
-    def _resolve(
-        self, control: Control, raw: Any
-    ) -> ControlEvaluation:
+    def _resolve(self, control: Control, raw: Any) -> ControlEvaluation:
         """Coerce a raw map value into a normalized ControlEvaluation."""
         if isinstance(raw, CompControl):
             comp = raw
@@ -419,23 +418,24 @@ class ComplianceEvaluator:
             notes=comp.notes,
         )
 
-    def _applicable(self, results: List[ControlEvaluation]):
+    def _applicable(self, results: list[ControlEvaluation]):
         return [r for r in results if r.status != STATUS_NOT_APPLICABLE]
 
     # -- aggregate metrics ---------------------------------------------------
 
     def evaluate(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-        target: Optional[Union[str, float]] = None,
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+        target: str | float | None = None,
     ) -> EvaluationResult:
         """Produce a full per-control + aggregate evaluation."""
         status_map = status_map or {}
         tgt = DEFAULT_TARGET if target is None else target
 
         considered = [
-            c for c in self._controls
+            c
+            for c in self._controls
             if framework is None or c.framework.lower() == str(framework).lower()
         ]
         results = [self._resolve(c, status_map.get(c.id)) for c in considered]
@@ -448,14 +448,8 @@ class ComplianceEvaluator:
         not_applicable = len(results) - n
 
         coverage = (implemented + partial) / n * 100.0 if n else 100.0
-        risk_score = (
-            (0.0 * implemented + 0.5 * partial + 1.0 * missing) / n * 100.0
-            if n
-            else 0.0
-        )
-        passed = self._compute_passed(
-            implemented, partial, missing, coverage, applicable, tgt
-        )
+        risk_score = (0.0 * implemented + 0.5 * partial + 1.0 * missing) / n * 100.0 if n else 0.0
+        passed = self._compute_passed(implemented, partial, missing, coverage, applicable, tgt)
 
         return EvaluationResult(
             framework=framework,
@@ -475,8 +469,8 @@ class ComplianceEvaluator:
         partial: int,
         missing: int,
         coverage: float,
-        applicable: List[ControlEvaluation],
-        target: Union[str, float],
+        applicable: list[ControlEvaluation],
+        target: str | float,
     ) -> bool:
         if not applicable:
             # No applicable controls -> trivially compliant.
@@ -490,25 +484,25 @@ class ComplianceEvaluator:
 
     def compute_coverage(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
     ) -> float:
         """Return coverage percentage (implemented + partial over applicable)."""
         return self.evaluate(status_map, framework).coverage
 
     def compute_risk(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
     ) -> float:
         """Return residual risk score 0..100."""
         return self.evaluate(status_map, framework).risk_score
 
     def passes(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-        target: Optional[Union[str, float]] = None,
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+        target: str | float | None = None,
     ) -> bool:
         """Return True if the assessment passes the (possibly overridden) target."""
         return self.evaluate(status_map, framework, target).passed
@@ -524,12 +518,12 @@ class GapAnalyzer:
 
     def find_missing(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-    ) -> List[Control]:
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+    ) -> list[Control]:
         """Return controls assessed as ``missing`` (or omitted from the map)."""
         status_map = status_map or {}
-        missing: List[Control] = []
+        missing: list[Control] = []
         for c in controls_for_framework(framework):
             raw = status_map.get(c.id)
             if isinstance(raw, CompControl):
@@ -542,11 +536,11 @@ class GapAnalyzer:
 
     def find_partial(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-    ) -> List[Control]:
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+    ) -> list[Control]:
         status_map = status_map or {}
-        partial: List[Control] = []
+        partial: list[Control] = []
         for c in controls_for_framework(framework):
             raw = status_map.get(c.id)
             if isinstance(raw, CompControl):
@@ -567,15 +561,15 @@ class GapAnalyzer:
 class ComplianceReport:
     """A complete snapshot of a single compliance assessment."""
 
-    framework: Optional[str]
-    controls: List[ControlEvaluation]
+    framework: str | None
+    controls: list[ControlEvaluation]
     coverage: float
     risk_score: float
     passed: bool
-    gaps: List[Control]
+    gaps: list[Control]
     timestamp: datetime
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "framework": self.framework,
             "controls": [
@@ -616,13 +610,14 @@ class ComplianceFacade:
 
     def __init__(
         self,
-        evaluator: Optional[ComplianceEvaluator] = None,
-        analyzer: Optional[GapAnalyzer] = None,
-        register: Optional["EvidenceRegister"] = None,
+        evaluator: ComplianceEvaluator | None = None,
+        analyzer: GapAnalyzer | None = None,
+        register: EvidenceRegister | None = None,
     ) -> None:
         self._evaluator = evaluator or ComplianceEvaluator()
         self._analyzer = analyzer or GapAnalyzer()
         from .evidence import EvidenceRegister, GapAnalysis
+
         self._register = register if register is not None else EvidenceRegister()
         self._gap_analysis = GapAnalysis(self._register)
 
@@ -631,7 +626,7 @@ class ComplianceFacade:
         return self._evaluator
 
     @property
-    def register(self) -> "EvidenceRegister":
+    def register(self) -> EvidenceRegister:
         """The live evidence register backing evidence-based assessment."""
         return self._register
 
@@ -639,35 +634,33 @@ class ComplianceFacade:
         """Record a :class:`ControlEvidence` (or dict) into the register."""
         return self._register.add(evidence)
 
-    def ingest(self, results, source: str = "scan",
-               framework: Optional[str] = None) -> int:
+    def ingest(self, results, source: str = "scan", framework: str | None = None) -> int:
         """Bulk-add evidence from a scan-results mapping."""
         from .evidence import ingest as _ingest
+
         return _ingest(results, self._register, source=source, framework=framework)
 
-    def assess(self, framework: Optional[str] = None,
-               top_n: int = 5) -> Dict[str, Any]:
+    def assess(self, framework: str | None = None, top_n: int = 5) -> dict[str, Any]:
         """Produce a live evidence-based gap report for a framework (or all)."""
         return self._gap_analysis.analyze(framework=framework, top_n=top_n)
 
-
-    def list_controls(self, framework: Optional[str] = None) -> List[Control]:
+    def list_controls(self, framework: str | None = None) -> list[Control]:
         """Return the control catalogue, optionally filtered by framework."""
         return controls_for_framework(framework)
 
     def evaluate(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-        target: Optional[Union[str, float]] = None,
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+        target: str | float | None = None,
     ) -> EvaluationResult:
         return self._evaluator.evaluate(status_map, framework, target)
 
     def gap_analysis(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-    ) -> Dict[str, List[Control]]:
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+    ) -> dict[str, list[Control]]:
         """Return a breakdown of gaps: only the missing controls."""
         return {
             "missing": self._analyzer.find_missing(status_map, framework),
@@ -676,10 +669,10 @@ class ComplianceFacade:
 
     def report(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-        target: Optional[Union[str, float]] = None,
-        now: Optional[datetime] = None,
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+        target: str | float | None = None,
+        now: datetime | None = None,
     ) -> ComplianceReport:
         """Produce a full :class:`ComplianceReport`."""
         result = self._evaluator.evaluate(status_map, framework, target)
@@ -691,7 +684,7 @@ class ComplianceFacade:
             risk_score=result.risk_score,
             passed=result.passed,
             gaps=gaps,
-            timestamp=now or datetime.now(timezone.utc),
+            timestamp=now or datetime.now(UTC),
         )
 
 
@@ -704,17 +697,16 @@ class ComplianceFacade:
 class ComplianceModule(Module):
     """Enterprise Compliance Module (OWASP / NIST AI RMF / MITRE ATLAS)."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         from .evidence import EvidenceRegister
+
         self._evaluator = ComplianceEvaluator()
         self._analyzer = GapAnalyzer()
         db_path = (config or {}).get("db_path")
         self._register = EvidenceRegister(db_path=db_path)
-        self._facade = ComplianceFacade(
-            self._evaluator, self._analyzer, self._register
-        )
-        self._event_bus: Optional[EventBus] = None
+        self._facade = ComplianceFacade(self._evaluator, self._analyzer, self._register)
+        self._event_bus: EventBus | None = None
 
     async def initialize(self) -> None:
         self._status = HealthStatus.STARTING
@@ -728,12 +720,11 @@ class ComplianceModule(Module):
         target = default_config.get("target", DEFAULT_TARGET)
         db_path = default_config.get("db_path")
         from .evidence import EvidenceRegister, GapAnalysis
+
         self._evaluator = ComplianceEvaluator(target=target)
         # Recreate register on re-init (keeps db_path from config).
         self._register = EvidenceRegister(db_path=db_path)
-        self._facade = ComplianceFacade(
-            self._evaluator, self._analyzer, self._register
-        )
+        self._facade = ComplianceFacade(self._evaluator, self._analyzer, self._register)
         self._gap_analysis = GapAnalysis(self._register)
         self._status = HealthStatus.HEALTHY
         logger.info("Compliance Module initialized")
@@ -748,7 +739,7 @@ class ComplianceModule(Module):
         logger.info("Shutting down Compliance Module...")
         self._status = HealthStatus.HEALTHY
 
-    def set_event_bus(self, event_bus: Optional[EventBus]) -> None:
+    def set_event_bus(self, event_bus: EventBus | None) -> None:
         self._event_bus = event_bus
 
     @property
@@ -757,29 +748,29 @@ class ComplianceModule(Module):
 
     # -- delegate facade methods --------------------------------------------
 
-    def list_controls(self, framework: Optional[str] = None) -> List[Control]:
+    def list_controls(self, framework: str | None = None) -> list[Control]:
         return self._facade.list_controls(framework)
 
     def evaluate(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-        target: Optional[Union[str, float]] = None,
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+        target: str | float | None = None,
     ) -> EvaluationResult:
         return self._facade.evaluate(status_map, framework, target)
 
     def gap_analysis(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-    ) -> Dict[str, List[Control]]:
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+    ) -> dict[str, list[Control]]:
         return self._facade.gap_analysis(status_map, framework)
 
     def report(
         self,
-        status_map: Optional[Dict[str, Any]] = None,
-        framework: Optional[str] = None,
-        target: Optional[Union[str, float]] = None,
+        status_map: dict[str, Any] | None = None,
+        framework: str | None = None,
+        target: str | float | None = None,
     ) -> ComplianceReport:
         return self._facade.report(status_map, framework, target)
 
@@ -794,13 +785,11 @@ class ComplianceModule(Module):
         """Record evidence into the module's register."""
         return self._facade.add_evidence(evidence)
 
-    def ingest(self, results, source: str = "scan",
-               framework: Optional[str] = None) -> int:
+    def ingest(self, results, source: str = "scan", framework: str | None = None) -> int:
         """Bulk-add evidence from a scan-results mapping."""
         return self._facade.ingest(results, source=source, framework=framework)
 
-    def assess(self, framework: Optional[str] = None,
-               top_n: int = 5) -> Dict[str, Any]:
+    def assess(self, framework: str | None = None, top_n: int = 5) -> dict[str, Any]:
         """Produce a live evidence-based gap report."""
         return self._facade.assess(framework=framework, top_n=top_n)
 

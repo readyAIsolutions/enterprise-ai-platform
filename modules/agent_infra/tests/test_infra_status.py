@@ -27,19 +27,18 @@ _ENTERPRISE_ROOT = Path(__file__).resolve().parents[3]
 if str(_ENTERPRISE_ROOT) not in sys.path:
     sys.path.insert(0, str(_ENTERPRISE_ROOT))
 
-from enterprise.platform_kernel import HealthStatus
-
 from enterprise.modules.agent_infra import (
-    ClaudeCodeInfraModule,
-    InfraStatus,
-    ComponentStatus,
-    ComponentState,
     CORE_COMPONENTS,
+    ClaudeCodeInfraModule,
+    ComponentState,
+    ComponentStatus,
+    InfraStatus,
 )
 from enterprise.modules.agent_infra.plugin_system import (
     PluginManager,
     PluginState,
 )
+from enterprise.platform_kernel import HealthStatus
 
 
 @pytest.fixture
@@ -62,8 +61,12 @@ PLUGIN_MANIFEST = {
     "permissions": [],
 }
 
-PLUGIN_BODY_V1 = 'VALUE = 1\n\ndef on_load(ctx):\n    return True\n\ndef get_value():\n    return VALUE\n'
-PLUGIN_BODY_V2 = 'VALUE = 2\n\ndef on_load(ctx):\n    return True\n\ndef get_value():\n    return VALUE\n'
+PLUGIN_BODY_V1 = (
+    "VALUE = 1\n\ndef on_load(ctx):\n    return True\n\ndef get_value():\n    return VALUE\n"
+)
+PLUGIN_BODY_V2 = (
+    "VALUE = 2\n\ndef on_load(ctx):\n    return True\n\ndef get_value():\n    return VALUE\n"
+)
 
 
 @pytest.fixture
@@ -73,18 +76,16 @@ def plugin_manager(tmp_path):
     pd.mkdir(parents=True, exist_ok=True)
     (pd / "plugin.json").write_text(json.dumps(PLUGIN_MANIFEST))
     (pd / "plugin.py").write_text(PLUGIN_BODY_V1)
-    pm = PluginManager(
-        config={"plugin_dirs": [str(tmp_path)], "auto_hot_reload": False}
-    )
-    return pm
+    return PluginManager(config={"plugin_dirs": [str(tmp_path)], "auto_hot_reload": False})
 
 
 # =============================================================================
 # InfraStatus — status_report aggregation & determinism
 # =============================================================================
 
+
 class TestInfraStatusReport:
-    def test_status_report_contains_all_core_components(self):
+    def test_status_report_contains_all_core_components(self) -> None:
         s = InfraStatus()
         for c in CORE_COMPONENTS:
             s.update(c, ok=True)
@@ -95,7 +96,7 @@ class TestInfraStatusReport:
         assert report["overall"] == HealthStatus.HEALTHY.value
         assert report["healthy"] is True
 
-    def test_status_report_is_deterministic_json(self):
+    def test_status_report_is_deterministic_json(self) -> None:
         s = InfraStatus()
         for c in CORE_COMPONENTS:
             s.update(c, ok=True)
@@ -112,15 +113,18 @@ class TestInfraStatusReport:
         # each component record carries state/ok/last_check/message
         rec = r1["components"]["tui"]
         assert set(rec.keys()) == {"name", "state", "ok", "last_check", "message"}
-        assert rec["ok"] is True and rec["state"] == "ok" and rec["last_check"]
+        assert rec["ok"] is True
+        assert rec["state"] == "ok"
+        assert rec["last_check"]
 
 
 # =============================================================================
 # InfraStatus — overall mapping & accessor
 # =============================================================================
 
+
 class TestInfraStatusAggregation:
-    def test_healthy_requires_all_core_ok(self):
+    def test_healthy_requires_all_core_ok(self) -> None:
         s = InfraStatus()
         for c in CORE_COMPONENTS:
             s.update(c, ok=True)
@@ -128,32 +132,33 @@ class TestInfraStatusAggregation:
         s.update("server", ok=False)
         assert s.healthy() is False
 
-    def test_overall_healthy_when_all_components_ok(self):
+    def test_overall_healthy_when_all_components_ok(self) -> None:
         s = InfraStatus()
         for c in CORE_COMPONENTS:
             s.update(c, ok=True)
         assert s.overall_status() == HealthStatus.HEALTHY
 
-    def test_overall_degraded_when_single_component_fails(self):
+    def test_overall_degraded_when_single_component_fails(self) -> None:
         s = InfraStatus()
         for c in CORE_COMPONENTS:
             s.update(c, ok=True)
         s.update("voice", ok=False, state=ComponentState.DEGRADED)
         assert s.overall_status() == HealthStatus.DEGRADED
 
-    def test_overall_unhealthy_when_none_ok(self):
+    def test_overall_unhealthy_when_none_ok(self) -> None:
         s = InfraStatus()
         for c in CORE_COMPONENTS:
             s.update(c, ok=False)
         assert s.overall_status() == HealthStatus.UNHEALTHY
 
-    def test_component_accessor_and_inplace_update(self):
+    def test_component_accessor_and_inplace_update(self) -> None:
         s = InfraStatus()
         s.update("buddy", ok=True)
         s.update("buddy", ok=False, message="down")
         comp = s.component("buddy")
         assert isinstance(comp, ComponentStatus)
-        assert comp.name == "buddy" and comp.ok is False
+        assert comp.name == "buddy"
+        assert comp.ok is False
         assert comp.message == "down"
         assert s.component("does-not-exist") is None
 
@@ -162,8 +167,9 @@ class TestInfraStatusAggregation:
 # ClaudeCodeInfraModule — health_check migrated onto facade
 # =============================================================================
 
+
 class TestModuleHealthAggregation:
-    async def test_module_initialize_populates_infra_status(self):
+    async def test_module_initialize_populates_infra_status(self) -> None:
         mod = ClaudeCodeInfraModule()
         await mod.initialize()
         report = mod.infra.status_report()
@@ -171,25 +177,26 @@ class TestModuleHealthAggregation:
         assert set(report["components"].keys()) == set(CORE_COMPONENTS)
         assert mod.status == HealthStatus.HEALTHY
 
-    async def test_module_health_check_healthy_when_components_ok(self):
+    async def test_module_health_check_healthy_when_components_ok(self) -> None:
         mod = ClaudeCodeInfraModule()
         await mod.initialize()
         status = await mod.health_check()
         assert status == HealthStatus.HEALTHY
         assert mod.infra.overall_status() == HealthStatus.HEALTHY
 
-    async def test_module_component_accessor(self):
+    async def test_module_component_accessor(self) -> None:
         mod = ClaudeCodeInfraModule()
         await mod.initialize()
         comp = mod.component("tui")
-        assert comp is not None and comp.name == "tui"
+        assert comp is not None
+        assert comp.name == "tui"
         assert mod.infra.component("server").ok is True
 
-    async def test_module_health_check_degraded_when_component_fails(self, monkeypatch):
+    async def test_module_health_check_degraded_when_component_fails(self, monkeypatch) -> None:
         mod = ClaudeCodeInfraModule()
         await mod.initialize()
 
-        async def _boom():
+        async def _boom() -> bool:
             return False
 
         monkeypatch.setattr(mod.voice, "health_check", _boom)
@@ -203,9 +210,10 @@ class TestModuleHealthAggregation:
 # Plugin hot-reload — idempotent lifecycle
 # =============================================================================
 
+
 class TestPluginHotReloadLifecycle:
-    async def test_plugin_load_no_double_registration(self, plugin_manager):
-        await plugin_manager.initialize()          # loads once
+    async def test_plugin_load_no_double_registration(self, plugin_manager) -> None:
+        await plugin_manager.initialize()  # loads once
         names_after_first = set(plugin_manager.plugins.keys())
         # idempotent load again -> still exactly one instance
         ok = await plugin_manager.load_plugin("mytest")
@@ -213,14 +221,14 @@ class TestPluginHotReloadLifecycle:
         assert set(plugin_manager.plugins.keys()) == names_after_first
         assert len(plugin_manager.plugins) == 1
 
-    async def test_plugin_unload_idempotent(self, plugin_manager):
+    async def test_plugin_unload_idempotent(self, plugin_manager) -> None:
         await plugin_manager.initialize()
         assert await plugin_manager.unload_plugin("mytest") is True
         # second unload of an already-unloaded plugin is a safe no-op
         assert await plugin_manager.unload_plugin("mytest") is True
         assert "mytest" not in plugin_manager.plugins
 
-    async def test_plugin_lifecycle_state_tracked(self, plugin_manager):
+    async def test_plugin_lifecycle_state_tracked(self, plugin_manager) -> None:
         await plugin_manager.initialize()
         inst = plugin_manager.get_plugin("mytest")
         assert inst.state in (PluginState.LOADED, PluginState.ENABLED)
@@ -228,13 +236,13 @@ class TestPluginHotReloadLifecycle:
         assert detail["state"] in ("loaded", "enabled")
         assert detail["checksum"]
 
-    async def test_plugin_unload_removes_from_sys_modules(self, plugin_manager):
+    async def test_plugin_unload_removes_from_sys_modules(self, plugin_manager) -> None:
         await plugin_manager.initialize()
         assert "agent_plugins.mytest" in sys.modules
         await plugin_manager.unload_plugin("mytest")
         assert "agent_plugins.mytest" not in sys.modules
 
-    async def test_plugin_reload_plugin(self, plugin_manager):
+    async def test_plugin_reload_plugin(self, plugin_manager) -> None:
         await plugin_manager.initialize()
         assert await plugin_manager.reload_plugin("mytest") is True
         assert plugin_manager.get_plugin("mytest") is not None
@@ -244,14 +252,15 @@ class TestPluginHotReloadLifecycle:
 # Plugin hot-reload — change detection
 # =============================================================================
 
+
 class TestPluginHotReloadChangeDetection:
-    async def test_changed_plugins_detects_file_change(self, plugin_manager, tmp_path):
+    async def test_changed_plugins_detects_file_change(self, plugin_manager, tmp_path) -> None:
         await plugin_manager.initialize()
         assert plugin_manager.changed_plugins() == {"mytest": False}
         (tmp_path / "mytest" / "plugin.py").write_text(PLUGIN_BODY_V2)
         assert plugin_manager.changed_plugins() == {"mytest": True}
 
-    async def test_reload_changed_reloads_then_idempotent(self, plugin_manager, tmp_path):
+    async def test_reload_changed_reloads_then_idempotent(self, plugin_manager, tmp_path) -> None:
         await plugin_manager.initialize()
         (tmp_path / "mytest" / "plugin.py").write_text(PLUGIN_BODY_V2)
         before = plugin_manager.get_plugin("mytest").loaded_at

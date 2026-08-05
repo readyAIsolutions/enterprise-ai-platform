@@ -329,7 +329,8 @@ def _tool_of(candidate: Any) -> Tool:
         return attached
     if callable(candidate):
         return Tool.from_function(candidate)
-    raise TypeError(f"Cannot register {candidate!r}: not a Tool or callable")
+    msg = f"Cannot register {candidate!r}: not a Tool or callable"
+    raise TypeError(msg)
 
 
 # =========================================================================
@@ -381,14 +382,15 @@ class ToolRegistry:
         resolved = _tool_of(tool_or_decorator)
         final_name = name or resolved.name
         if not final_name:
-            raise ValueError("Tool name must not be empty")
+            msg = "Tool name must not be empty"
+            raise ValueError(msg)
         with self._lock:
             if final_name in self._tools:
-                raise ValueError(f"A tool named {final_name!r} is already registered")
+                msg = f"A tool named {final_name!r} is already registered"
+                raise ValueError(msg)
             if len(self._tools) >= self._max_tools:
-                raise ToolCallError(
-                    f"Tool registry is full ({self._max_tools} tools max)"
-                )
+                msg = f"Tool registry is full ({self._max_tools} tools max)"
+                raise ToolCallError(msg)
             if final_name != resolved.name:
                 resolved = _rename(resolved, final_name)
             self._tools[final_name] = resolved
@@ -444,19 +446,18 @@ class ToolRegistry:
         if arguments is None:
             arguments = {}
         if not isinstance(arguments, dict):
-            raise ValidationError(
-                f"Arguments for tool {tool_.name!r} must be a dict, got "
-                f"{type(arguments).__name__}"
+            msg = (
+                f"Arguments for tool {tool_.name!r} must be a dict, got {type(arguments).__name__}"
             )
+            raise ValidationError(msg)
         schema = tool_.input_schema
         properties = schema.get("properties", {})
         required = schema.get("required", [])
 
         for req in required:
             if req not in arguments:
-                raise ValidationError(
-                    f"Missing required argument {req!r} for tool {tool_.name!r}"
-                )
+                msg = f"Missing required argument {req!r} for tool {tool_.name!r}"
+                raise ValidationError(msg)
 
         for key, value in arguments.items():
             prop = properties.get(key)
@@ -478,16 +479,16 @@ class ToolRegistry:
         expected = prop.get("type")
         if expected in (None, "any", "null"):
             if expected == "null" and value is not None:
-                raise ValidationError(
-                    f"Argument {key!r} for tool {tool_.name!r} must be null"
-                )
+                msg = f"Argument {key!r} for tool {tool_.name!r} must be null"
+                raise ValidationError(msg)
             return
         ok = _type_matches(expected, value)
         if not ok:
-            raise ValidationError(
+            msg = (
                 f"Argument {key!r} for tool {tool_.name!r} must be of type "
                 f"{expected!r}, got {type(value).__name__}"
             )
+            raise ValidationError(msg)
 
     # -- Dispatch -----------------------------------------------------------
 
@@ -499,7 +500,8 @@ class ToolRegistry:
         """
         tool_ = self.get(name)
         if tool_ is None:
-            raise ToolCallError(f"Unknown tool: {name!r}")
+            msg = f"Unknown tool: {name!r}"
+            raise ToolCallError(msg)
         kwargs = self.validate(tool_, arguments)
         result = tool_.handler(**kwargs)
         if inspect.isawaitable(result):
@@ -510,7 +512,8 @@ class ToolRegistry:
         """Asynchronously execute the tool named ``name`` with ``arguments``."""
         tool_ = self.get(name)
         if tool_ is None:
-            raise ToolCallError(f"Unknown tool: {name!r}")
+            msg = f"Unknown tool: {name!r}"
+            raise ToolCallError(msg)
         kwargs = self.validate(tool_, arguments)
         result = tool_.handler(**kwargs)
         if inspect.isawaitable(result):
@@ -560,9 +563,7 @@ class ToolRegistry:
         name = params.get("name")
         arguments = params.get("arguments") or {}
         if not isinstance(name, str) or not self.has(name):
-            return self._call_error(
-                request_id, f"Unknown tool: {name!r}", code=-32602
-            )
+            return self._call_error(request_id, f"Unknown tool: {name!r}", code=-32602)
         try:
             output = await self.acall(name, arguments)
         except ValidationError as exc:
@@ -638,6 +639,7 @@ def _content_for(output: Any) -> dict[str, Any]:
 
 def _run_awaitable(awaitable: Any) -> Any:
     """Execute an awaitable from synchronous code without deadlocking."""
+
     async def _unwrap() -> Any:
         return await awaitable
 
@@ -820,9 +822,7 @@ class ToolServer:
         """
         return self.registry.call(name, arguments=arguments)
 
-    async def acall(
-        self, name: str, arguments: dict[str, Any] | None = None
-    ) -> Any:
+    async def acall(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
         """Asynchronously dispatch to the tool named ``name``."""
         return await self.registry.acall(name, arguments=arguments)
 
@@ -835,9 +835,7 @@ class ToolServer:
         request_id: Any = None,
     ) -> dict[str, Any]:
         """Serve ``tools/list`` / ``tools/call`` as JSON-RPC 2.0 responses."""
-        return await self.registry.handle_request(
-            method, params=params, request_id=request_id
-        )
+        return await self.registry.handle_request(method, params=params, request_id=request_id)
 
 
 # =========================================================================
@@ -874,7 +872,8 @@ class Transport(abc.ABC):
             if response is not None:
                 return response
             time.sleep(0.005)
-        raise TimeoutError(f"Timed out after {timeout}s waiting for a response")
+        msg = f"Timed out after {timeout}s waiting for a response"
+        raise TimeoutError(msg)
 
     def serve(
         self,
@@ -914,9 +913,11 @@ class MemoryTransport(Transport):
 
     def send(self, message: dict[str, Any]) -> None:
         if self._peer is None:
-            raise RuntimeError("MemoryTransport is not connected to a peer")
+            msg = "MemoryTransport is not connected to a peer"
+            raise RuntimeError(msg)
         if self._closed:
-            raise RuntimeError("MemoryTransport is closed")
+            msg = "MemoryTransport is closed"
+            raise RuntimeError(msg)
         self._peer._inbox.append(message)
 
     def receive(self) -> dict[str, Any] | None:
@@ -957,5 +958,6 @@ class StdioTransport(Transport):
         try:
             parsed = json.loads(line)
         except (ValueError, TypeError):
-            raise ValueError(f"Invalid JSON-RPC line: {line!r}") from None
+            msg = f"Invalid JSON-RPC line: {line!r}"
+            raise ValueError(msg) from None
         return parsed if isinstance(parsed, dict) else parsed

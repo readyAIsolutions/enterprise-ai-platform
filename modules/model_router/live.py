@@ -24,22 +24,15 @@ import asyncio
 import os
 import socket
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 from .model_router import (
-    CAT_AUTH,
-    CAT_RATE_LIMIT,
-    CAT_TIMEOUT,
-    CAT_UNAVAILABLE,
     CooldownCache,
     DeploymentModel,
     HTTPAdapter,
     ProviderError,
-    RateLimitError,
-    ServiceUnavailableError,
-    ProviderTimeoutError,
-    classify_http_error,
 )
 
 # A request function may either return a ``(status_code, body)`` tuple or raise.
@@ -52,17 +45,18 @@ DEFAULT_LOCAL_FREE_ROUTER = ("127.0.0.1", 8920)
 # Probe result
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ProbeResult:
     """Result of a single non-destructive deployment probe."""
 
     reachable: bool = False
-    status_code: Optional[int] = None
-    error: Optional[str] = None
+    status_code: int | None = None
+    error: str | None = None
     latency_ms: float = 0.0
     cooldowned: bool = False
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "reachable": self.reachable,
             "status_code": self.status_code,
@@ -75,6 +69,7 @@ class ProbeResult:
 # ---------------------------------------------------------------------------
 # LiveProbe
 # ---------------------------------------------------------------------------
+
 
 class LiveProbe:
     """Non-destructive one-shot liveness check against an OpenAI-compatible endpoint.
@@ -92,9 +87,9 @@ class LiveProbe:
     def run(
         self,
         base_url: str,
-        api_key_env: Optional[str] = None,
+        api_key_env: str | None = None,
         model: str = "probe-model",
-        request_fn: Optional[RequestFn] = None,
+        request_fn: RequestFn | None = None,
     ) -> ProbeResult:
         start = time.monotonic()
         api_key = self._env.get(api_key_env) if api_key_env else None
@@ -128,14 +123,15 @@ class LiveProbe:
             latency_ms=latency_ms,
         )
 
-    def _invoke_injected(self, request_fn: RequestFn, base_url: str, model: str,
-                         api_key: Optional[str]) -> tuple:
+    def _invoke_injected(
+        self, request_fn: RequestFn, base_url: str, model: str, api_key: str | None
+    ) -> tuple:
         outcome = request_fn(base_url=base_url, model=model, api_key=api_key, timeout=self.timeout)
         if isinstance(outcome, tuple) and len(outcome) == 2:
             return int(outcome[0]), outcome[1]
         return 200, outcome
 
-    def _invoke_live(self, base_url: str, api_key_env: Optional[str], model: str) -> tuple:
+    def _invoke_live(self, base_url: str, api_key_env: str | None, model: str) -> tuple:
         dep = DeploymentModel(
             id="live-probe",
             model=model,
@@ -156,6 +152,7 @@ class LiveProbe:
 # LiveFailoverSmoke
 # ---------------------------------------------------------------------------
 
+
 class LiveFailoverSmoke:
     """Sequential probe across a list of deployments + cooldown/fallback smoke.
 
@@ -173,13 +170,13 @@ class LiveFailoverSmoke:
 
     def __init__(
         self,
-        deployments: List[Any],
-        request_fn: Optional[RequestFn] = None,
+        deployments: list[Any],
+        request_fn: RequestFn | None = None,
         timeout: float = 15.0,
         cooldown_time: float = 5.0,
         allowed_fails: int = 3,
-        clock: Optional[Callable[[], float]] = None,
-        env: Optional[Dict[str, str]] = None,
+        clock: Callable[[], float] | None = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         self.deployments = deployments
         self.request_fn = request_fn
@@ -216,7 +213,7 @@ class LiveFailoverSmoke:
         return "probe-model"
 
     @staticmethod
-    def _dep_key_env(dep: Any) -> Optional[str]:
+    def _dep_key_env(dep: Any) -> str | None:
         if isinstance(dep, DeploymentModel):
             return dep.api_key_env
         if isinstance(dep, dict):
@@ -236,7 +233,8 @@ class LiveFailoverSmoke:
         transient = (
             code == 429
             or (code is not None and 500 <= code <= 599)
-            or "timeout" in err_lower or "timed out" in err_lower
+            or "timeout" in err_lower
+            or "timed out" in err_lower
         )
         if transient:
             self.cooldown.record_failure(
@@ -248,7 +246,7 @@ class LiveFailoverSmoke:
 
     # -- runner --------------------------------------------------------------
 
-    def run(self) -> Dict[str, Any]:
+    def run(self) -> dict[str, Any]:
         """Probe each deployment sequentially, apply cooldowns, pick the healthy one.
 
         Returns a dict with keys:
@@ -257,14 +255,16 @@ class LiveFailoverSmoke:
             reachable  -> list of deployment ids that were 2xx-reachable.
             results    -> per-deployment ProbeResult dicts in probe order.
         """
-        results: Dict[str, Dict[str, Any]] = {}
-        reachable: List[str] = []
-        selected: Optional[str] = None
+        results: dict[str, dict[str, Any]] = {}
+        reachable: list[str] = []
+        selected: str | None = None
 
         for dep in self.deployments:
             did = self._dep_id(dep)
             if self.cooldown.is_deployment_cooldowned(did):
-                results[did] = ProbeResult(reachable=False, error="cooldowned", cooldowned=True).as_dict()
+                results[did] = ProbeResult(
+                    reachable=False, error="cooldowned", cooldowned=True
+                ).as_dict()
                 continue
 
             res = self.probe.run(
@@ -297,6 +297,7 @@ class LiveFailoverSmoke:
 # ---------------------------------------------------------------------------
 # Local free-router ping
 # ---------------------------------------------------------------------------
+
 
 def ping_local_free_router(
     host: str = DEFAULT_LOCAL_FREE_ROUTER[0],

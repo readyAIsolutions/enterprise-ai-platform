@@ -13,15 +13,18 @@ import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 from .snapshot import SnapshotEngine
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger("enterprise.disaster_recovery.backup")
 
 
-class BackupType(str, Enum):
+class BackupType(StrEnum):
     """Class of backup operation."""
 
     FULL = "full"
@@ -40,17 +43,17 @@ class BackupPolicy:
     backup_type: BackupType
     frequency_hours: float
     encryption_enabled: bool = True
-    access_controls: Dict[str, List[str]] = field(default_factory=dict)
+    access_controls: dict[str, list[str]] = field(default_factory=dict)
     geographic_separation: bool = False
     immutable: bool = True
     versioned_retention_days: int = 90
     integrity_check_enabled: bool = True
-    restore_test_frequency: int = 7       # days between automated restore tests
+    restore_test_frequency: int = 7  # days between automated restore tests
     monitoring_enabled: bool = True
     key_recovery_enabled: bool = True
     target_path: str = ""
     created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -88,12 +91,12 @@ class BackupManager:
     """
 
     def __init__(self) -> None:
-        self._policies: Dict[str, BackupPolicy] = {}
-        self._records: List[_BackupRecord] = []
-        self._keys: Dict[str, str] = {}     # key_name -> key_material
-        self._executor: Optional[Callable] = None  # hook for real backup execution
-        self._engine = SnapshotEngine()            # REAL snapshot/restore executor
-        self._snapshot_store: str = ""             # target dir for real snapshots
+        self._policies: dict[str, BackupPolicy] = {}
+        self._records: list[_BackupRecord] = []
+        self._keys: dict[str, str] = {}  # key_name -> key_material
+        self._executor: Callable | None = None  # hook for real backup execution
+        self._engine = SnapshotEngine()  # REAL snapshot/restore executor
+        self._snapshot_store: str = ""  # target dir for real snapshots
 
     def configure_snapshot_store(self, target_dir: str) -> str:
         """Set the directory where real file snapshots are written.
@@ -142,10 +145,15 @@ class BackupManager:
             target_path=target_path,
         )
         self._policies[name] = policy
-        logger.info("Configured backup policy: %s (type=%s, freq=%.1fh)", name, backup_type.value, frequency_hours)
+        logger.info(
+            "Configured backup policy: %s (type=%s, freq=%.1fh)",
+            name,
+            backup_type.value,
+            frequency_hours,
+        )
         return policy
 
-    def get_policy(self, name: str) -> Optional[BackupPolicy]:
+    def get_policy(self, name: str) -> BackupPolicy | None:
         """Retrieve a policy by name."""
         return self._policies.get(name)
 
@@ -157,7 +165,7 @@ class BackupManager:
         self,
         policy_name: str,
         source_path: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> _BackupRecord:
         """Execute a backup according to the named policy.
 
@@ -165,7 +173,8 @@ class BackupManager:
         """
         policy = self._policies.get(policy_name)
         if policy is None:
-            raise ValueError(f"No backup policy named '{policy_name}'")
+            msg = f"No backup policy named '{policy_name}'"
+            raise ValueError(msg)
 
         if self._executor:
             self._executor(policy_name=policy_name, source_path=source_path, metadata=metadata)
@@ -176,18 +185,18 @@ class BackupManager:
 
         if real_source and self._snapshot_store:
             # REAL snapshot: archive the actual directory, real sizes + hashes.
-            snap = self._engine.create_snapshot(
-                source_path, self._snapshot_store, name=policy_name
-            )
-            simulated_size = snap.size                 # REAL archive size on disk
-            checksum = snap.manifest["chain_hash"]     # REAL integrity digest
+            snap = self._engine.create_snapshot(source_path, self._snapshot_store, name=policy_name)
+            simulated_size = snap.size  # REAL archive size on disk
+            checksum = snap.manifest["chain_hash"]  # REAL integrity digest
             snapshot_path = snap.path
         else:
             # Fallback used only when no real directory/store is configured:
             # size reflects the source length (kept for backward compatibility
             # with callers that pass non-existent/remote paths).
             simulated_size = len(source_path or policy_name) * 1024 * 1024
-            checksum = hashlib.sha256(f"{backup_id}-{datetime.utcnow().isoformat()}".encode()).hexdigest()
+            checksum = hashlib.sha256(
+                f"{backup_id}-{datetime.utcnow().isoformat()}".encode()
+            ).hexdigest()
 
         record = _BackupRecord(
             backup_id=backup_id,
@@ -201,7 +210,10 @@ class BackupManager:
         self._records.append(record)
         logger.info(
             "Executed backup %s: policy=%s, type=%s, size=%d bytes",
-            backup_id, policy_name, policy.backup_type.value, simulated_size,
+            backup_id,
+            policy_name,
+            policy.backup_type.value,
+            simulated_size,
         )
         return record
 
@@ -235,7 +247,7 @@ class BackupManager:
         logger.info("Backup %s restoration tested successfully", backup_id)
         return True
 
-    def list_retained_versions(self, policy_name: str) -> List[_BackupRecord]:
+    def list_retained_versions(self, policy_name: str) -> list[_BackupRecord]:
         """Return all retained backups for a policy, newest first."""
         return sorted(
             [r for r in self._records if r.policy_name == policy_name and r.retained],
@@ -258,9 +270,9 @@ class BackupManager:
     # Health monitoring
     # ------------------------------------------------------------------
 
-    def monitor_backup_health(self) -> Dict[str, Any]:
+    def monitor_backup_health(self) -> dict[str, Any]:
         """Assess overall backup health across all policies."""
-        health: Dict[str, Any] = {
+        health: dict[str, Any] = {
             "policies": len(self._policies),
             "total_backups": len(self._records),
             "last_backups": {},
@@ -281,15 +293,19 @@ class BackupManager:
 
         healthy = len(health["policies_without_recent_backup"]) == 0
         health["healthy"] = healthy
-        logger.info("Backup health check: healthy=%s, policies=%d, backups=%d",
-                     healthy, health["policies"], health["total_backups"])
+        logger.info(
+            "Backup health check: healthy=%s, policies=%d, backups=%d",
+            healthy,
+            health["policies"],
+            health["total_backups"],
+        )
         return health
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
-    def _get_record(self, backup_id: str) -> Optional[_BackupRecord]:
+    def _get_record(self, backup_id: str) -> _BackupRecord | None:
         for r in self._records:
             if r.backup_id == backup_id:
                 return r

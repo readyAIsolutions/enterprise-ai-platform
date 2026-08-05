@@ -27,9 +27,9 @@ import hashlib
 import logging
 import sqlite3
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from .compliance import (
     BUILTIN_CONTROLS,
@@ -39,31 +39,31 @@ from .compliance import (
     STATUS_IMPLEMENTED,
     STATUS_MISSING,
     STATUS_PARTIAL,
-    VALID_STATUSES,
     Control,
     controls_for_framework,
 )
 
+if TYPE_CHECKING:
+    import builtins
+
 logger = logging.getLogger("enterprise.compliance.evidence")
 
 # Evidence granularity is a subset of the full control status vocabulary.
-EVIDENCE_STATUSES = frozenset(
-    {STATUS_IMPLEMENTED, STATUS_PARTIAL, STATUS_MISSING}
-)
+EVIDENCE_STATUSES = frozenset({STATUS_IMPLEMENTED, STATUS_PARTIAL, STATUS_MISSING})
 
 _DEFAULT_FRAMEWORKS = (FRAMEWORK_OWASP, FRAMEWORK_NIST, FRAMEWORK_MITRE)
 
 
 def _now() -> str:
     """UTC ISO-8601 timestamp with microsecond resolution."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _content_hash(**fields: Any) -> str:
     """Canonical SHA-256 over the evidence content fields."""
     canonical = "|".join(
-        str(fields.get(k, "")) for k in
-        ("control_id", "framework", "status", "source", "detail", "timestamp")
+        str(fields.get(k, ""))
+        for k in ("control_id", "framework", "status", "source", "detail", "timestamp")
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -99,12 +99,14 @@ class ControlEvidence:
         self.framework = str(self.framework).lower()
         self.status = str(self.status).lower()
         if self.status not in EVIDENCE_STATUSES:
-            raise ValueError(
+            msg = (
                 f"Invalid evidence status {self.status!r}; expected one of "
                 f"{sorted(EVIDENCE_STATUSES)}"
             )
+            raise ValueError(msg)
         if not self.control_id or not str(self.control_id).strip():
-            raise ValueError("control_id is required for evidence")
+            msg = "control_id is required for evidence"
+            raise ValueError(msg)
         if not self.evidence_hash:
             self.evidence_hash = _content_hash(
                 control_id=self.control_id,
@@ -130,11 +132,11 @@ class ControlEvidence:
     def is_implemented(self) -> bool:
         return self.status == STATUS_IMPLEMENTED
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, raw: Dict[str, Any]) -> "ControlEvidence":
+    def from_dict(cls, raw: dict[str, Any]) -> ControlEvidence:
         data = dict(raw)
         hash_ = data.pop("evidence_hash", "")
         ev = cls(**data)
@@ -160,8 +162,8 @@ class EvidenceRegister:
       persisted to an SQLite file (e.g. ``data/compliance_evidence.db``).
     """
 
-    def __init__(self, db_path: Optional[Union[str, Path]] = None) -> None:
-        self._path: Optional[str] = None
+    def __init__(self, db_path: str | Path | None = None) -> None:
+        self._path: str | None = None
         if db_path is None:
             self._conn = sqlite3.connect(":memory:")
             logger.debug("EvidenceRegister using in-memory database")
@@ -172,7 +174,7 @@ class EvidenceRegister:
                 p.mkdir(parents=True, exist_ok=True)
                 p = p / "compliance_evidence.db"
             self._path = str(p)
-            if p.parent != Path("."):
+            if p.parent != Path():
                 p.parent.mkdir(parents=True, exist_ok=True)
             self._conn = sqlite3.connect(self._path)
             logger.debug("EvidenceRegister using SQLite file %s", self._path)
@@ -203,17 +205,10 @@ class EvidenceRegister:
         )
         # Dedupe key: one row per (control_id, source).
         cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS ux_evidence_dedupe "
-            "ON evidence(control_id, source)"
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_evidence_dedupe ON evidence(control_id, source)"
         )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS ix_evidence_framework "
-            "ON evidence(framework)"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS ix_evidence_status "
-            "ON evidence(status)"
-        )
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_evidence_framework ON evidence(framework)")
+        cur.execute("CREATE INDEX IF NOT EXISTS ix_evidence_status ON evidence(status)")
         self._conn.commit()
 
     # -- internal chain management ------------------------------------------
@@ -221,16 +216,12 @@ class EvidenceRegister:
     def rebuild_chain(self) -> None:
         """Rebuild the tamper-evident hash chain across all rows by id order."""
         cur = self._conn.cursor()
-        rows = cur.execute(
-            "SELECT id, content_hash FROM evidence ORDER BY id"
-        ).fetchall()
+        rows = cur.execute("SELECT id, content_hash FROM evidence ORDER BY id").fetchall()
         prev_hash = ""
         prev_id = None
         for row in rows:
             content_h = row["content_hash"]
-            chain_h = hashlib.sha256(
-                (prev_hash + content_h).encode("utf-8")
-            ).hexdigest()
+            chain_h = hashlib.sha256((prev_hash + content_h).encode("utf-8")).hexdigest()
             cur.execute(
                 "UPDATE evidence SET chain_hash = ?, prev_id = ? WHERE id = ?",
                 (chain_h, prev_id, row["id"]),
@@ -241,7 +232,7 @@ class EvidenceRegister:
 
     # -- mutation -----------------------------------------------------------
 
-    def add(self, item: Union[ControlEvidence, Dict[str, Any]]) -> int:
+    def add(self, item: ControlEvidence | dict[str, Any]) -> int:
         """Add or update evidence, deduping on ``(control_id, source)``.
 
         Returns the SQLite row id. If a record with the same control_id and
@@ -252,7 +243,8 @@ class EvidenceRegister:
         if ev.framework not in _DEFAULT_FRAMEWORKS:
             logger.warning(
                 "Evidence for %r uses unregistered framework %r",
-                ev.control_id, ev.framework,
+                ev.control_id,
+                ev.framework,
             )
         content_h = ev.recompute_hash()
         cur = self._conn.cursor()
@@ -267,8 +259,12 @@ class EvidenceRegister:
                    timestamp = ?, content_hash = ? WHERE id = ?""",
                 (ev.framework, ev.status, ev.detail, ev.timestamp, content_h, row_id),
             )
-            logger.debug("Updated evidence for (control=%s, source=%s) id=%s",
-                         ev.control_id, ev.source, row_id)
+            logger.debug(
+                "Updated evidence for (control=%s, source=%s) id=%s",
+                ev.control_id,
+                ev.source,
+                row_id,
+            )
         else:
             mid = hashlib.sha256(b"seed").hexdigest()  # placeholder, chain rebuilt below
             cur.execute(
@@ -276,33 +272,58 @@ class EvidenceRegister:
                    (control_id, framework, status, source, detail, timestamp,
                     content_hash, chain_hash, prev_id)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (ev.control_id, ev.framework, ev.status, ev.source, ev.detail,
-                 ev.timestamp, content_h, mid, None),
+                (
+                    ev.control_id,
+                    ev.framework,
+                    ev.status,
+                    ev.source,
+                    ev.detail,
+                    ev.timestamp,
+                    content_h,
+                    mid,
+                    None,
+                ),
             )
             row_id = cur.lastrowid
             if row_id is None:  # pragma: no cover - SQLite always assigns AUTOINCREMENT
-                raise RuntimeError("Failed to obtain last insert id")
-            logger.debug("Inserted evidence for (control=%s, source=%s) id=%s",
-                         ev.control_id, ev.source, row_id)
+                msg = "Failed to obtain last insert id"
+                raise RuntimeError(msg)
+            logger.debug(
+                "Inserted evidence for (control=%s, source=%s) id=%s",
+                ev.control_id,
+                ev.source,
+                row_id,
+            )
         self.rebuild_chain()
         self._conn.commit()
         return row_id
 
-    def update(self, control_id: str, source: str, *, status: Optional[str] = None,
-               detail: Optional[str] = None,
-               framework: Optional[str] = None,
-               timestamp: Optional[str] = None) -> Optional[int]:
+    def update(
+        self,
+        control_id: str,
+        source: str,
+        *,
+        status: str | None = None,
+        detail: str | None = None,
+        framework: str | None = None,
+        timestamp: str | None = None,
+    ) -> int | None:
         """Update an existing evidence record by its dedupe key."""
-        existing = self._conn.cursor().execute(
-            "SELECT * FROM evidence WHERE control_id = ? AND source = ?",
-            (control_id, source),
-        ).fetchone()
+        existing = (
+            self._conn.cursor()
+            .execute(
+                "SELECT * FROM evidence WHERE control_id = ? AND source = ?",
+                (control_id, source),
+            )
+            .fetchone()
+        )
         if existing is None:
             return None
         data = dict(existing)
         if status is not None:
             if status not in EVIDENCE_STATUSES:
-                raise ValueError(f"Invalid status {status!r}")
+                msg = f"Invalid status {status!r}"
+                raise ValueError(msg)
             data["status"] = status
         if detail is not None:
             data["detail"] = detail
@@ -320,7 +341,7 @@ class EvidenceRegister:
         )
         return self.add(ev)
 
-    def delete(self, control_id: str, source: Optional[str] = None) -> int:
+    def delete(self, control_id: str, source: str | None = None) -> int:
         """Delete evidence. With ``source=None`` deletes all rows for control."""
         cur = self._conn.cursor()
         if source is None:
@@ -337,7 +358,7 @@ class EvidenceRegister:
 
     # -- query --------------------------------------------------------------
 
-    def get(self, control_id: str, source: Optional[str] = None) -> List[ControlEvidence]:
+    def get(self, control_id: str, source: str | None = None) -> builtins.list[ControlEvidence]:
         """Return evidence rows for a control (optionally filtered by source)."""
         cur = self._conn.cursor()
         if source is None:
@@ -351,23 +372,25 @@ class EvidenceRegister:
             ).fetchall()
         return [self._row_to_evidence(r) for r in rows]
 
-    def latest(self, control_id: str) -> Optional[ControlEvidence]:
+    def latest(self, control_id: str) -> ControlEvidence | None:
         """Return the most recent evidence row for a control, or None."""
         cur = self._conn.cursor()
         row = cur.execute(
-            "SELECT * FROM evidence WHERE control_id = ? "
-            "ORDER BY timestamp DESC, id DESC LIMIT 1",
+            "SELECT * FROM evidence WHERE control_id = ? ORDER BY timestamp DESC, id DESC LIMIT 1",
             (control_id,),
         ).fetchone()
         return self._row_to_evidence(row) if row else None
 
-    def list(self, framework: Optional[str] = None,
-             control_id: Optional[str] = None,
-             status: Optional[str] = None,
-             source: Optional[str] = None) -> List[ControlEvidence]:
+    def list(
+        self,
+        framework: str | None = None,
+        control_id: str | None = None,
+        status: str | None = None,
+        source: str | None = None,
+    ) -> builtins.list[ControlEvidence]:
         """List evidence, optionally filtered by framework / control / status / source."""
-        clauses: List[str] = []
-        params: List[Any] = []
+        clauses: list[str] = []
+        params: list[Any] = []
         if framework is not None:
             clauses.append("framework = ?")
             params.append(str(framework).lower())
@@ -387,21 +410,25 @@ class EvidenceRegister:
         rows = self._conn.cursor().execute(sql, params).fetchall()
         return [self._row_to_evidence(r) for r in rows]
 
-    def search(self, query: str, framework: Optional[str] = None) -> List[ControlEvidence]:
+    def search(self, query: str, framework: str | None = None) -> builtins.list[ControlEvidence]:
         """Full-text-ish search over control_id, source and detail."""
         pattern = f"%{query}%"
         clauses = ["(control_id LIKE ? OR source LIKE ? OR detail LIKE ?)"]
-        params: List[Any] = [pattern, pattern, pattern]
+        params: list[Any] = [pattern, pattern, pattern]
         if framework is not None:
             clauses.append("framework = ?")
             params.append(str(framework).lower())
-        rows = self._conn.cursor().execute(
-            "SELECT * FROM evidence WHERE " + " AND ".join(clauses) + " ORDER BY timestamp",
-            params,
-        ).fetchall()
+        rows = (
+            self._conn.cursor()
+            .execute(
+                "SELECT * FROM evidence WHERE " + " AND ".join(clauses) + " ORDER BY timestamp",
+                params,
+            )
+            .fetchall()
+        )
         return [self._row_to_evidence(r) for r in rows]
 
-    def count(self, framework: Optional[str] = None) -> int:
+    def count(self, framework: str | None = None) -> int:
         clauses, params = [], []
         if framework is not None:
             clauses.append("framework = ?")
@@ -426,7 +453,7 @@ class EvidenceRegister:
 
     # -- integrity ----------------------------------------------------------
 
-    def verify_integrity(self) -> Dict[str, Any]:
+    def verify_integrity(self) -> dict[str, Any]:
         """Verify the tamper-evident hash chain.
 
         Returns ``{"valid": bool, "checked": int, "problems": [str, ...]}``.
@@ -435,7 +462,7 @@ class EvidenceRegister:
         """
         cur = self._conn.cursor()
         rows = cur.execute("SELECT * FROM evidence ORDER BY id").fetchall()
-        problems: List[str] = []
+        problems: list[str] = []
         prev_hash = ""
         prev_id = None
         for row in rows:
@@ -450,16 +477,12 @@ class EvidenceRegister:
             }
             expected_content = _content_hash(**content)
             if row["content_hash"] != expected_content:
-                problems.append(
-                    f"row {rid} content tampered (content_hash mismatch)"
-                )
+                problems.append(f"row {rid} content tampered (content_hash mismatch)")
             expected_chain = hashlib.sha256(
                 (prev_hash + expected_content).encode("utf-8")
             ).hexdigest()
             if row["chain_hash"] != expected_chain:
-                problems.append(
-                    f"row {rid} chain broken (chain_hash mismatch vs prev {prev_id})"
-                )
+                problems.append(f"row {rid} chain broken (chain_hash mismatch vs prev {prev_id})")
             if row["prev_id"] != prev_id:
                 problems.append(
                     f"row {rid} prev_id mismatch (got {row['prev_id']}, expected {prev_id})"
@@ -486,7 +509,7 @@ class EvidenceRegister:
             evidence_hash=row["content_hash"],
         )
 
-    def __enter__(self) -> "EvidenceRegister":
+    def __enter__(self) -> EvidenceRegister:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -526,8 +549,9 @@ class GapAnalysis:
     * produces a top-N remediation list (highest-priority controls first).
     """
 
-    def __init__(self, register: Optional[EvidenceRegister] = None,
-                 controls: Optional[List[Control]] = None) -> None:
+    def __init__(
+        self, register: EvidenceRegister | None = None, controls: list[Control] | None = None
+    ) -> None:
         self._register = register or EvidenceRegister()
         self._controls = list(controls) if controls is not None else BUILTIN_CONTROLS
 
@@ -535,25 +559,23 @@ class GapAnalysis:
     def register(self) -> EvidenceRegister:
         return self._register
 
-    def analyze(self, framework: Optional[str] = None,
-                top_n: Optional[int] = 5) -> Dict[str, Any]:
+    def analyze(self, framework: str | None = None, top_n: int | None = 5) -> dict[str, Any]:
         """Produce the full gap report for one framework (or all frameworks)."""
         if framework is not None:
             frameworks = [str(framework).lower()]
         else:
             frameworks = list(_DEFAULT_FRAMEWORKS)
 
-        frameworks = [f for f in frameworks
-                      if controls_for_framework(f)]
+        frameworks = [f for f in frameworks if controls_for_framework(f)]
 
-        per_framework: Dict[str, Dict[str, Any]] = {}
-        all_gaps: List[Dict[str, Any]] = []
+        per_framework: dict[str, dict[str, Any]] = {}
+        all_gaps: list[dict[str, Any]] = []
         overall_pass = 0.0
         overall_total = 0
 
         for fw in frameworks:
             fw_controls = self._controls_for(fw)
-            applicable = [c for c in fw_controls]
+            applicable = list(fw_controls)
             total = len(applicable)
             implemented = 0
             partial = 0
@@ -584,19 +606,21 @@ class GapAnalysis:
                 st = _effective_status(self._register, c.id)
                 if st != STATUS_IMPLEMENTED:
                     evidence = [e.to_dict() for e in self._register.get(c.id)]
-                    all_gaps.append({
-                        "control_id": c.id,
-                        "framework": fw,
-                        "title": c.title,
-                        "category": c.category,
-                        "status": st,
-                        "severity": 2 if st == STATUS_MISSING else 1,
-                        "evidence": evidence,
-                    })
+                    all_gaps.append(
+                        {
+                            "control_id": c.id,
+                            "framework": fw,
+                            "title": c.title,
+                            "category": c.category,
+                            "status": st,
+                            "severity": 2 if st == STATUS_MISSING else 1,
+                            "evidence": evidence,
+                        }
+                    )
 
         # Sort gaps most-severe first, then by control id.
         all_gaps.sort(key=lambda g: (-g["severity"], g["control_id"]))
-        remediation = all_gaps[: top_n] if top_n is not None else all_gaps
+        remediation = all_gaps[:top_n] if top_n is not None else all_gaps
 
         return {
             "framework": framework.lower() if framework else None,
@@ -610,18 +634,18 @@ class GapAnalysis:
             "timestamp": _now(),
         }
 
-    def gaps(self, framework: Optional[str] = None) -> List[Dict[str, Any]]:
+    def gaps(self, framework: str | None = None) -> list[dict[str, Any]]:
         """Return only the list of gaps (missing / partial controls)."""
         return self.analyze(framework=framework, top_n=None)["gaps"]
 
-    def score(self, framework: Optional[str]) -> float:
+    def score(self, framework: str | None) -> float:
         """Return the 0-100 compliance score for a single framework."""
         report = self.analyze(framework=framework)
         if framework is not None:
             return report["frameworks"][str(framework).lower()]["score"]
         return report["pass_pct"]
 
-    def _controls_for(self, framework: str) -> List[Control]:
+    def _controls_for(self, framework: str) -> list[Control]:
         fw = str(framework).lower()
         return [c for c in self._controls if c.framework.lower() == fw]
 
@@ -631,13 +655,13 @@ class GapAnalysis:
 # =============================================================================
 
 
-def _resolve_register(register: Optional[EvidenceRegister]) -> EvidenceRegister:
+def _resolve_register(register: EvidenceRegister | None) -> EvidenceRegister:
     return register if register is not None else EvidenceRegister()
 
 
-def assess(framework: Optional[str] = None,
-           register: Optional[EvidenceRegister] = None,
-           top_n: int = 5) -> Dict[str, Any]:
+def assess(
+    framework: str | None = None, register: EvidenceRegister | None = None, top_n: int = 5
+) -> dict[str, Any]:
     """Produce a live gap report from an evidence register.
 
     ``framework=None`` reports across all frameworks. If no register is
@@ -647,10 +671,12 @@ def assess(framework: Optional[str] = None,
     return GapAnalysis(reg).analyze(framework=framework, top_n=top_n)
 
 
-def ingest(results: Dict[str, Any],
-           register: Optional[EvidenceRegister] = None,
-           source: str = "scan",
-           framework: Optional[str] = None) -> int:
+def ingest(
+    results: dict[str, Any],
+    register: EvidenceRegister | None = None,
+    source: str = "scan",
+    framework: str | None = None,
+) -> int:
     """Bulk-add evidence from a scan-results mapping.
 
     ``results`` maps a control id (or ``framework -> {control: ...}``) to a
@@ -661,14 +687,12 @@ def ingest(results: Dict[str, Any],
     reg = _resolve_register(register)
     added = 0
     if not isinstance(results, dict):
-        raise TypeError("ingest expects a dict of scan results")
+        msg = "ingest expects a dict of scan results"
+        raise TypeError(msg)
 
     # Support nested {framework: {control: value}} or flat {control: value}.
-    items: List[tuple] = []
-    flat = all(
-        not isinstance(v, dict) or "status" in v
-        for v in results.values()
-    )
+    items: list[tuple] = []
+    flat = all(not isinstance(v, dict) or "status" in v for v in results.values())
     if flat:
         for cid, value in results.items():
             items.append((framework, cid, value))
@@ -708,7 +732,7 @@ def ingest(results: Dict[str, Any],
     return added
 
 
-def _framework_for_control(control_id: str) -> Optional[str]:
+def _framework_for_control(control_id: str) -> str | None:
     for c in BUILTIN_CONTROLS:
         if c.id == control_id:
             return c.framework

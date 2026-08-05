@@ -31,17 +31,19 @@ import re
 import threading
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
 
 # ============================================================================
 # Decisions
 # ============================================================================
 
 
-class Decision(str, Enum):
+class Decision(StrEnum):
     """Permission decision for a tool invocation."""
 
     ALLOW = "allow"
@@ -102,8 +104,8 @@ class ToolRule:
 
     tool: str = "*"
     level: Decision = Decision.ALLOW
-    arg_allow: Optional[List[str]] = None
-    arg_deny: Optional[List[str]] = None
+    arg_allow: list[str] | None = None
+    arg_deny: list[str] | None = None
     description: str = ""
 
     def matches(self, tool_name: str) -> bool:
@@ -117,7 +119,7 @@ class ToolRule:
         literal = re.sub(r"[*?\[\]]", "", self.tool)
         return 100 + len(literal)
 
-    def violates(self, args: Dict[str, Any]) -> Optional[str]:
+    def violates(self, args: dict[str, Any]) -> str | None:
         """Return a reason string if ``args`` violate this rule's constraints,
         else None.
 
@@ -156,11 +158,11 @@ class ToolRule:
                             return None
                     except re.error:
                         continue
-            return f"args do not match any allow pattern"
+            return "args do not match any allow pattern"
         return None
 
 
-def _serialize_args(args: Optional[Dict[str, Any]]) -> str:
+def _serialize_args(args: dict[str, Any] | None) -> str:
     """Serialize args to a stable string used for regex constraint matching."""
     if not args:
         return ""
@@ -185,12 +187,12 @@ class ToolPolicy:
     def __init__(
         self,
         default: Decision = Decision.ALLOW,
-        rules: Optional[Iterable[ToolRule]] = None,
+        rules: Iterable[ToolRule] | None = None,
         name: str = "default",
     ) -> None:
         self.default = default
         self.name = name
-        self._rules: List[ToolRule] = list(rules or [])
+        self._rules: list[ToolRule] = list(rules or [])
         self._lock = threading.RLock()
 
     # -- builders ----------------------------------------------------------
@@ -198,38 +200,52 @@ class ToolPolicy:
         self,
         tool: str,
         level: Decision | str = Decision.ALLOW,
-        arg_allow: Optional[List[str]] = None,
-        arg_deny: Optional[List[str]] = None,
+        arg_allow: list[str] | None = None,
+        arg_deny: list[str] | None = None,
         description: str = "",
-    ) -> "ToolPolicy":
+    ) -> ToolPolicy:
         lvl = _coerce_decision(level)
         with self._lock:
             self._rules.append(
-                ToolRule(tool=tool, level=lvl, arg_allow=arg_allow,
-                         arg_deny=arg_deny, description=description)
+                ToolRule(
+                    tool=tool,
+                    level=lvl,
+                    arg_allow=arg_allow,
+                    arg_deny=arg_deny,
+                    description=description,
+                )
             )
         return self
 
     def allow(
-        self, tool: str = "*", arg_allow: Optional[List[str]] = None,
-        arg_deny: Optional[List[str]] = None, description: str = "",
-    ) -> "ToolPolicy":
+        self,
+        tool: str = "*",
+        arg_allow: list[str] | None = None,
+        arg_deny: list[str] | None = None,
+        description: str = "",
+    ) -> ToolPolicy:
         return self.rule(tool, Decision.ALLOW, arg_allow, arg_deny, description)
 
     def deny(
-        self, tool: str = "*", arg_allow: Optional[List[str]] = None,
-        arg_deny: Optional[List[str]] = None, description: str = "",
-    ) -> "ToolPolicy":
+        self,
+        tool: str = "*",
+        arg_allow: list[str] | None = None,
+        arg_deny: list[str] | None = None,
+        description: str = "",
+    ) -> ToolPolicy:
         return self.rule(tool, Decision.DENY, arg_allow, arg_deny, description)
 
     def ask(
-        self, tool: str = "*", arg_allow: Optional[List[str]] = None,
-        arg_deny: Optional[List[str]] = None, description: str = "",
-    ) -> "ToolPolicy":
+        self,
+        tool: str = "*",
+        arg_allow: list[str] | None = None,
+        arg_deny: list[str] | None = None,
+        description: str = "",
+    ) -> ToolPolicy:
         return self.rule(tool, Decision.ASK, arg_allow, arg_deny, description)
 
     # -- matching ----------------------------------------------------------
-    def governing_rule(self, tool_name: str) -> Optional[ToolRule]:
+    def governing_rule(self, tool_name: str) -> ToolRule | None:
         """Most-specific rule that matches ``tool_name`` (deny-biased tie-break)."""
         with self._lock:
             matched = [r for r in self._rules if r.matches(tool_name)]
@@ -242,25 +258,30 @@ class ToolPolicy:
             candidates.sort(key=lambda r: _deny_rank(r.level), reverse=True)
             return candidates[0]
 
-    def decide(self, tool_name: str, args: Optional[Dict[str, Any]] = None) -> GateResult:
+    def decide(self, tool_name: str, args: dict[str, Any] | None = None) -> GateResult:
         """Evaluate the policy for a tool invocation -> a GateResult decision."""
         rule = self.governing_rule(tool_name)
         args = args or {}
         if rule is None:
-            return GateResult(tool=tool_name, decision=self.default,
-                              reason=f"no rule -> default {self.default.value}")
+            return GateResult(
+                tool=tool_name,
+                decision=self.default,
+                reason=f"no rule -> default {self.default.value}",
+            )
         # argument constraints take precedence
         violation = rule.violates(args)
         if violation is not None:
             detail = rule.description and f" ({rule.description})" or ""
             return GateResult(
-                tool=tool_name, decision=Decision.DENY,
+                tool=tool_name,
+                decision=Decision.DENY,
                 reason=f"arg constraint blocked: {violation}{detail}",
             )
-        return GateResult(tool=tool_name, decision=rule.level,
-                          reason=f"rule '{rule.tool}' -> {rule.level.value}")
+        return GateResult(
+            tool=tool_name, decision=rule.level, reason=f"rule '{rule.tool}' -> {rule.level.value}"
+        )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "name": self.name,
@@ -279,18 +300,17 @@ class ToolPolicy:
 
     # -- config ------------------------------------------------------------
     @classmethod
-    def from_config(cls, cfg: Dict[str, Any]) -> "ToolPolicy":
+    def from_config(cls, cfg: dict[str, Any]) -> ToolPolicy:
         """Build a policy from a declarative config dict.
 
         Example::
             {
-              "name": "sandbox",
-              "default": "allow",
-              "rules": [
-                {"tool": "BashTool", "level": "deny",
-                 "arg_deny": ["rm\\s+-rf\\s*/\\b"]},
-                {"tool": "FileWriteTool", "level": "ask"},
-              ]
+                "name": "sandbox",
+                "default": "allow",
+                "rules": [
+                    {"tool": "BashTool", "level": "deny", "arg_deny": ["rm\\s+-rf\\s*/\\b"]},
+                    {"tool": "FileWriteTool", "level": "ask"},
+                ],
             }
         """
         cfg = cfg or {}
@@ -300,7 +320,8 @@ class ToolPolicy:
             tool = r.get("tool", "*")
             level = _coerce_decision(r.get("level", "allow"))
             policy.rule(
-                tool, level,
+                tool,
+                level,
                 arg_allow=r.get("arg_allow"),
                 arg_deny=r.get("arg_deny"),
                 description=r.get("description", ""),
@@ -350,7 +371,7 @@ class AuditRecord:
 
     seq: int
     tool: str
-    args: Dict[str, Any]
+    args: dict[str, Any]
     allowed: bool
     decision: str
     outcome: str
@@ -379,13 +400,11 @@ class AuditRecord:
         return json.dumps(compact, sort_keys=True, default=str)
 
     def compute_digest(self) -> str:
-        return hashlib.sha256(
-            f"{self.prev_hash}|{self.payload()}".encode("utf-8")
-        ).hexdigest()
+        return hashlib.sha256(f"{self.prev_hash}|{self.payload()}".encode()).hexdigest()
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class ToolAudit:
@@ -397,7 +416,7 @@ class ToolAudit:
     """
 
     def __init__(self) -> None:
-        self._records: List[AuditRecord] = []
+        self._records: list[AuditRecord] = []
         self._lock = threading.RLock()
         self._seq = 0
 
@@ -405,7 +424,7 @@ class ToolAudit:
     def record(
         self,
         tool: str,
-        args: Optional[Dict[str, Any]] = None,
+        args: dict[str, Any] | None = None,
         allowed: bool = True,
         decision: Decision | str = Decision.ALLOW,
         outcome: str = "success",
@@ -435,12 +454,12 @@ class ToolAudit:
             return rec
 
     # -- reading -----------------------------------------------------------
-    def recent(self, n: int = 10) -> List[AuditRecord]:
+    def recent(self, n: int = 10) -> list[AuditRecord]:
         """Return the most recent ``n`` records (chronological order)."""
         with self._lock:
             return list(self._records[-n:])
 
-    def search(self, **kwargs: Any) -> List[AuditRecord]:
+    def search(self, **kwargs: Any) -> list[AuditRecord]:
         """Filter records by exact field equality; empty kwargs -> all.
 
         Supported fields: tool, allowed, decision, outcome, caller, seq.
@@ -455,10 +474,11 @@ class ToolAudit:
                 elif key == "seq":
                     result = [r for r in result if r.seq == int(val)]
                 else:
-                    raise KeyError(f"unsupported audit search field: {key}")
+                    msg = f"unsupported audit search field: {key}"
+                    raise KeyError(msg)
             return list(result)
 
-    def all(self) -> List[AuditRecord]:
+    def all(self) -> list[AuditRecord]:
         with self._lock:
             return list(self._records)
 
@@ -479,7 +499,7 @@ class ToolAudit:
                 prev_hash = rec.digest
             return True
 
-    def to_dict(self) -> List[Dict[str, Any]]:
+    def to_dict(self) -> list[dict[str, Any]]:
         with self._lock:
             return [
                 {
@@ -513,15 +533,14 @@ class ToolGate:
 
         policy = ToolPolicy().deny("BashTool", arg_deny=[r"rm\\s+-rf\\s*/\\b"])
         gate = ToolGate(policy)
-        decision = gate.evaluate("BashTool", {"command": "rm -rf /"})   # DENY
-        result = await gate.run("BashTool", {"command": "ls"}, lambda: _run(),
-                                caller="agent-7")
+        decision = gate.evaluate("BashTool", {"command": "rm -rf /"})  # DENY
+        result = await gate.run("BashTool", {"command": "ls"}, lambda: _run(), caller="agent-7")
     """
 
     def __init__(
         self,
-        policy: Optional[ToolPolicy] = None,
-        audit: Optional[ToolAudit] = None,
+        policy: ToolPolicy | None = None,
+        audit: ToolAudit | None = None,
     ) -> None:
         self.policy = policy or ToolPolicy()  # defaults to allow
         self.audit = audit or ToolAudit()
@@ -530,7 +549,7 @@ class ToolGate:
     def evaluate(
         self,
         tool: str,
-        args: Optional[Dict[str, Any]] = None,
+        args: dict[str, Any] | None = None,
         caller: str = "anonymous",
     ) -> GateResult:
         """Return the gate decision for a tool call, without executing it."""
@@ -542,7 +561,7 @@ class ToolGate:
     def run(
         self,
         tool: str,
-        args: Optional[Dict[str, Any]],
+        args: dict[str, Any] | None,
         fn: Callable[[], Any],
         caller: str = "anonymous",
     ) -> GateResult:
@@ -556,15 +575,27 @@ class ToolGate:
         decision = self.policy.decide(tool, args)
 
         if decision.decision == Decision.DENY:
-            self.audit.record(tool, args, allowed=False, decision=Decision.DENY,
-                              outcome="blocked", caller=caller,
-                              reason=decision.reason)
+            self.audit.record(
+                tool,
+                args,
+                allowed=False,
+                decision=Decision.DENY,
+                outcome="blocked",
+                caller=caller,
+                reason=decision.reason,
+            )
             return decision
 
         if decision.decision == Decision.ASK:
-            self.audit.record(tool, args, allowed=False, decision=Decision.ASK,
-                              outcome="pending", caller=caller,
-                              reason=decision.reason)
+            self.audit.record(
+                tool,
+                args,
+                allowed=False,
+                decision=Decision.ASK,
+                outcome="pending",
+                caller=caller,
+                reason=decision.reason,
+            )
             return decision
 
         start = time.perf_counter()
@@ -573,14 +604,28 @@ class ToolGate:
             elapsed = (time.perf_counter() - start) * 1000.0
         except Exception as exc:  # noqa: BLE001 - record then re-raise
             elapsed = (time.perf_counter() - start) * 1000.0
-            self.audit.record(tool, args, allowed=True, decision=Decision.ALLOW,
-                              outcome="error", duration_ms=elapsed,
-                              caller=caller, reason=decision.reason,
-                              error=str(exc))
+            self.audit.record(
+                tool,
+                args,
+                allowed=True,
+                decision=Decision.ALLOW,
+                outcome="error",
+                duration_ms=elapsed,
+                caller=caller,
+                reason=decision.reason,
+                error=str(exc),
+            )
             raise
-        self.audit.record(tool, args, allowed=True, decision=Decision.ALLOW,
-                          outcome="success", duration_ms=elapsed,
-                          caller=caller, reason=decision.reason)
+        self.audit.record(
+            tool,
+            args,
+            allowed=True,
+            decision=Decision.ALLOW,
+            outcome="success",
+            duration_ms=elapsed,
+            caller=caller,
+            reason=decision.reason,
+        )
         decision.result = result
         decision.duration_ms = elapsed
         return decision
@@ -589,7 +634,7 @@ class ToolGate:
     async def arun(
         self,
         tool: str,
-        args: Optional[Dict[str, Any]],
+        args: dict[str, Any] | None,
         afn: Callable[[], Any],
         caller: str = "anonymous",
     ):
@@ -597,7 +642,7 @@ class ToolGate:
         return self.run(tool, args, afn, caller)
 
     @classmethod
-    def from_config(cls, cfg: Dict[str, Any]) -> "ToolGate":
+    def from_config(cls, cfg: dict[str, Any]) -> ToolGate:
         """Build a gate+audit from a {policy: {...}} config dict."""
         cfg = cfg or {}
         policy = ToolPolicy.from_config(cfg.get("policy", {}))

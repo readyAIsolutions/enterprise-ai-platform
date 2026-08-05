@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     Event,
@@ -145,7 +145,7 @@ class A2AModule(Module):
         - a2a.task.handoff     -- a task was handed off to another agent.
     """
 
-    def __init__(self, config: Dict[str, Any] | None = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._facade: A2AFacade | None = None
         self._router: TaskRouter | None = None
@@ -161,7 +161,7 @@ class A2AModule(Module):
         if db_path and not persist:
             persist = True
         self._persist: bool = persist
-        self._db_path: Optional[str] = str(db_path) if db_path else None
+        self._db_path: str | None = str(db_path) if db_path else None
 
     # -- Properties ---------------------------------------------------------
 
@@ -272,7 +272,7 @@ class A2AModule(Module):
         self._emit("a2a.agent.registered", {"agentId": key.agent_id, "name": key.name})
         return key
 
-    def list_agents(self) -> List[Dict[str, Any]]:
+    def list_agents(self) -> list[dict[str, Any]]:
         """Return serialized AgentCards for every registered agent."""
         return self._require_facade().list_agents()
 
@@ -281,10 +281,10 @@ class A2AModule(Module):
         agent_ref: str,
         message: Any = None,
         *,
-        idempotency_key: Optional[str] = None,
-        parent_task_id: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        session_id: Optional[str] = None,
+        idempotency_key: str | None = None,
+        parent_task_id: str | None = None,
+        context: dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> Task:
         """Create a task for the agent addressed by ``agent_ref``."""
         facade = self._require_facade()
@@ -316,7 +316,7 @@ class A2AModule(Module):
         message: Any,
         *,
         role: MessageRole = MessageRole.USER,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> Message:
         """Append a message to an existing task."""
         facade = self._require_facade()
@@ -333,8 +333,8 @@ class A2AModule(Module):
         target_ref: str,
         message: Any = None,
         *,
-        context: Optional[Dict[str, Any]] = None,
-        idempotency_key: Optional[str] = None,
+        context: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
     ) -> Task:
         """Hand the task identified by ``task_id`` off to ``target_ref``."""
         facade = self._require_facade()
@@ -360,10 +360,11 @@ class A2AModule(Module):
     def _require_facade(self) -> A2AFacade:
         facade = self.facade
         if facade is None:
-            raise RuntimeError("a2a module is not initialized")
+            msg = "a2a module is not initialized"
+            raise RuntimeError(msg)
         return facade
 
-    def _emit(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _emit(self, topic: str, payload: dict[str, Any]) -> None:
         with self._lock:
             bus = self._event_bus
         if bus is None:
@@ -382,7 +383,7 @@ class A2AModule(Module):
 
 
 def create_a2a_module(
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> A2AModule:
     """Create (but do not initialize) an :class:`A2AModule` from config.
 

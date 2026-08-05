@@ -10,19 +10,16 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, "/home/hunter/Desktop/Enterprise Builder")
 
 from enterprise.modules.developer_experience.validation import (
+    CheckResult,
+    DeliveryMetrics,
+    DXScore,
     GoldenCheck,
     GoldenPath,
     GoldenPathValidator,
     ValidationReport,
-    CheckResult,
-    DeliveryBand,
-    DeliveryMetrics,
-    DXScore,
     letter_grade,
 )
 
@@ -46,7 +43,7 @@ COMPLETE = {
     "py.typed": "",
     ".gitignore": "__pycache__/\n",
     "LICENSE": "MIT\n",
-    "pyproject.toml": "[project]\nversion = \"1.2.3\"\n",
+    "pyproject.toml": '[project]\nversion = "1.2.3"\n',
 }
 
 
@@ -54,7 +51,8 @@ COMPLETE = {
 # GoldenPath checklist structure
 # ---------------------------------------------------------------------------
 
-def test_golden_path_enterprise_dx_has_expected_checks():
+
+def test_golden_path_enterprise_dx_has_expected_checks() -> None:
     path = GoldenPath.enterprise_dx()
     ids = path.ids()
     assert "has_readme" in ids
@@ -68,7 +66,7 @@ def test_golden_path_enterprise_dx_has_expected_checks():
     assert len(ids) >= 8
 
 
-def test_golden_path_check_has_id_description_grade():
+def test_golden_path_check_has_id_description_grade() -> None:
     path = GoldenPath.enterprise_dx()
     for check in path.checks:
         assert check.id
@@ -77,7 +75,7 @@ def test_golden_path_check_has_id_description_grade():
         assert check.weight > 0
 
 
-def test_golden_path_get_and_by_grade():
+def test_golden_path_get_and_by_grade() -> None:
     path = GoldenPath.enterprise_dx()
     assert path.get("has_readme") is not None
     assert path.get("does_not_exist") is None
@@ -86,9 +84,11 @@ def test_golden_path_get_and_by_grade():
     assert any(c.id == "has_readme" for c in essential)
 
 
-def test_golden_check_accepts_string_present_files():
+def test_golden_check_accepts_string_present_files() -> None:
     check = GoldenCheck(
-        id="x", description="d", grade="essential",
+        id="x",
+        description="d",
+        grade="essential",
         present_files="README.md",
     )
     assert check.present_files == ("README.md",)
@@ -98,7 +98,8 @@ def test_golden_check_accepts_string_present_files():
 # GoldenPathValidator
 # ---------------------------------------------------------------------------
 
-def test_validator_complete_project_100_percent(tmp_path):
+
+def test_validator_complete_project_100_percent(tmp_path) -> None:
     project = make_project(tmp_path, COMPLETE)
     report = GoldenPathValidator().validate(project)
     assert isinstance(report, ValidationReport)
@@ -108,7 +109,7 @@ def test_validator_complete_project_100_percent(tmp_path):
     assert len(report.passed()) == len(report.results)
 
 
-def test_validator_empty_project_zero_compliance(tmp_path):
+def test_validator_empty_project_zero_compliance(tmp_path) -> None:
     project = make_project(tmp_path, {})
     report = GoldenPathValidator().validate(project)
     assert report.compliance_percent() == 0.0
@@ -117,7 +118,7 @@ def test_validator_empty_project_zero_compliance(tmp_path):
     assert len(report.passed()) == 0
 
 
-def test_validator_partial_project_letter_grade(tmp_path):
+def test_validator_partial_project_letter_grade(tmp_path) -> None:
     project = make_project(tmp_path, {"README.md": "# Proj\n", ".gitignore": "x\n"})
     report = GoldenPathValidator().validate(project)
     pct = report.compliance_percent()
@@ -126,14 +127,14 @@ def test_validator_partial_project_letter_grade(tmp_path):
     assert len(report.passed()) == 2
 
 
-def test_validator_missing_directory_fails(tmp_path):
+def test_validator_missing_directory_fails(tmp_path) -> None:
     missing = tmp_path / "nope"
     report = GoldenPathValidator().validate(missing)
     assert report.failures()
     assert report.compliance_percent() == 0.0
 
 
-def test_validator_returns_per_check_results(tmp_path):
+def test_validator_returns_per_check_results(tmp_path) -> None:
     project = make_project(tmp_path, COMPLETE)
     report = GoldenPathValidator().validate(project)
     for result in report.results:
@@ -143,32 +144,38 @@ def test_validator_returns_per_check_results(tmp_path):
         assert result.evidence
 
 
-def test_validator_failure_recommendations(tmp_path):
+def test_validator_failure_recommendations(tmp_path) -> None:
     project = make_project(tmp_path, {})
     report = GoldenPathValidator().validate(project)
     recs = report.recommendations()
     assert recs
     # Each failed check that has remediation yields an actionable suggestion.
     for rec in recs:
-        assert isinstance(rec, str) and len(rec) > 10
+        assert isinstance(rec, str)
+        assert len(rec) > 10
 
 
-def test_validator_custom_path(tmp_path):
+def test_validator_custom_path(tmp_path) -> None:
     project = make_project(tmp_path, {"README.md": "x\n"})
-    path = GoldenPath(name="custom", checks=[
-        GoldenCheck(id="readme", description="has readme", grade="essential",
-                    present_files="README.md"),
-    ])
+    path = GoldenPath(
+        name="custom",
+        checks=[
+            GoldenCheck(
+                id="readme", description="has readme", grade="essential", present_files="README.md"
+            ),
+        ],
+    )
     report = GoldenPathValidator(path).validate(project)
     assert report.path_name == "custom"
     assert report.compliance_percent() == 100.0
 
 
-def test_validator_versioned_check(tmp_path):
+def test_validator_versioned_check(tmp_path) -> None:
     # versioned via pyproject.toml
     project = make_project(tmp_path / "v1", {"pyproject.toml": '[project]\nversion = "1.0.0"\n'})
     check = GoldenPath.enterprise_dx().get("is_versioned")
     from enterprise.modules.developer_experience.validation import _check_versioned
+
     assert check is not None
     assert _check_versioned(project) is True
     # not versioned
@@ -180,7 +187,8 @@ def test_validator_versioned_check(tmp_path):
 # DeliveryMetrics (DORA)
 # ---------------------------------------------------------------------------
 
-def test_delivery_metrics_elite_band():
+
+def test_delivery_metrics_elite_band() -> None:
     metrics = DeliveryMetrics(team="core")
     now = datetime.utcnow()
     for i in range(20):
@@ -197,13 +205,14 @@ def test_delivery_metrics_elite_band():
     assert metrics.overall_band() == "elite"
 
 
-def test_delivery_metrics_low_band():
+def test_delivery_metrics_low_band() -> None:
     metrics = DeliveryMetrics(team="legacy")
     now = datetime.utcnow()
     # 2 deploys spread across 80 days -> less than once a month -> low
     metrics.record_success(lead_time_hours=400, timestamp=now - timedelta(days=80))
-    metrics.record_failure(lead_time_hours=300, recovery_minutes=10000,
-                           timestamp=now - timedelta(days=1))
+    metrics.record_failure(
+        lead_time_hours=300, recovery_minutes=10000, timestamp=now - timedelta(days=1)
+    )
     # 50% CFR, slow lead time, huge MTTR
     assert metrics.change_failure_rate_percent() == 50.0
     assert metrics.bands()["deployment_frequency"] == "low"
@@ -213,21 +222,21 @@ def test_delivery_metrics_low_band():
     assert metrics.overall_band() == "low"
 
 
-def test_delivery_metrics_deploy_freq_band():
+def test_delivery_metrics_deploy_freq_band() -> None:
     assert DeliveryMetrics.band_deployment_frequency(5.0) == "elite"
     assert DeliveryMetrics.band_deployment_frequency(0.5) == "high"
     assert DeliveryMetrics.band_deployment_frequency(0.1) == "medium"
     assert DeliveryMetrics.band_deployment_frequency(0.001) == "low"
 
 
-def test_delivery_metrics_lead_time_band():
+def test_delivery_metrics_lead_time_band() -> None:
     assert DeliveryMetrics.band_lead_time(0.1) == "elite"
     assert DeliveryMetrics.band_lead_time(12.0) == "high"
     assert DeliveryMetrics.band_lead_time(72.0) == "medium"
     assert DeliveryMetrics.band_lead_time(400.0) == "low"
 
 
-def test_delivery_metrics_cfr_and_mttr_band():
+def test_delivery_metrics_cfr_and_mttr_band() -> None:
     assert DeliveryMetrics.band_change_failure_rate(2.0) == "elite"
     assert DeliveryMetrics.band_change_failure_rate(7.0) == "high"
     assert DeliveryMetrics.band_change_failure_rate(12.0) == "medium"
@@ -238,7 +247,7 @@ def test_delivery_metrics_cfr_and_mttr_band():
     assert DeliveryMetrics.band_mttr(5000.0) == "low"
 
 
-def test_delivery_metrics_lead_time_percentiles():
+def test_delivery_metrics_lead_time_percentiles() -> None:
     metrics = DeliveryMetrics()
     now = datetime.utcnow()
     times = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -250,7 +259,7 @@ def test_delivery_metrics_lead_time_percentiles():
     assert stats["p95_hours"] >= 9.0
 
 
-def test_delivery_metrics_empty():
+def test_delivery_metrics_empty() -> None:
     metrics = DeliveryMetrics()
     assert metrics.deployment_frequency_per_day() == 0.0
     assert metrics.change_failure_rate_percent() == 0.0
@@ -259,7 +268,7 @@ def test_delivery_metrics_empty():
     assert metrics.bands()["lead_time"] == "low"
 
 
-def test_delivery_metrics_to_dict():
+def test_delivery_metrics_to_dict() -> None:
     metrics = DeliveryMetrics(team="t")
     metrics.record_success(lead_time_hours=0.5)
     data = metrics.to_dict()
@@ -273,7 +282,8 @@ def test_delivery_metrics_to_dict():
 # DXScore facade
 # ---------------------------------------------------------------------------
 
-def test_dxscore_combines_compliance_and_delivery(tmp_path):
+
+def test_dxscore_combines_compliance_and_delivery(tmp_path) -> None:
     project = make_project(tmp_path, COMPLETE)
     metrics = DeliveryMetrics(team="core")
     now = datetime.utcnow()
@@ -287,12 +297,13 @@ def test_dxscore_combines_compliance_and_delivery(tmp_path):
     assert score["dx_score"] >= 95.0
 
 
-def test_dxscore_poor_project_low_score(tmp_path):
+def test_dxscore_poor_project_low_score(tmp_path) -> None:
     project = make_project(tmp_path, {})
     metrics = DeliveryMetrics()
     now = datetime.utcnow()
-    metrics.record_failure(lead_time_hours=500, recovery_minutes=9000,
-                           timestamp=now - timedelta(days=45))
+    metrics.record_failure(
+        lead_time_hours=500, recovery_minutes=9000, timestamp=now - timedelta(days=45)
+    )
     score = DXScore(metrics=metrics).score(project)
     assert score["compliance_percent"] == 0.0
     assert score["dx_score"] < 40.0
@@ -300,7 +311,7 @@ def test_dxscore_poor_project_low_score(tmp_path):
     assert score["recommendations"]
 
 
-def test_letter_grade_boundaries():
+def test_letter_grade_boundaries() -> None:
     assert letter_grade(95) == "A"
     assert letter_grade(85) == "B"
     assert letter_grade(75) == "C"
@@ -313,7 +324,8 @@ def test_letter_grade_boundaries():
 # Lifecycle / to_dict serialization
 # ---------------------------------------------------------------------------
 
-def test_validation_report_to_dict(tmp_path):
+
+def test_validation_report_to_dict(tmp_path) -> None:
     project = make_project(tmp_path, COMPLETE)
     report = GoldenPathValidator().validate(project)
     data = report.to_dict()
@@ -325,8 +337,9 @@ def test_validation_report_to_dict(tmp_path):
     assert data["project_dir"] == str(project)
 
 
-def test_exports_available_from_module_package():
+def test_exports_available_from_module_package() -> None:
     from enterprise.modules import developer_experience as dx
+
     assert hasattr(dx, "GoldenPathValidator")
     assert hasattr(dx, "GoldenPathChecklist")
     assert hasattr(dx, "DeliveryMetrics")

@@ -24,13 +24,12 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import contextlib
 import importlib
 import importlib.util
-import inspect
 import json
 import logging
 import os
-import queue
 import signal
 import sys
 import threading
@@ -38,34 +37,22 @@ import time
 import traceback
 import uuid
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, Future
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from enum import Enum, auto
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
-from types import ModuleType
 from typing import (
+    TYPE_CHECKING,
     Any,
-    Callable,
     ClassVar,
-    Concatenate,
-    Dict,
-    Generic,
-    Iterable,
-    List,
-    Mapping,
-    MutableMapping,
-    Optional,
     ParamSpec,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
     TypeVar,
-    Union,
-    cast,
-    overload,
 )
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 # =============================================================================
 # Type variables
@@ -117,9 +104,9 @@ class LifecycleState(Enum):
     CRASHED = "crashed"
     RECOVERING = "recovering"
 
-    def can_transition_to(self, target: "LifecycleState") -> bool:
+    def can_transition_to(self, target: LifecycleState) -> bool:
         """Validate state machine transitions."""
-        _TRANSITIONS: Dict["LifecycleState", Set["LifecycleState"]] = {
+        _TRANSITIONS: dict[LifecycleState, set[LifecycleState]] = {
             LifecycleState.UNINITIALIZED: {
                 LifecycleState.INITIALIZING,
                 LifecycleState.STOPPED,
@@ -186,9 +173,7 @@ class LifecycleState(Enum):
 
 
 # Numeric index for metrics gauges (lower = earlier in lifecycle).
-_STATE_INDEX: Dict["LifecycleState", int] = {
-    state: idx for idx, state in enumerate(LifecycleState)
-}
+_STATE_INDEX: dict[LifecycleState, int] = {state: idx for idx, state in enumerate(LifecycleState)}
 
 
 # =============================================================================
@@ -223,29 +208,29 @@ class Event:
     event_id: str
     topic: str
     source: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     timestamp: datetime
     priority: EventPriority = EventPriority.NORMAL
-    correlation_id: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    correlation_id: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def create(
         cls,
         topic: str,
         source: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         priority: EventPriority = EventPriority.NORMAL,
-        correlation_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> "Event":
+        correlation_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Event:
         """Factory method to create a new Event with a UUID4 and UTC timestamp."""
         return cls(
             event_id=str(uuid.uuid4()),
             topic=topic,
             source=source,
             payload=payload,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             priority=priority,
             correlation_id=correlation_id,
             metadata=metadata or {},
@@ -253,7 +238,7 @@ class Event:
 
 
 # Callback type: async or sync
-EventHandler = Callable[[Event], Optional[Any]]
+EventHandler = Callable[[Event], Any | None]
 
 
 @dataclass
@@ -273,7 +258,7 @@ class Subscription:
     topic: str
     handler: EventHandler
     subscriber_name: str
-    priority_filter: Optional[EventPriority] = None
+    priority_filter: EventPriority | None = None
     once: bool = False
 
 
@@ -288,16 +273,18 @@ class EventBus:
 
         bus = EventBus()
 
+
         @bus.subscribe("user.created")
         def handle_user_created(event: Event) -> None:
             print(f"User created: {event.payload['user_id']}")
+
 
         bus.publish(Event.create("user.created", "auth", {"user_id": "u1"}))
     """
 
     _SEEN_HISTORY_MAX: ClassVar[int] = 10000
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         """Initialize the EventBus.
 
         Args:
@@ -306,40 +293,39 @@ class EventBus:
         """
         cfg = config or {}
         self._lock: threading.RLock = threading.RLock()
-        self._subscriptions: Dict[str, List[Subscription]] = defaultdict(list)
-        self._subscriptions_by_id: Dict[str, Subscription] = {}
+        self._subscriptions: dict[str, list[Subscription]] = defaultdict(list)
+        self._subscriptions_by_id: dict[str, Subscription] = {}
         self._async_dispatch: bool = cfg.get("async_dispatch", True)
         self._max_workers: int = cfg.get("max_workers", 8)
-        self._executor: Optional[ThreadPoolExecutor] = None
+        self._executor: ThreadPoolExecutor | None = None
         if self._async_dispatch:
             self._executor = ThreadPoolExecutor(
                 max_workers=self._max_workers,
                 thread_name_prefix="eventbus-",
             )
-        self._event_history: List[Event] = []
+        self._event_history: list[Event] = []
         self._dead_letter_enabled: bool = cfg.get("dead_letter_enabled", True)
-        self._dead_letter: List[Tuple[Event, Subscription, Exception]] = []
+        self._dead_letter: list[tuple[Event, Subscription, Exception]] = []
         self._total_published: int = 0
         self._total_delivered: int = 0
         self._total_failed: int = 0
-        self._started_at: datetime = datetime.now(timezone.utc)
+        self._started_at: datetime = datetime.now(UTC)
 
     # ── Subscribe ────────────────────────────────────────────────────────────
 
     def subscribe(
         self,
         topic: str,
-        priority_filter: Optional[EventPriority] = None,
+        priority_filter: EventPriority | None = None,
         once: bool = False,
-        subscriber_name: Optional[str] = None,
+        subscriber_name: str | None = None,
     ) -> Callable[[EventHandler], EventHandler]:
         """Decorator to subscribe a handler to a topic.
 
         Usage::
 
             @bus.subscribe("*.alerts")
-            def handle_alert(event: Event) -> None:
-                ...
+            def handle_alert(event: Event) -> None: ...
 
         Args:
             topic: Topic string. Supports wildcard '*' for all topics.
@@ -382,7 +368,7 @@ class EventBus:
             self._subscriptions[sub.topic] = [s for s in topic_subs if s.id != subscription_id]
             return True
 
-    def _get_matching_subscriptions(self, topic: str) -> List[Subscription]:
+    def _get_matching_subscriptions(self, topic: str) -> list[Subscription]:
         """Return all subscriptions matching a topic, including wildcard matches.
 
         Supports:
@@ -392,17 +378,19 @@ class EventBus:
           - Suffix wildcard "*.suffix" matches any topic ending with ".suffix"
         """
         with self._lock:
-            result: List[Subscription] = []
+            result: list[Subscription] = []
             # Exact match
             result.extend(self._subscriptions.get(topic, []))
             # Wildcard: match all
             result.extend(self._subscriptions.get("*", []))
             # Prefix glob: "platform.*" matches "platform.started", "platform.state_change", etc.
             for sub_topic, subs in self._subscriptions.items():
-                if sub_topic.endswith(".*") and topic.startswith(sub_topic[:-2]):
-                    result.extend(subs)
-                # Suffix glob: "*.error" matches "db.error", "api.error", etc.
-                elif sub_topic.startswith("*.") and topic.endswith(sub_topic[2:]):
+                if (
+                    sub_topic.endswith(".*")
+                    and topic.startswith(sub_topic[:-2])
+                    or sub_topic.startswith("*.")
+                    and topic.endswith(sub_topic[2:])
+                ):
                     result.extend(subs)
             return list(result)
 
@@ -422,13 +410,14 @@ class EventBus:
         if subs:
             for sub in subs:
                 # Priority filter
-                if sub.priority_filter is not None and event.priority.value < sub.priority_filter.value:
+                if (
+                    sub.priority_filter is not None
+                    and event.priority.value < sub.priority_filter.value
+                ):
                     continue
 
                 if self._async_dispatch and self._executor is not None:
-                    future: Future[None] = self._executor.submit(
-                        self._dispatch_one, event, sub
-                    )
+                    self._executor.submit(self._dispatch_one, event, sub)
                 else:
                     self._dispatch_one(event, sub)
 
@@ -449,7 +438,7 @@ class EventBus:
     def _dispatch_one(self, event: Event, sub: Subscription) -> None:
         """Dispatch a single event to a single subscriber. Handles errors."""
         try:
-            result = sub.handler(event)
+            sub.handler(event)
             with self._lock:
                 self._total_delivered += 1
         except Exception as exc:
@@ -475,15 +464,15 @@ class EventBus:
         with self._lock:
             self._event_history.append(event)
             if len(self._event_history) > self._SEEN_HISTORY_MAX:
-                self._event_history = self._event_history[-self._SEEN_HISTORY_MAX:]
+                self._event_history = self._event_history[-self._SEEN_HISTORY_MAX :]
 
     # ── Query ────────────────────────────────────────────────────────────────
 
     def get_history(
         self,
-        topic: Optional[str] = None,
+        topic: str | None = None,
         limit: int = 100,
-    ) -> List[Event]:
+    ) -> list[Event]:
         """Return recent events, optionally filtered by topic."""
         with self._lock:
             events = self._event_history
@@ -491,12 +480,12 @@ class EventBus:
                 events = [e for e in events if e.topic == topic]
             return events[-limit:]
 
-    def get_dead_letter(self) -> List[Tuple[Event, Subscription, Exception]]:
+    def get_dead_letter(self) -> list[tuple[Event, Subscription, Exception]]:
         """Return events that failed to dispatch."""
         with self._lock:
             return list(self._dead_letter)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return statistics about the event bus."""
         with self._lock:
             return {
@@ -507,9 +496,7 @@ class EventBus:
                 "unique_topics": len(self._subscriptions),
                 "dead_letter_count": len(self._dead_letter),
                 "history_size": len(self._event_history),
-                "uptime_seconds": (
-                    datetime.now(timezone.utc) - self._started_at
-                ).total_seconds(),
+                "uptime_seconds": (datetime.now(UTC) - self._started_at).total_seconds(),
             }
 
     def shutdown(self) -> None:
@@ -537,12 +524,12 @@ class Module(abc.ABC):
     # Set by the @module decorator
     _meta_name: str = ""
     _meta_version: str = "0.0.0"
-    _meta_config: Dict[str, Any] = field(default_factory=dict)
+    _meta_config: dict[str, Any] = field(default_factory=dict)
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
-        self._config: Dict[str, Any] = config or {}
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        self._config: dict[str, Any] = config or {}
         self._status: HealthStatus = HealthStatus.UNKNOWN
-        self._started_at: Optional[datetime] = None
+        self._started_at: datetime | None = None
         self._module_id: str = str(uuid.uuid4())
 
     @property
@@ -570,7 +557,7 @@ class Module(abc.ABC):
         return self._module_id
 
     @property
-    def config(self) -> Dict[str, Any]:
+    def config(self) -> dict[str, Any]:
         """Module-specific configuration."""
         return self._config
 
@@ -594,22 +581,21 @@ class Module(abc.ABC):
 
 
 # Decorator
-_MODULE_REGISTRY: Dict[str, Type[Module]] = {}
+_MODULE_REGISTRY: dict[str, type[Module]] = {}
 
 
 def module(
-    name: Optional[str] = None,
+    name: str | None = None,
     version: str = "0.0.0",
-    config_defaults: Optional[Dict[str, Any]] = None,
-) -> Callable[[Type[ModuleT]], Type[ModuleT]]:
+    config_defaults: dict[str, Any] | None = None,
+) -> Callable[[type[ModuleT]], type[ModuleT]]:
     """Decorator to register a module class with the platform.
 
     Usage::
 
         @module(name="safety_governance", version="1.0.0")
         class SafetyGovernanceModule(Module):
-            async def initialize(self) -> None:
-                ...
+            async def initialize(self) -> None: ...
 
     Args:
         name: Module name (defaults to class name).
@@ -620,7 +606,7 @@ def module(
         A decorator that registers the class.
     """
 
-    def decorator(cls: Type[ModuleT]) -> Type[ModuleT]:
+    def decorator(cls: type[ModuleT]) -> type[ModuleT]:
         mod_name = name or cls.__name__
         cls._meta_name = mod_name
         cls._meta_version = version
@@ -643,13 +629,13 @@ class ModuleRecord:
     name: str
     path: Path
     version: str
-    module_class: Optional[Type[Module]] = None
-    instance: Optional[Module] = None
+    module_class: type[Module] | None = None
+    instance: Module | None = None
     enabled: bool = True
     required: bool = False
     priority: int = 100
-    config: Dict[str, Any] = field(default_factory=dict)
-    discovered_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    config: dict[str, Any] = field(default_factory=dict)
+    discovered_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class ModuleRegistry:
@@ -670,8 +656,8 @@ class ModuleRegistry:
 
     def __init__(
         self,
-        modules_path: Optional[Path] = None,
-        config: Optional[Dict[str, Any]] = None,
+        modules_path: Path | None = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         """Initialize the ModuleRegistry.
 
@@ -680,14 +666,14 @@ class ModuleRegistry:
             config: Platform configuration dict (reads 'modules' section).
         """
         self._modules_path: Path = modules_path or self.DEFAULT_MODULES_PATH
-        self._config: Dict[str, Any] = config or {}
+        self._config: dict[str, Any] = config or {}
         self._lock: threading.RLock = threading.RLock()
-        self._records: Dict[str, ModuleRecord] = {}
+        self._records: dict[str, ModuleRecord] = {}
         self._discovered: bool = False
 
     # ── Discovery ────────────────────────────────────────────────────────────
 
-    def discover(self) -> List[str]:
+    def discover(self) -> list[str]:
         """Scan the modules directory and discover all available modules.
 
         Reads each module's __init__.py to extract __version__. Falls back
@@ -697,7 +683,7 @@ class ModuleRegistry:
             List of discovered module names.
         """
         with self._lock:
-            discovered: List[str] = []
+            discovered: list[str] = []
 
             if not self._modules_path.exists() or not self._modules_path.is_dir():
                 logging.getLogger("eni.registry").warning(
@@ -760,15 +746,14 @@ class ModuleRegistry:
                 if stripped.startswith("__version__"):
                     parts = stripped.split("=", 1)
                     if len(parts) == 2:
-                        val = parts[1].strip().strip("\"'")
-                        return val
+                        return parts[1].strip().strip("\"'")
         except Exception:
             pass
         return "0.0.0"
 
     # ── Import ───────────────────────────────────────────────────────────────
 
-    def import_module(self, name: str) -> Optional[ModuleType]:
+    def import_module(self, name: str) -> ModuleType | None:
         """Dynamically import a module by name.
 
         Attempts: enterprise.modules.<name>
@@ -781,14 +766,12 @@ class ModuleRegistry:
         try:
             return importlib.import_module(import_path)
         except ImportError as e:
-            logging.getLogger("eni.registry").warning(
-                "Failed to import module %s: %s", name, e
-            )
+            logging.getLogger("eni.registry").warning("Failed to import module %s: %s", name, e)
             return None
 
     # ── Initialization ───────────────────────────────────────────────────────
 
-    async def initialize_all(self) -> Dict[str, HealthStatus]:
+    async def initialize_all(self) -> dict[str, HealthStatus]:
         """Initialize all enabled modules in priority order.
 
         Returns:
@@ -797,22 +780,16 @@ class ModuleRegistry:
         if not self._discovered:
             self.discover()
 
-        results: Dict[str, HealthStatus] = {}
+        results: dict[str, HealthStatus] = {}
 
         # Sort by priority (ascending) for startup
         ordered = sorted(
-            [
-                r
-                for r in self._records.values()
-                if r.enabled and r.module_class is not None
-            ],
+            [r for r in self._records.values() if r.enabled and r.module_class is not None],
             key=lambda r: r.priority,
         )
 
         startup_timeout = float(
-            (self._config.get("lifecycle", {}) or {}).get(
-                "startup_timeout_sec", 30
-            )
+            (self._config.get("lifecycle", {}) or {}).get("startup_timeout_sec", 30)
         )
 
         for record in ordered:
@@ -822,13 +799,11 @@ class ModuleRegistry:
                 # Honor a per-module startup timeout so a hung initialize()
                 # cannot block the entire platform boot forever.
                 await asyncio.wait_for(instance.initialize(), timeout=startup_timeout)
-                instance._started_at = datetime.now(timezone.utc)
+                instance._started_at = datetime.now(UTC)
                 instance.status = HealthStatus.HEALTHY
                 results[record.name] = HealthStatus.HEALTHY
-                logging.getLogger("eni.registry").info(
-                    "Initialized module: %s", record.name
-                )
-            except asyncio.TimeoutError:
+                logging.getLogger("eni.registry").info("Initialized module: %s", record.name)
+            except TimeoutError:
                 logging.getLogger("eni.registry").error(
                     "Module %s initialize() timed out after %ss; marking UNHEALTHY",
                     record.name,
@@ -852,20 +827,16 @@ class ModuleRegistry:
 
     # ── Shutdown ─────────────────────────────────────────────────────────────
 
-    async def shutdown_all(self) -> Dict[str, bool]:
+    async def shutdown_all(self) -> dict[str, bool]:
         """Shut down all initialized modules in reverse priority order.
 
         Returns:
             Dict mapping module name to shutdown success.
         """
-        results: Dict[str, bool] = {}
+        results: dict[str, bool] = {}
 
         ordered = sorted(
-            [
-                r
-                for r in self._records.values()
-                if r.instance is not None
-            ],
+            [r for r in self._records.values() if r.instance is not None],
             key=lambda r: r.priority,
             reverse=True,  # Reverse order for shutdown
         )
@@ -875,9 +846,7 @@ class ModuleRegistry:
                 if record.instance:
                     await record.instance.shutdown()
                 results[record.name] = True
-                logging.getLogger("eni.registry").info(
-                    "Shut down module: %s", record.name
-                )
+                logging.getLogger("eni.registry").info("Shut down module: %s", record.name)
             except Exception as exc:
                 logging.getLogger("eni.registry").error(
                     "Failed to shut down module %s: %s", record.name, exc
@@ -888,17 +857,17 @@ class ModuleRegistry:
 
     # ── Query ────────────────────────────────────────────────────────────────
 
-    def list_modules(self) -> List[ModuleRecord]:
+    def list_modules(self) -> list[ModuleRecord]:
         """Return all module records."""
         with self._lock:
             return list(self._records.values())
 
-    def get_record(self, name: str) -> Optional[ModuleRecord]:
+    def get_record(self, name: str) -> ModuleRecord | None:
         """Get a module record by name."""
         with self._lock:
             return self._records.get(name)
 
-    def get_instance(self, name: str) -> Optional[Module]:
+    def get_instance(self, name: str) -> Module | None:
         """Get the initialized module instance by name."""
         record = self._records.get(name)
         if record:
@@ -956,11 +925,11 @@ class HealthReport:
     status: HealthStatus
     response_time_ms: float
     timestamp: datetime
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
     consecutive_failures: int = 0
     consecutive_successes: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dict."""
         return {
             "module_name": self.module_name,
@@ -988,8 +957,8 @@ class HealthChecker:
     def __init__(
         self,
         registry: ModuleRegistry,
-        event_bus: Optional[EventBus] = None,
-        config: Optional[Dict[str, Any]] = None,
+        event_bus: EventBus | None = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         """Initialize the HealthChecker.
 
@@ -999,17 +968,17 @@ class HealthChecker:
             config: Health configuration section.
         """
         self._registry: ModuleRegistry = registry
-        self._event_bus: Optional[EventBus] = event_bus
+        self._event_bus: EventBus | None = event_bus
         cfg = config or {}
         self._failure_threshold: int = cfg.get("failure_threshold", 3)
         self._recovery_threshold: int = cfg.get("recovery_threshold", 2)
         self._timeout_sec: float = cfg.get("timeout_sec", 10.0)
         self._lock: threading.RLock = threading.RLock()
-        self._reports: Dict[str, List[HealthReport]] = defaultdict(list)
-        self._failure_counts: Dict[str, int] = defaultdict(int)
-        self._success_counts: Dict[str, int] = defaultdict(int)
+        self._reports: dict[str, list[HealthReport]] = defaultdict(list)
+        self._failure_counts: dict[str, int] = defaultdict(int)
+        self._success_counts: dict[str, int] = defaultdict(int)
 
-    async def run_all_checks(self, functional: bool = False) -> List[HealthReport]:
+    async def run_all_checks(self, functional: bool = False) -> list[HealthReport]:
         """Run health checks on all initialized modules.
 
         Args:
@@ -1021,7 +990,7 @@ class HealthChecker:
         Returns:
             List of HealthReports, one per module plus a platform aggregate.
         """
-        reports: List[HealthReport] = []
+        reports: list[HealthReport] = []
         records = self._registry.list_modules()
 
         for record in records:
@@ -1054,7 +1023,7 @@ class HealthChecker:
         reports.append(platform_report)
         return reports
 
-    async def run_check_for(self, module_name: str) -> Optional[HealthReport]:
+    async def run_check_for(self, module_name: str) -> HealthReport | None:
         """Run a health check for a single module by name."""
         instance = self._registry.get_instance(module_name)
         if instance is None:
@@ -1068,8 +1037,8 @@ class HealthChecker:
     async def functional_health_check(
         self,
         module_name: str,
-        timeout_sec: Optional[float] = None,
-    ) -> Optional[HealthReport]:
+        timeout_sec: float | None = None,
+    ) -> HealthReport | None:
         """Run a structural + functional health check for a single module.
 
         In addition to the structural ``health_check()`` (which only proves the
@@ -1102,13 +1071,13 @@ class HealthChecker:
         # Structural check (unchanged semantics from _check_one).
         try:
             status = await asyncio.wait_for(instance.health_check(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             status = HealthStatus.UNHEALTHY
         except Exception:
             status = HealthStatus.UNHEALTHY
 
         # Optional functional probe — real, non-mutating capability check.
-        functional: Dict[str, Any] = {"enabled": False, "reason": "no_probe"}
+        functional: dict[str, Any] = {"enabled": False, "reason": "no_probe"}
         probe = getattr(instance, "probe", None)
         if not callable(probe):
             probe = getattr(instance, "functional_probe", None)
@@ -1118,12 +1087,10 @@ class HealthChecker:
                 if asyncio.iscoroutinefunction(probe):
                     raw = await asyncio.wait_for(probe(), timeout=timeout)
                 else:
-                    raw = await asyncio.wait_for(
-                        asyncio.to_thread(probe), timeout=timeout
-                    )
+                    raw = await asyncio.wait_for(asyncio.to_thread(probe), timeout=timeout)
                 functional["ok"] = raw is not False and raw is not None
                 functional["result"] = _json_safe(raw)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 functional.update({"ok": False, "error": "timeout"})
                 status = HealthStatus.UNHEALTHY
             except Exception as exc:  # noqa: BLE001 - probe failure degrades health
@@ -1135,7 +1102,7 @@ class HealthChecker:
             module_name=module_name,
             status=status,
             response_time_ms=round(elapsed_ms, 2),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             details={
                 "module_id": instance.module_id,
                 "version": instance.version,
@@ -1148,10 +1115,8 @@ class HealthChecker:
         """Run a single module health check with timeout."""
         start = time.perf_counter()
         try:
-            status = await asyncio.wait_for(
-                instance.health_check(), timeout=self._timeout_sec
-            )
-        except asyncio.TimeoutError:
+            status = await asyncio.wait_for(instance.health_check(), timeout=self._timeout_sec)
+        except TimeoutError:
             status = HealthStatus.UNHEALTHY
         except Exception:
             status = HealthStatus.UNHEALTHY
@@ -1161,7 +1126,7 @@ class HealthChecker:
             module_name=module_name,
             status=status,
             response_time_ms=round(elapsed_ms, 2),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             details={
                 "module_id": instance.module_id,
                 "version": instance.version,
@@ -1187,14 +1152,14 @@ class HealthChecker:
             report.consecutive_failures = self._failure_counts[name]
             report.consecutive_successes = self._success_counts[name]
 
-    def _aggregate(self, reports: List[HealthReport]) -> HealthReport:
+    def _aggregate(self, reports: list[HealthReport]) -> HealthReport:
         """Aggregate all module reports into a platform-level report."""
         if not reports:
             return HealthReport(
                 module_name="platform",
                 status=HealthStatus.UNKNOWN,
                 response_time_ms=0.0,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
             )
 
         unhealthy = [r for r in reports if r.status == HealthStatus.UNHEALTHY]
@@ -1211,7 +1176,7 @@ class HealthChecker:
             module_name="platform",
             status=status,
             response_time_ms=sum(r.response_time_ms for r in reports),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             details={
                 "modules_checked": total,
                 "healthy": total - len(unhealthy),
@@ -1229,13 +1194,13 @@ class HealthChecker:
         """Return True if a module has exceeded the failure threshold."""
         return self.get_failure_count(module_name) >= self._failure_threshold
 
-    def get_latest_report(self, module_name: str) -> Optional[HealthReport]:
+    def get_latest_report(self, module_name: str) -> HealthReport | None:
         """Return the most recent health report for a module."""
         with self._lock:
             reports = self._reports.get(module_name, [])
             return reports[-1] if reports else None
 
-    def get_all_reports(self) -> Dict[str, List[HealthReport]]:
+    def get_all_reports(self) -> dict[str, list[HealthReport]]:
         """Return all health reports."""
         with self._lock:
             return {k: list(v) for k, v in self._reports.items()}
@@ -1252,11 +1217,11 @@ class MetricPoint:
 
     name: str
     value: float
-    tags: Dict[str, str] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    tags: dict[str, str] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     module: str = "platform"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dict."""
         return {
             "name": self.name,
@@ -1281,7 +1246,7 @@ class MetricsCollector:
         collector.gauge("memory.bytes", 1073741824)
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         """Initialize the MetricsCollector.
 
         Args:
@@ -1290,19 +1255,17 @@ class MetricsCollector:
         cfg = config or {}
         self._enabled: bool = cfg.get("enabled", True)
         self._lock: threading.RLock = threading.RLock()
-        self._counters: Dict[str, Dict[str, float]] = defaultdict(
-            lambda: defaultdict(float)
-        )
-        self._gauges: Dict[str, float] = {}
-        self._histograms: Dict[str, List[float]] = defaultdict(list)
-        self._history: List[MetricPoint] = []
+        self._counters: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+        self._gauges: dict[str, float] = {}
+        self._histograms: dict[str, list[float]] = defaultdict(list)
+        self._history: list[MetricPoint] = []
         self._history_limit: int = 100000
 
     def increment(
         self,
         name: str,
         value: float = 1.0,
-        tags: Optional[Dict[str, str]] = None,
+        tags: dict[str, str] | None = None,
         module: str = "platform",
     ) -> None:
         """Increment a counter metric."""
@@ -1317,7 +1280,7 @@ class MetricsCollector:
         self,
         name: str,
         value: float,
-        tags: Optional[Dict[str, str]] = None,
+        tags: dict[str, str] | None = None,
         module: str = "platform",
     ) -> None:
         """Set a gauge metric to a specific value."""
@@ -1331,7 +1294,7 @@ class MetricsCollector:
         self,
         name: str,
         value: float,
-        tags: Optional[Dict[str, str]] = None,
+        tags: dict[str, str] | None = None,
         module: str = "platform",
     ) -> None:
         """Record an observation in a histogram metric."""
@@ -1345,11 +1308,9 @@ class MetricsCollector:
         """Store a metric point in history."""
         self._history.append(point)
         if len(self._history) > self._history_limit:
-            self._history = self._history[-self._history_limit:]
+            self._history = self._history[-self._history_limit :]
 
-    def get_counter(
-        self, name: str, tags: Optional[Dict[str, str]] = None
-    ) -> float:
+    def get_counter(self, name: str, tags: dict[str, str] | None = None) -> float:
         """Get the current value of a counter."""
         tag_key = json.dumps(tags or {}, sort_keys=True)
         with self._lock:
@@ -1360,7 +1321,7 @@ class MetricsCollector:
         with self._lock:
             return self._gauges.get(name, 0.0)
 
-    def get_histogram_stats(self, name: str) -> Dict[str, float]:
+    def get_histogram_stats(self, name: str) -> dict[str, float]:
         """Get statistics for a histogram metric."""
         with self._lock:
             values = self._histograms.get(name, [])
@@ -1374,26 +1335,21 @@ class MetricsCollector:
                 "avg": sum(values) / len(values),
             }
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """Take a full snapshot of all metrics."""
         with self._lock:
             return {
-                "counters": {
-                    name: dict(tags) for name, tags in self._counters.items()
-                },
+                "counters": {name: dict(tags) for name, tags in self._counters.items()},
                 "gauges": dict(self._gauges),
-                "histograms": {
-                    name: self.get_histogram_stats(name)
-                    for name in self._histograms
-                },
+                "histograms": {name: self.get_histogram_stats(name) for name in self._histograms},
                 "history_count": len(self._history),
             }
 
     def get_recent(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
         limit: int = 100,
-    ) -> List[MetricPoint]:
+    ) -> list[MetricPoint]:
         """Get recent metric data points, optionally filtered by name."""
         with self._lock:
             points = self._history
@@ -1428,7 +1384,7 @@ class LoggingBridge:
         logger.info("Guardrail check passed", extra={"correlation_id": "abc"})
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         """Initialize the LoggingBridge.
 
         Args:
@@ -1436,11 +1392,11 @@ class LoggingBridge:
         """
         cfg = config or {}
         self._level: str = cfg.get("level", "INFO")
-        self._loggers: Dict[str, logging.Logger] = {}
+        self._loggers: dict[str, logging.Logger] = {}
         self._root_logger: logging.Logger = logging.getLogger("eni.platform")
         self._configure_root(cfg)
 
-    def _configure_root(self, cfg: Dict[str, Any]) -> None:
+    def _configure_root(self, cfg: dict[str, Any]) -> None:
         """Set up the root logger with configured handlers."""
         level = getattr(logging, self._level.upper(), logging.INFO)
         self._root_logger.setLevel(level)
@@ -1452,9 +1408,7 @@ class LoggingBridge:
             if handler:
                 self._root_logger.addHandler(handler)
 
-    def _create_handler(
-        self, output_cfg: Dict[str, Any]
-    ) -> Optional[logging.Handler]:
+    def _create_handler(self, output_cfg: dict[str, Any]) -> logging.Handler | None:
         """Create a logging handler from configuration."""
         output_type = output_cfg.get("type", "console")
         level = getattr(logging, output_cfg.get("level", "INFO").upper(), logging.INFO)
@@ -1465,10 +1419,11 @@ class LoggingBridge:
             handler.setFormatter(self._formatter(output_cfg))
             return handler
 
-        elif output_type == "file":
+        if output_type == "file":
             path = output_cfg.get("path", "logs/platform.log")
             os.makedirs(os.path.dirname(path), exist_ok=True)
             from logging.handlers import RotatingFileHandler
+
             handler = RotatingFileHandler(
                 path,
                 maxBytes=output_cfg.get("max_bytes", 10_485_760),
@@ -1478,9 +1433,10 @@ class LoggingBridge:
             handler.setFormatter(self._formatter(output_cfg))
             return handler
 
-        elif output_type == "syslog":
+        if output_type == "syslog":
             try:
                 from logging.handlers import SysLogHandler
+
                 handler = SysLogHandler(address="/dev/log")
                 handler.setLevel(level)
                 handler.setFormatter(self._formatter(output_cfg))
@@ -1492,7 +1448,7 @@ class LoggingBridge:
         return None
 
     @staticmethod
-    def _formatter(cfg: Dict[str, Any]) -> logging.Formatter:
+    def _formatter(cfg: dict[str, Any]) -> logging.Formatter:
         """Create a formatter based on config."""
         fmt_type = cfg.get("format", "text")
         if fmt_type == "json":
@@ -1503,7 +1459,7 @@ class LoggingBridge:
         )
 
     def get_logger(
-        self, module_name: str, correlation_id: Optional[str] = None
+        self, module_name: str, correlation_id: str | None = None
     ) -> logging.LoggerAdapter:
         """Get a logger for a specific module with optional correlation ID.
 
@@ -1546,7 +1502,7 @@ class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Format a log record as a JSON string."""
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -1581,7 +1537,7 @@ class ConfigurationLoader:
 
     DEFAULT_CONFIG_PATH: ClassVar[Path] = Path(__file__).parent / "config.yaml"
 
-    def __init__(self, config_path: Optional[Path] = None) -> None:
+    def __init__(self, config_path: Path | None = None) -> None:
         """Initialize the ConfigurationLoader.
 
         Args:
@@ -1589,10 +1545,10 @@ class ConfigurationLoader:
                          enterprise/config.yaml.
         """
         self._config_path: Path = config_path or self.DEFAULT_CONFIG_PATH
-        self._config: Dict[str, Any] = {}
+        self._config: dict[str, Any] = {}
         self._loaded: bool = False
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         """Load configuration from YAML file.
 
         Falls back to defaults if YAML is unavailable or file missing.
@@ -1618,29 +1574,25 @@ class ConfigurationLoader:
             return self._load_defaults()
 
         try:
-            with open(self._config_path, "r", encoding="utf-8") as f:
+            with open(self._config_path, encoding="utf-8") as f:
                 self._config = yaml.safe_load(f) or {}
             self._loaded = True
-            logging.getLogger("eni.config").info(
-                "Loaded configuration from %s", self._config_path
-            )
+            logging.getLogger("eni.config").info("Loaded configuration from %s", self._config_path)
         except Exception as exc:
-            logging.getLogger("eni.config").error(
-                "Failed to load config: %s, using defaults", exc
-            )
+            logging.getLogger("eni.config").error("Failed to load config: %s, using defaults", exc)
             self._config = self._load_defaults()
             self._loaded = True
 
         self._apply_env_overrides()
         return self._config
 
-    def reload(self) -> Dict[str, Any]:
+    def reload(self) -> dict[str, Any]:
         """Force reload configuration from disk."""
         self._loaded = False
         return self.load()
 
     @staticmethod
-    def _load_defaults() -> Dict[str, Any]:
+    def _load_defaults() -> dict[str, Any]:
         """Return sensible default configuration."""
         return {
             "platform": {
@@ -1704,7 +1656,7 @@ class ConfigurationLoader:
         return node
 
     @property
-    def config(self) -> Dict[str, Any]:
+    def config(self) -> dict[str, Any]:
         """The loaded configuration dict."""
         if not self._loaded:
             self.load()
@@ -1740,33 +1692,32 @@ class PlatformOS:
         await platform.shutdown()
     """
 
-    _instance: ClassVar[Optional["PlatformOS"]] = None
+    _instance: ClassVar[PlatformOS | None] = None
     _instance_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __init__(self) -> None:
         """Direct construction is discouraged — use PlatformOS.instance()."""
         if not getattr(self, "_init_by_instance", False):
-            raise RuntimeError(
-                "Use PlatformOS.instance() to get the singleton instance"
-            )
+            msg = "Use PlatformOS.instance() to get the singleton instance"
+            raise RuntimeError(msg)
         self._logger: logging.LoggerAdapter = logging.getLogger("eni.platform")  # type: ignore[assignment]
         self._state_lock: threading.RLock = threading.RLock()
         self._state: LifecycleState = LifecycleState.UNINITIALIZED
-        self._state_history: List[Tuple[LifecycleState, datetime]] = []
-        self._config_loader: Optional[ConfigurationLoader] = None
-        self._config: Dict[str, Any] = {}
-        self._module_registry: Optional[ModuleRegistry] = None
-        self._event_bus: Optional[EventBus] = None
-        self._health_checker: Optional[HealthChecker] = None
-        self._metrics_collector: Optional[MetricsCollector] = None
-        self._logging_bridge: Optional[LoggingBridge] = None
+        self._state_history: list[tuple[LifecycleState, datetime]] = []
+        self._config_loader: ConfigurationLoader | None = None
+        self._config: dict[str, Any] = {}
+        self._module_registry: ModuleRegistry | None = None
+        self._event_bus: EventBus | None = None
+        self._health_checker: HealthChecker | None = None
+        self._metrics_collector: MetricsCollector | None = None
+        self._logging_bridge: LoggingBridge | None = None
         self._platform_id: str = str(uuid.uuid4())
-        self._started_at: Optional[datetime] = None
-        self._health_poll_task: Optional[asyncio.Task[None]] = None
+        self._started_at: datetime | None = None
+        self._health_poll_task: asyncio.Task[None] | None = None
         self._health_poll_interval: float = 30.0
 
     @classmethod
-    def instance(cls) -> "PlatformOS":
+    def instance(cls) -> PlatformOS:
         """Get or create the singleton PlatformOS instance (thread-safe)."""
         if cls._instance is None:
             with cls._instance_lock:
@@ -1787,8 +1738,8 @@ class PlatformOS:
 
     def initialize(
         self,
-        config_path: Optional[Path] = None,
-        modules_path: Optional[Path] = None,
+        config_path: Path | None = None,
+        modules_path: Path | None = None,
     ) -> None:
         """Initialize the platform: load config, discover modules, set up subsystems.
 
@@ -1849,17 +1800,16 @@ class PlatformOS:
             LifecycleState.CONFIGURING,
             LifecycleState.STOPPED,
         ):
-            raise RuntimeError(
-                f"Cannot start from state {self._state.value}. "
-                f"Call initialize() first."
-            )
+            msg = f"Cannot start from state {self._state.value}. Call initialize() first."
+            raise RuntimeError(msg)
 
         self._transition_to(LifecycleState.STARTING)
-        self._started_at = datetime.now(timezone.utc)
+        self._started_at = datetime.now(UTC)
 
         # Initialize all modules
         if self._module_registry is None:
-            raise RuntimeError("ModuleRegistry not initialized")
+            msg = "ModuleRegistry not initialized"
+            raise RuntimeError(msg)
 
         results = await self._module_registry.initialize_all()
         self._logger.info(
@@ -1903,9 +1853,7 @@ class PlatformOS:
                 sum(1 for s in results.values() if s == HealthStatus.HEALTHY),
                 module="platform_os",
             )
-            self._metrics_collector.increment(
-                "platform.lifecycle.starts", module="platform_os"
-            )
+            self._metrics_collector.increment("platform.lifecycle.starts", module="platform_os")
 
         # Start background health polling (only if we have a running loop)
         try:
@@ -1947,10 +1895,8 @@ class PlatformOS:
         # Stop health polling
         if self._health_poll_task and not self._health_poll_task.done():
             self._health_poll_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._health_poll_task
-            except asyncio.CancelledError:
-                pass
 
         # Publish platform.stopping event
         if self._event_bus:
@@ -1969,9 +1915,7 @@ class PlatformOS:
 
         # Shut down event bus
         if self._event_bus:
-            shutdown_timeout = float(
-                self._config.get("lifecycle", {}).get("shutdown_timeout_sec", 30)
-            )
+            float(self._config.get("lifecycle", {}).get("shutdown_timeout_sec", 30))
             self._event_bus.shutdown()
 
         self._transition_to(LifecycleState.STOPPED)
@@ -1989,16 +1933,15 @@ class PlatformOS:
             LifecycleState.DEGRADED,
             LifecycleState.RECOVERING,
         ):
-            raise RuntimeError(f"Cannot pause from state {self._state.value}")
+            msg = f"Cannot pause from state {self._state.value}"
+            raise RuntimeError(msg)
 
         self._transition_to(LifecycleState.PAUSING)
         self._logger.info("Platform pausing...")
         if self._health_poll_task and not self._health_poll_task.done():
             self._health_poll_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._health_poll_task
-            except asyncio.CancelledError:
-                pass
             self._health_poll_task = None
         self._transition_to(LifecycleState.PAUSED)
         self._logger.info("Platform paused.")
@@ -2009,7 +1952,8 @@ class PlatformOS:
         Transitions PAUSED -> RECOVERING -> RUNNING (or DEGRADED).
         """
         if self._state != LifecycleState.PAUSED:
-            raise RuntimeError(f"Cannot resume from state {self._state.value}")
+            msg = f"Cannot resume from state {self._state.value}"
+            raise RuntimeError(msg)
 
         self._transition_to(LifecycleState.RECOVERING)
         self._logger.info("Platform resuming...")
@@ -2029,9 +1973,7 @@ class PlatformOS:
                         inst.status = HealthStatus.HEALTHY
                         self._logger.info("Recovered module: %s", record.name)
                     except Exception as exc:
-                        self._logger.error(
-                            "Failed to recover module %s: %s", record.name, exc
-                        )
+                        self._logger.error("Failed to recover module %s: %s", record.name, exc)
 
         # Restart health polling
         try:
@@ -2047,9 +1989,7 @@ class PlatformOS:
 
     async def _health_poll_loop(self) -> None:
         """Background loop that periodically runs health checks."""
-        self._logger.debug(
-            "Health poll loop started (interval=%.1fs)", self._health_poll_interval
-        )
+        self._logger.debug("Health poll loop started (interval=%.1fs)", self._health_poll_interval)
         while self._state in (
             LifecycleState.RUNNING,
             LifecycleState.DEGRADED,
@@ -2065,7 +2005,7 @@ class PlatformOS:
             except Exception as exc:
                 self._logger.error("Health poll error: %s", exc, exc_info=True)
 
-    def _evaluate_platform_health(self, reports: List[HealthReport]) -> None:
+    def _evaluate_platform_health(self, reports: list[HealthReport]) -> None:
         """Evaluate overall platform health from a set of reports.
 
         May transition to DEGRADED or RECOVERING based on required module status.
@@ -2074,22 +2014,26 @@ class PlatformOS:
             return
 
         # Find the platform aggregate report (last in list)
-        platform_report = next(
-            (r for r in reports if r.module_name == "platform"), None
-        )
+        platform_report = next((r for r in reports if r.module_name == "platform"), None)
         if platform_report is None:
             return
 
-        if platform_report.status == HealthStatus.UNHEALTHY and self._state != LifecycleState.DEGRADED:
+        if (
+            platform_report.status == HealthStatus.UNHEALTHY
+            and self._state != LifecycleState.DEGRADED
+        ):
             self._transition_to(LifecycleState.DEGRADED)
             self._logger.error("Platform health degraded!")
-        elif platform_report.status == HealthStatus.HEALTHY and self._state == LifecycleState.DEGRADED:
+        elif (
+            platform_report.status == HealthStatus.HEALTHY
+            and self._state == LifecycleState.DEGRADED
+        ):
             self._transition_to(LifecycleState.RECOVERING)
             self._logger.info("Platform recovering from degraded state...")
             # If everything is healthy, transition back to RUNNING
             self._transition_to(LifecycleState.RUNNING)
 
-    async def run_health_check(self) -> List[HealthReport]:
+    async def run_health_check(self) -> list[HealthReport]:
         """Manually trigger a full health check.
 
         Returns:
@@ -2099,7 +2043,7 @@ class PlatformOS:
             return []
         return await self._health_checker.run_all_checks()
 
-    async def run_module_health_check(self, module_name: str) -> Optional[HealthReport]:
+    async def run_module_health_check(self, module_name: str) -> HealthReport | None:
         """Run a health check for a single module."""
         if self._health_checker is None:
             return None
@@ -2114,12 +2058,11 @@ class PlatformOS:
         """
         with self._state_lock:
             if not self._state.can_transition_to(target):
-                raise RuntimeError(
-                    f"Invalid state transition: {self._state.value} -> {target.value}"
-                )
+                msg = f"Invalid state transition: {self._state.value} -> {target.value}"
+                raise RuntimeError(msg)
             old = self._state
             self._state = target
-            self._state_history.append((target, datetime.now(timezone.utc)))
+            self._state_history.append((target, datetime.now(UTC)))
 
             if self._event_bus:
                 self._event_bus.publish(
@@ -2134,9 +2077,7 @@ class PlatformOS:
                     )
                 )
 
-            self._logger.info(
-                "Platform state: %s -> %s", old.value, target.value
-            )
+            self._logger.info("Platform state: %s -> %s", old.value, target.value)
 
     @property
     def state(self) -> LifecycleState:
@@ -2145,7 +2086,7 @@ class PlatformOS:
             return self._state
 
     @property
-    def state_history(self) -> List[Tuple[LifecycleState, datetime]]:
+    def state_history(self) -> list[tuple[LifecycleState, datetime]]:
         """History of state transitions."""
         with self._state_lock:
             return list(self._state_history)
@@ -2153,32 +2094,32 @@ class PlatformOS:
     # ── Accessors ────────────────────────────────────────────────────────────
 
     @property
-    def event_bus(self) -> Optional[EventBus]:
+    def event_bus(self) -> EventBus | None:
         """The platform EventBus."""
         return self._event_bus
 
     @property
-    def module_registry(self) -> Optional[ModuleRegistry]:
+    def module_registry(self) -> ModuleRegistry | None:
         """The platform ModuleRegistry."""
         return self._module_registry
 
     @property
-    def health_checker(self) -> Optional[HealthChecker]:
+    def health_checker(self) -> HealthChecker | None:
         """The platform HealthChecker."""
         return self._health_checker
 
     @property
-    def metrics(self) -> Optional[MetricsCollector]:
+    def metrics(self) -> MetricsCollector | None:
         """The platform MetricsCollector."""
         return self._metrics_collector
 
     @property
-    def logging(self) -> Optional[LoggingBridge]:
+    def logging(self) -> LoggingBridge | None:
         """The platform LoggingBridge."""
         return self._logging_bridge
 
     @property
-    def config(self) -> Dict[str, Any]:
+    def config(self) -> dict[str, Any]:
         """The loaded platform configuration."""
         return self._config
 
@@ -2188,15 +2129,15 @@ class PlatformOS:
         return self._platform_id
 
     @property
-    def uptime_seconds(self) -> Optional[float]:
+    def uptime_seconds(self) -> float | None:
         """Platform uptime in seconds, or None if not started."""
         if self._started_at is None:
             return None
-        return (datetime.now(timezone.utc) - self._started_at).total_seconds()
+        return (datetime.now(UTC) - self._started_at).total_seconds()
 
     # ── Status Report ────────────────────────────────────────────────────────
 
-    def status_report(self) -> Dict[str, Any]:
+    def status_report(self) -> dict[str, Any]:
         """Generate a comprehensive status report for the platform."""
         mc = self._metrics_collector
         eb = self._event_bus
@@ -2214,7 +2155,9 @@ class PlatformOS:
                 "total_discovered": len(mr.list_modules()) if mr else 0,
                 "initialized": len(
                     [r for r in (mr.list_modules() if mr else []) if r.instance is not None]
-                ) if mr else 0,
+                )
+                if mr
+                else 0,
             },
             "events": eb.get_stats() if eb else {},
             "metrics": mc.snapshot() if mc else {},
@@ -2257,8 +2200,8 @@ class PlatformOS:
 
 
 def create_platform(
-    config_path: Optional[Path] = None,
-    modules_path: Optional[Path] = None,
+    config_path: Path | None = None,
+    modules_path: Path | None = None,
 ) -> PlatformOS:
     """Create and initialize a PlatformOS instance.
 

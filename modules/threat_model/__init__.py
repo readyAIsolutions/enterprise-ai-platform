@@ -16,22 +16,22 @@ Python: 3.10+
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
-    EventBus,
-    HealthStatus,
-    Module,
-    module,
+    EventBus,  # noqa: F401
+    HealthStatus,  # noqa: F401
+    Module,  # noqa: F401
+    module,  # noqa: F401
 )
 
 from .risk import (
+    STRIDE_MITIGATIONS,
     MitigationPlanner,
     Risk,
     RiskRegister,
     SeverityBand,
     SeverityScore,
-    STRIDE_MITIGATIONS,
     ThreatAssessment,
     ThreatEntry,
 )
@@ -80,6 +80,6 @@ __all__ = [
 _logger = logging.getLogger("enterprise.threat_model")
 
 
-def create_threat_facade(config: Optional[Dict[str, Any]] = None) -> ThreatModelFacade:
+def create_threat_facade(config: dict[str, Any] | None = None) -> ThreatModelFacade:
     """Create a ThreatModelFacade with default or custom configuration."""
     return ThreatModelFacade(config=config)

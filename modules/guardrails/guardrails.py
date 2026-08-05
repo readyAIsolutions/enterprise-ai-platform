@@ -23,16 +23,11 @@ import abc
 import json
 import logging
 import re
-import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Any
 
-from enterprise.platform_kernel import (
-    EventBus,
-    HealthStatus,
-    Module,
-    module,
-)
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger("enterprise.guardrails")
 
@@ -41,13 +36,15 @@ logger = logging.getLogger("enterprise.guardrails")
 # Result & Error types
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class ValidationResult:
     """Outcome of a single validator run."""
+
     passed: bool
-    score: float = 1.0                      # 0.0 .. 1.0
-    failure_reasons: List[str] = field(default_factory=list)
-    fixed_value: Optional[str] = None       # corrected text when fix is possible
+    score: float = 1.0  # 0.0 .. 1.0
+    failure_reasons: list[str] = field(default_factory=list)
+    fixed_value: str | None = None  # corrected text when fix is possible
 
 
 @dataclass
@@ -59,14 +56,15 @@ class GuardResult:
     runner and the new declarative Guard.run / Guardrails facade can share one
     aggregate type.
     """
+
     passed: bool
-    validations: List[Any] = field(default_factory=list)
+    validations: list[Any] = field(default_factory=list)
     final_text: str = ""
-    actions: List[str] = field(default_factory=list)
+    actions: list[str] = field(default_factory=list)
     guard_name: str = ""
     # Guardrails-AI plugin aggregation
-    failures: List["FailResult"] = field(default_factory=list)
-    fixes: List[Any] = field(default_factory=list)
+    failures: list[FailResult] = field(default_factory=list)
+    fixes: list[Any] = field(default_factory=list)
     name: str = ""
 
     def __post_init__(self) -> None:
@@ -84,8 +82,9 @@ class Guard:
     ``run()`` / ``__call__``, by the declarative Guardrails facade which
     implements the Guardrails-AI on_fail action semantics (block / fix / raise).
     """
+
     name: str
-    validators: List["Validator"] = field(default_factory=list)
+    validators: list[Validator] = field(default_factory=list)
     # filter | raise | fix | refix  (classic runner policy)
     on_fail: str = "filter"
     # hold = stop on first unresolvable violation; continue = keep evaluating
@@ -94,22 +93,20 @@ class Guard:
     def __post_init__(self) -> None:
         self.validators = list(self.validators)
 
-    def __call__(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> "GuardResult":
+    def __call__(self, value: Any, metadata: dict[str, Any] | None = None) -> GuardResult:
         return self.run(value, metadata)
 
-    def run(self, value: Any,
-            metadata: Optional[Dict[str, Any]] = None) -> "GuardResult":
+    def run(self, value: Any, metadata: dict[str, Any] | None = None) -> GuardResult:
         """Run all validators declaratively, honouring per-validator on_fail
         actions: 'fix' applies fix_value (re-validating the repaired value to
         confirm), 'block' rejects (no fix applied) and 'raise' raises
         GuardrailViolationError. Aggregates into a GuardResult.
         """
         passed = True
-        failures: List[FailResult] = []
-        fixes: List[Any] = []
-        actions: List[str] = []
-        validations: List[Any] = []
+        failures: list[FailResult] = []
+        fixes: list[Any] = []
+        actions: list[str] = []
+        validations: list[Any] = []
         current = value
 
         for validator in self.validators:
@@ -120,9 +117,7 @@ class Guard:
 
             # ---- Guardrails-AI on_fail action semantics ----
             if outcome.on_fail == "raise":
-                raise GuardrailViolationError(
-                    self.name, outcome.validator_name, outcome.reasons
-                )
+                raise GuardrailViolationError(self.name, outcome.validator_name, outcome.reasons)
 
             if outcome.on_fail == "fix" and outcome.fix_value is not None:
                 current = outcome.fix_value
@@ -164,8 +159,9 @@ class Guard:
 class GuardrailViolationError(Exception):
     """Raised by on_fail='raise' when a validator fails."""
 
-    def __init__(self, guard_name: str, validator_name: str,
-                 reasons: Optional[List[str]] = None):
+    def __init__(
+        self, guard_name: str, validator_name: str, reasons: list[str] | None = None
+    ) -> None:
         self.guard_name = guard_name
         self.validator_name = validator_name
         self.reasons = list(reasons or [])
@@ -180,6 +176,7 @@ class GuardrailViolationError(Exception):
 # Validator base
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class Validator(abc.ABC):
     """Base class for all validators.
 
@@ -191,14 +188,12 @@ class Validator(abc.ABC):
     validator that was registered for a specific type.
     """
 
-    def __init__(self, name: Optional[str] = None,
-                 data_type: str = "string"):
+    def __init__(self, name: str | None = None, data_type: str = "string") -> None:
         self.name = name or self.__class__.__name__
         self.data_type = data_type
 
     @abc.abstractmethod
-    def validate(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> Any:
+    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
         raise NotImplementedError  # pragma: no cover
 
 
@@ -206,30 +201,30 @@ class Validator(abc.ABC):
 # Built-in validators
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class NoPIIValidator(Validator):
     """Flags emails, phones and SSNs; can redact them via fixed_value."""
 
     EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-    PHONE_RE = re.compile(
-        r"\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b"
-    )
+    PHONE_RE = re.compile(r"\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b")
     SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 
-    def __init__(self, name: Optional[str] = None,
-                 redact: bool = True, redaction_token: str = "[REDACTED]"):
+    def __init__(
+        self, name: str | None = None, redact: bool = True, redaction_token: str = "[REDACTED]"
+    ) -> None:
         super().__init__(name or "NoPIIValidator")
         self.redact = redact
         self.redaction_token = redaction_token
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
-        reasons: List[str] = []
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
+        reasons: list[str] = []
         fixed = text
-        for label, regex, token in (
+        for label, regex, _token in (
             ("email", self.EMAIL_RE, "[EMAIL]"),
             ("phone", self.PHONE_RE, "[PHONE]"),
             ("ssn", self.SSN_RE, "[SSN]"),
         ):
-            for match in regex.finditer(text):
+            for _match in regex.finditer(text):
                 reasons.append(f"PII detected: {label}")
 
         if not reasons:
@@ -249,12 +244,24 @@ class NoPIIValidator(Validator):
 
 
 TOXIC_WORDS = [
-    "fuck", "fucking", "shit", "shitty", "bitch", "asshole", "bastard",
-    "dick", "cunt", "idiot", "stupid", "dumbass", "moron", "retard",
+    "fuck",
+    "fucking",
+    "shit",
+    "shitty",
+    "bitch",
+    "asshole",
+    "bastard",
+    "dick",
+    "cunt",
+    "idiot",
+    "stupid",
+    "dumbass",
+    "moron",
+    "retard",
 ]
 
 
-def _contains_any_word(text: str, words: List[str]) -> List[str]:
+def _contains_any_word(text: str, words: list[str]) -> list[str]:
     lowered = text.lower()
     found = []
     for word in words:
@@ -266,12 +273,11 @@ def _contains_any_word(text: str, words: List[str]) -> List[str]:
 class ProfanityValidator(Validator):
     """Flags curse words (word-boundary match, case-insensitive)."""
 
-    def __init__(self, name: Optional[str] = None,
-                 words: Optional[List[str]] = None):
+    def __init__(self, name: str | None = None, words: list[str] | None = None) -> None:
         super().__init__(name or "ProfanityValidator")
         self.words = list(words) if words is not None else TOXIC_WORDS.copy()
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
         found = _contains_any_word(text, self.words)
         if not found:
             return ValidationResult(passed=True, score=1.0)
@@ -285,12 +291,11 @@ class ProfanityValidator(Validator):
 class NoToxicValidator(Validator):
     """Flags toxic / profane content. Broader alias over the wordlist."""
 
-    def __init__(self, name: Optional[str] = None,
-                 words: Optional[List[str]] = None):
+    def __init__(self, name: str | None = None, words: list[str] | None = None) -> None:
         super().__init__(name or "NoToxicValidator")
         self.words = list(words) if words is not None else TOXIC_WORDS.copy()
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
         found = _contains_any_word(text, self.words)
         if not found:
             return ValidationResult(passed=True, score=1.0)
@@ -304,15 +309,16 @@ class NoToxicValidator(Validator):
 class LengthValidator(Validator):
     """Enforces min and/or max on string length."""
 
-    def __init__(self, min: Optional[int] = None, max: Optional[int] = None,
-                 name: Optional[str] = None):
+    def __init__(
+        self, min: int | None = None, max: int | None = None, name: str | None = None
+    ) -> None:
         super().__init__(name or "LengthValidator")
         self.min = min
         self.max = max
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
         length = len(text)
-        reasons: List[str] = []
+        reasons: list[str] = []
         if self.min is not None and length < self.min:
             reasons.append(f"too short: {length} < min {self.min}")
         if self.max is not None and length > self.max:
@@ -333,12 +339,12 @@ class LengthValidator(Validator):
 class RegexValidator(Validator):
     """Requires the text to contain a match for the given pattern."""
 
-    def __init__(self, pattern: str, name: Optional[str] = None):
+    def __init__(self, pattern: str, name: str | None = None) -> None:
         super().__init__(name or "RegexValidator")
         self.pattern = pattern
         self._regex = re.compile(pattern)
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
         if self._regex.search(text):
             return ValidationResult(passed=True, score=1.0)
         return ValidationResult(
@@ -359,12 +365,12 @@ class NoPromptInjectionValidator(Validator):
         r"(?i)</?system>|\[INST\]|<<SYS>>|</?instruction>",
     ]
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name or "NoPromptInjectionValidator")
         self._compiled = [re.compile(p) for p in self.PATTERNS]
 
-    def validate(self, text: str, context: Optional[Dict[str, Any]] = None) -> ValidationResult:
-        reasons: List[str] = []
+    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
+        reasons: list[str] = []
         for regex in self._compiled:
             if regex.search(text):
                 reasons.append(f"prompt injection detected: {regex.pattern}")
@@ -376,13 +382,11 @@ class NoPromptInjectionValidator(Validator):
 class JSONSchemaValidator(Validator):
     """Parses text as JSON and validates it against a simple schema."""
 
-    def __init__(self, params: Optional[Dict[str, Any]] = None,
-                 name: Optional[str] = None):
+    def __init__(self, params: dict[str, Any] | None = None, name: str | None = None) -> None:
         super().__init__(name or "JSONSchemaValidator", data_type="json")
         self.params = params or {}
 
-    def validate(self, text: Any,
-                 context: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def validate(self, text: Any, context: dict[str, Any] | None = None) -> ValidationResult:
         # Accept either a raw JSON string (classic path) or an already-parsed
         # value (Guardrails-AI data_type='json' dispatch path).
         if isinstance(text, str):
@@ -390,7 +394,8 @@ class JSONSchemaValidator(Validator):
                 data = json.loads(text)
             except (json.JSONDecodeError, TypeError) as exc:
                 return ValidationResult(
-                    passed=False, score=0.0,
+                    passed=False,
+                    score=0.0,
                     failure_reasons=[f"invalid JSON: {exc}"],
                 )
         else:
@@ -400,10 +405,10 @@ class JSONSchemaValidator(Validator):
             return ValidationResult(passed=False, score=0.0, failure_reasons=errors)
         return ValidationResult(passed=True, score=1.0)
 
-    def _check(self, data: Any, schema: Any, path: str) -> List[str]:
+    def _check(self, data: Any, schema: Any, path: str) -> list[str]:
         if not isinstance(schema, dict):
             return []
-        errors: List[str] = []
+        errors: list[str] = []
 
         schema_type = schema.get("type")
         if schema_type and not _matches_type(data, schema_type):
@@ -472,7 +477,7 @@ def _py_type(data: Any) -> str:
     return type(data).__name__
 
 
-def regex_sub_all(pattern: "re.Pattern", replacement: str, text: str) -> str:
+def regex_sub_all(pattern: re.Pattern, replacement: str, text: str) -> str:
     return pattern.sub(replacement, text)
 
 
@@ -480,17 +485,17 @@ def regex_sub_all(pattern: "re.Pattern", replacement: str, text: str) -> str:
 # Runner
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class GuardRailRunner:
     """Runs a guard's validators in order with the configured fail policy."""
 
-    def __init__(self, max_refix_rounds: int = 3):
+    def __init__(self, max_refix_rounds: int = 3) -> None:
         self.max_refix_rounds = max_refix_rounds
 
-    def run(self, guard: Guard, text: str,
-            context: Optional[Dict[str, Any]] = None) -> GuardResult:
+    def run(self, guard: Guard, text: str, context: dict[str, Any] | None = None) -> GuardResult:
         context = context or {}
-        validations: List[ValidationResult] = []
-        actions: List[str] = []
+        validations: list[ValidationResult] = []
+        actions: list[str] = []
         violation = False
 
         rounds = 0
@@ -526,9 +531,7 @@ class GuardRailRunner:
 
             # Validator failed.
             if guard.on_fail == "raise":
-                raise GuardrailViolationError(
-                    guard.name, validator.name, result.failure_reasons
-                )
+                raise GuardrailViolationError(guard.name, validator.name, result.failure_reasons)
 
             if guard.on_fail in ("fix", "refix"):
                 if result.fixed_value is not None:
@@ -572,30 +575,32 @@ class GuardRailRunner:
 # Facade
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class GuardRailFacade:
     """Registry + validation entry point for named guards."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None,
-                 runner: Optional[GuardRailRunner] = None):
+    def __init__(
+        self, config: dict[str, Any] | None = None, runner: GuardRailRunner | None = None
+    ) -> None:
         self._config = config or {}
-        self._guards: Dict[str, Guard] = {}
+        self._guards: dict[str, Guard] = {}
         self._runner = runner or GuardRailRunner()
 
     def register_guard(self, guard: Guard) -> Guard:
         self._guards[guard.name] = guard
         return guard
 
-    def validate(self, name: str, text: str,
-                 context: Optional[Dict[str, Any]] = None) -> GuardResult:
+    def validate(self, name: str, text: str, context: dict[str, Any] | None = None) -> GuardResult:
         guard = self._guards.get(name)
         if guard is None:
-            raise KeyError(f"Unknown guard: {name}")
+            msg = f"Unknown guard: {name}"
+            raise KeyError(msg)
         return self._runner.run(guard, text, context)
 
-    def list_guards(self) -> List[str]:
+    def list_guards(self) -> list[str]:
         return list(self._guards.keys())
 
-    def get_guard(self, name: str) -> Optional[Guard]:
+    def get_guard(self, name: str) -> Guard | None:
         return self._guards.get(name)
 
 
@@ -605,16 +610,18 @@ class GuardRailFacade:
 #  dispatch + on_fail fix/block/raise semantics) — stdlib only.
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class PassResult:
     """Guardrails-AI style pass outcome for a validator run."""
+
     passed: bool = True
     validator_name: str = ""
     error_message: str = ""
     fix_value: Any = None
-    on_fail: Optional[str] = None
+    on_fail: str | None = None
     # aliases kept for drop-in compatibility with the classic path
-    failure_reasons: List[str] = field(default_factory=list)
+    failure_reasons: list[str] = field(default_factory=list)
     fixed_value: Any = None
     score: float = 1.0
 
@@ -628,13 +635,14 @@ class FailResult:
       - 'block': reject the input (do NOT apply a fix)
       - 'raise': raise GuardrailViolationError
     """
+
     passed: bool = False
     validator_name: str = ""
     error_message: str = ""
     fix_value: Any = None
     on_fail: str = "block"
     # aliases kept for drop-in compatibility with the classic path
-    failure_reasons: List[str] = field(default_factory=list)
+    failure_reasons: list[str] = field(default_factory=list)
     fixed_value: Any = None
     score: float = 0.0
 
@@ -670,18 +678,20 @@ def _canonical_text(value: Any) -> str:
 @dataclass
 class _RunOutcome:
     """Normalised single-validator evaluation."""
+
     raw: Any
     passed: bool
     validator_name: str
     error_message: str
     fix_value: Any
     on_fail: str
-    reasons: List[str]
-    failure: Optional[FailResult]
+    reasons: list[str]
+    failure: FailResult | None
 
 
-def _evaluate_validator(validator: Validator, value: Any,
-                        metadata: Optional[Dict[str, Any]] = None) -> _RunOutcome:
+def _evaluate_validator(
+    validator: Validator, value: Any, metadata: dict[str, Any] | None = None
+) -> _RunOutcome:
     """Validate ``value`` through ``validator`` after applying data_type
     coercion, normalising the result (PassResult / FailResult / ValidationResult)
     into a single _RunOutcome."""
@@ -721,15 +731,17 @@ def _evaluate_validator(validator: Validator, value: Any,
             failure_reasons=reasons,
             fixed_value=raw.fixed_value,
         )
-        return _RunOutcome(raw, False, vname, "; ".join(reasons),
-                           raw.fixed_value, on_fail, reasons, fail)
+        return _RunOutcome(
+            raw, False, vname, "; ".join(reasons), raw.fixed_value, on_fail, reasons, fail
+        )
 
     # Unknown result contract: default to blocking if not truthily passing.
     passed = bool(getattr(raw, "passed", raw is True))
     if passed:
         return _RunOutcome(raw, True, vname, "", None, "", [], None)
-    return _RunOutcome(raw, False, vname, "validation failed", None,
-                       "block", ["validation failed"], None)
+    return _RunOutcome(
+        raw, False, vname, "validation failed", None, "block", ["validation failed"], None
+    )
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -737,26 +749,25 @@ def _evaluate_validator(validator: Validator, value: Any,
 # ───────────────────────────────────────────────────────────────────────────
 
 _PII_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-_PII_PHONE_RE = re.compile(
-    r"\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b"
-)
+_PII_PHONE_RE = re.compile(r"\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b")
 _PII_SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 
 
 class PIIValidator(Validator):
     """Flags emails / phones / SSNs; on_fail='fix' offers a redacted fix_value."""
 
-    def __init__(self, name: Optional[str] = None, redact: bool = True):
+    def __init__(self, name: str | None = None, redact: bool = True) -> None:
         super().__init__(name or "PIIValidator", data_type="string")
         self.redact = redact
 
-    def validate(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> Any:
+    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
         text = str(value)
-        reasons: List[str] = []
-        for label, regex in (("email", _PII_EMAIL_RE),
-                             ("phone", _PII_PHONE_RE),
-                             ("ssn", _PII_SSN_RE)):
+        reasons: list[str] = []
+        for label, regex in (
+            ("email", _PII_EMAIL_RE),
+            ("phone", _PII_PHONE_RE),
+            ("ssn", _PII_SSN_RE),
+        ):
             if regex.search(text):
                 reasons.append(f"PII detected: {label}")
         if not reasons:
@@ -790,14 +801,13 @@ _PROMPT_INJECTION_PATTERNS = [
 class PromptInjectionValidator(Validator):
     """Flags prompt-injection attempts (ignore/override instruction patterns)."""
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name or "PromptInjectionValidator", data_type="string")
         self._compiled = [re.compile(p) for p in _PROMPT_INJECTION_PATTERNS]
 
-    def validate(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> Any:
+    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
         text = str(value)
-        reasons = [f"prompt injection detected" for p in self._compiled if p.search(text)]
+        reasons = ["prompt injection detected" for p in self._compiled if p.search(text)]
         if not reasons:
             return PassResult(validator_name=self.name)
         return FailResult(
@@ -821,12 +831,11 @@ _JAILBREAK_PATTERNS = [
 class JailbreakValidator(Validator):
     """Flags classic 'jailbreak' / 'DAN' / 'do anything now' attempt markers."""
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name or "JailbreakValidator", data_type="string")
         self._compiled = [re.compile(p) for p in _JAILBREAK_PATTERNS]
 
-    def validate(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> Any:
+    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
         text = str(value)
         reasons = [f"jailbreak marker: {p.pattern}" for p in self._compiled if p.search(text)]
         if not reasons:
@@ -852,12 +861,11 @@ _SHELL_INJECTION_PATTERNS = [
 class ShellInjectionValidator(Validator):
     """Flags shell command-injection payloads (metacharacters, exec calls)."""
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name or "ShellInjectionValidator", data_type="string")
         self._compiled = [re.compile(p) for p in _SHELL_INJECTION_PATTERNS]
 
-    def validate(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> Any:
+    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
         text = str(value)
         reasons = [f"shell injection: {p.pattern}" for p in self._compiled if p.search(text)]
         if not reasons:
@@ -884,12 +892,11 @@ _SQL_INJECTION_PATTERNS = [
 class SQLInjectionValidator(Validator):
     """Flags classic SQL injection payloads (tautologies, stacked queries)."""
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name or "SQLInjectionValidator", data_type="string")
         self._compiled = [re.compile(p) for p in _SQL_INJECTION_PATTERNS]
 
-    def validate(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> Any:
+    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
         text = str(value)
         reasons = [f"sql injection: {p.pattern}" for p in self._compiled if p.search(text)]
         if not reasons:
@@ -905,12 +912,11 @@ class SQLInjectionValidator(Validator):
 class ToxicLanguageValidator(Validator):
     """Flags toxic / profane language against a wordlist (on_fail='block')."""
 
-    def __init__(self, name: Optional[str] = None, words: Optional[List[str]] = None):
+    def __init__(self, name: str | None = None, words: list[str] | None = None) -> None:
         super().__init__(name or "ToxicLanguageValidator", data_type="string")
         self.words = list(words) if words is not None else TOXIC_WORDS.copy()
 
-    def validate(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> Any:
+    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
         text = str(value)
         found = _contains_any_word(text, self.words)
         if not found:
@@ -931,13 +937,12 @@ class SecretLeakValidator(Validator):
     _PEM_PRIV_RE = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
     _BEARER_RE = re.compile(r"(?i)\b(?:bearer|token)\s+[A-Za-z0-9._~+/=-]{20,}")
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name or "SecretLeakValidator", data_type="string")
 
-    def validate(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> Any:
+    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
         text = str(value)
-        reasons: List[str] = []
+        reasons: list[str] = []
         if self._AWS_KEY_RE.search(text):
             reasons.append("AWS access key leaked")
         if self._PEM_PRIV_RE.search(text):
@@ -963,13 +968,12 @@ class URLValidator(Validator):
     """Flags non-http(s) URL schemes (javascript:, data:, file:) and malformed
     absolute URLs — a lightweight SSRF/credential-exfil guard."""
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, name: str | None = None) -> None:
         super().__init__(name or "URLValidator", data_type="string")
 
-    def validate(self, value: Any,
-                 metadata: Optional[Dict[str, Any]] = None) -> Any:
+    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
         text = str(value)
-        reasons: List[str] = []
+        reasons: list[str] = []
         for match in _URL_SCHEME_RE.finditer(text):
             scheme = match.group(1).lower()
             if scheme not in ("http", "https"):
@@ -995,33 +999,34 @@ class URLValidator(Validator):
 # ValidatorRegistry + register_validator
 # ───────────────────────────────────────────────────────────────────────────
 
+
 class ValidatorRegistry:
     """Name -> validator-class registry with a register_validator decorator and
     per-name data_type dispatch metadata."""
 
     def __init__(self) -> None:
-        self._validators: Dict[str, Type[Validator]] = {}
-        self._data_types: Dict[str, str] = {}
+        self._validators: dict[str, type[Validator]] = {}
+        self._data_types: dict[str, str] = {}
 
-    def register_validator(self, name: str,
-                           data_type: str = "string") -> Callable[[Type[Validator]], Type[Validator]]:
+    def register_validator(
+        self, name: str, data_type: str = "string"
+    ) -> Callable[[type[Validator]], type[Validator]]:
         """Decorator registering a validator class under ``name``."""
 
-        def decorator(cls: Type[Validator]) -> Type[Validator]:
+        def decorator(cls: type[Validator]) -> type[Validator]:
             if name in self._validators:
-                raise ValueError(f"Validator '{name}' already registered")
+                msg = f"Validator '{name}' already registered"
+                raise ValueError(msg)
             if not (isinstance(cls, type) and issubclass(cls, Validator)):
-                raise TypeError(
-                    f"register_validator('{name}') requires a Validator subclass, "
-                    f"got {cls!r}"
-                )
+                msg = f"register_validator('{name}') requires a Validator subclass, got {cls!r}"
+                raise TypeError(msg)
             self._validators[name] = cls
             self._data_types[name] = data_type
             return cls
 
         return decorator
 
-    def get(self, name: str) -> Optional[Type[Validator]]:
+    def get(self, name: str) -> type[Validator] | None:
         return self._validators.get(name)
 
     def requires(self, name: str) -> str:
@@ -1031,16 +1036,15 @@ class ValidatorRegistry:
     def instantiate(self, name: str, *args: Any, **kwargs: Any) -> Validator:
         cls = self._validators.get(name)
         if cls is None:
-            raise KeyError(f"Unknown validator: {name}")
+            msg = f"Unknown validator: {name}"
+            raise KeyError(msg)
         validator = cls(*args, **kwargs)
         # The registry's registered data_type drives dispatch; apply it so a
         # validator registered for 'number'/'json' is coerced appropriately.
-        validator.data_type = self._data_types.get(
-            name, getattr(validator, "data_type", "string")
-        )
+        validator.data_type = self._data_types.get(name, getattr(validator, "data_type", "string"))
         return validator
 
-    def list_validators(self) -> List[str]:
+    def list_validators(self) -> list[str]:
         return sorted(self._validators.keys())
 
     def __contains__(self, name: str) -> bool:
@@ -1084,13 +1088,14 @@ def register_validator(name: str, data_type: str = "string"):
 # Guardrails facade (declarative)
 # ───────────────────────────────────────────────────────────────────────────
 
-def _aggregate(results: List[GuardResult]) -> GuardResult:
+
+def _aggregate(results: list[GuardResult]) -> GuardResult:
     """Combine multiple per-guard results into one aggregate GuardResult."""
     all_passed = all(r.passed for r in results)
-    failures: List[FailResult] = []
-    fixes: List[Any] = []
-    validations: List[Any] = []
-    actions: List[str] = []
+    failures: list[FailResult] = []
+    fixes: list[Any] = []
+    validations: list[Any] = []
+    actions: list[str] = []
     for r in results:
         failures.extend(r.failures)
         fixes.extend(r.fixes)
@@ -1121,20 +1126,21 @@ class Guardrails:
     guards and returns the aggregate GuardResult.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None,
-                 registry: Optional[ValidatorRegistry] = None):
+    def __init__(
+        self, config: dict[str, Any] | None = None, registry: ValidatorRegistry | None = None
+    ) -> None:
         self._config = config or {}
         self.registry = registry or build_default_registry()
-        self._guards: Dict[str, Guard] = {}
+        self._guards: dict[str, Guard] = {}
 
     # -- registry plumbing -------------------------------------------------
     def register_validator(self, name: str, data_type: str = "string"):
         return self.registry.register_validator(name, data_type)
 
-    def list_validators(self) -> List[str]:
+    def list_validators(self) -> list[str]:
         return self.registry.list_validators()
 
-    def get_validator(self, name: str) -> Optional[Type[Validator]]:
+    def get_validator(self, name: str) -> type[Validator] | None:
         return self.registry.get(name)
 
     # -- guards ------------------------------------------------------------
@@ -1142,35 +1148,38 @@ class Guardrails:
         self._guards[guard.name] = guard
         return guard
 
-    def add_guard(self, name: str, validators: List[Validator],
-                  on_fail: str = "block") -> Guard:
+    def add_guard(self, name: str, validators: list[Validator], on_fail: str = "block") -> Guard:
         guard = Guard(name=name, validators=validators, on_fail=on_fail)
         return self.register_guard(guard)
 
-    def list_guards(self) -> List[str]:
+    def list_guards(self) -> list[str]:
         return list(self._guards.keys())
 
-    def get_guard(self, name: str) -> Optional[Guard]:
+    def get_guard(self, name: str) -> Guard | None:
         return self._guards.get(name)
 
     # -- validation --------------------------------------------------------
-    def validate(self, value: Any, guard_names: Union[str, List[str]],
-                 metadata: Optional[Dict[str, Any]] = None) -> GuardResult:
-        if isinstance(guard_names, str):
-            names = [guard_names]
-        else:
-            names = list(guard_names)
+    def validate(
+        self,
+        value: Any,
+        guard_names: str | list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> GuardResult:
+        names = [guard_names] if isinstance(guard_names, str) else list(guard_names)
         if not names:
-            return GuardResult(passed=True, final_text=_canonical_text(value),
-                               guard_name="", name="")
-        results: List[GuardResult] = []
+            return GuardResult(
+                passed=True, final_text=_canonical_text(value), guard_name="", name=""
+            )
+        results: list[GuardResult] = []
         for name in names:
             guard = self._guards.get(name)
             if guard is None:
-                raise KeyError(f"Unknown guard: {name}")
+                msg = f"Unknown guard: {name}"
+                raise KeyError(msg)
             results.append(guard.run(value, metadata))
         return _aggregate(results)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (f"<Guardrails guards={list(self._guards)} "
-                f"validators={self.registry.list_validators()}>")
+        return (
+            f"<Guardrails guards={list(self._guards)} validators={self.registry.list_validators()}>"
+        )

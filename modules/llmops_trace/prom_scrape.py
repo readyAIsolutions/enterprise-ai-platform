@@ -29,7 +29,7 @@ from __future__ import annotations
 import http.client
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from enterprise.modules.llmops_trace.otel_genai import (
     ExportPipeline,
@@ -56,8 +56,8 @@ class PrometheusScrapeEndpoint:
 
     def __init__(
         self,
-        pipeline: Optional[ExportPipeline] = None,
-        exporter: Optional[PrometheusExporter] = None,
+        pipeline: ExportPipeline | None = None,
+        exporter: PrometheusExporter | None = None,
     ) -> None:
         if exporter is None:
             if pipeline is None:
@@ -65,11 +65,7 @@ class PrometheusScrapeEndpoint:
             else:
                 # Reuse an exporter already wired into the pipeline so spans
                 # flushed before this endpoint started are still served.
-                wired = [
-                    e
-                    for e in pipeline.exporters
-                    if isinstance(e, PrometheusExporter)
-                ]
+                wired = [e for e in pipeline.exporters if isinstance(e, PrometheusExporter)]
                 exporter = wired[0] if wired else PrometheusExporter()
         if pipeline is None:
             pipeline = ExportPipeline(exporters=[exporter])
@@ -79,8 +75,8 @@ class PrometheusScrapeEndpoint:
             pipeline.register(exporter)
         self.pipeline = pipeline
         self.exporter = exporter
-        self._httpd: Optional[ThreadingHTTPServer] = None
-        self._thread: Optional[threading.Thread] = None
+        self._httpd: ThreadingHTTPServer | None = None
+        self._thread: threading.Thread | None = None
 
     # -- connection info -----------------------------------------------------
 
@@ -89,7 +85,7 @@ class PrometheusScrapeEndpoint:
         return HOST
 
     @property
-    def port(self) -> Optional[int]:
+    def port(self) -> int | None:
         """The bound ephemeral port, or None while the endpoint is stopped."""
         if self._httpd is not None:
             return int(self._httpd.server_address[1])
@@ -99,7 +95,8 @@ class PrometheusScrapeEndpoint:
     def url(self) -> str:
         port = self.port
         if port is None:
-            raise RuntimeError("endpoint is not running")
+            msg = "endpoint is not running"
+            raise RuntimeError(msg)
         return f"http://{self.host}:{port}/metrics"
 
     # -- data ----------------------------------------------------------------
@@ -131,14 +128,12 @@ class PrometheusScrapeEndpoint:
 
         return Handler
 
-    def start(self) -> "PrometheusScrapeEndpoint":
+    def start(self) -> PrometheusScrapeEndpoint:
         """Bind an ephemeral port and serve ``/metrics`` in a daemon thread."""
         self.stop()
         handler = self._make_handler()
         self._httpd = ThreadingHTTPServer((self.host, 0), handler)
-        self._thread = threading.Thread(
-            target=self._httpd.serve_forever, daemon=True
-        )
+        self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
         return self
 
@@ -152,7 +147,7 @@ class PrometheusScrapeEndpoint:
 
     # -- context-manager convenience ----------------------------------------
 
-    def __enter__(self) -> "PrometheusScrapeEndpoint":
+    def __enter__(self) -> PrometheusScrapeEndpoint:
         return self.start()
 
     def __exit__(self, *exc: Any) -> None:
@@ -160,8 +155,8 @@ class PrometheusScrapeEndpoint:
 
 
 def ScrapeTarget(
-    pipeline: Optional[ExportPipeline] = None,
-    exporter: Optional[PrometheusExporter] = None,
+    pipeline: ExportPipeline | None = None,
+    exporter: PrometheusExporter | None = None,
 ) -> PrometheusScrapeEndpoint:
     """Start a :class:`PrometheusScrapeEndpoint` on an ephemeral port.
 
@@ -177,7 +172,7 @@ def ScrapeTarget(
 def fetch_metrics(
     endpoint: PrometheusScrapeEndpoint,
     path: str = "/metrics",
-) -> Tuple[int, Dict[str, str], bytes]:
+) -> tuple[int, dict[str, str], bytes]:
     """Perform a real HTTP scrape with ``http.client``.
 
     Returns ``(status, headers, body)`` from ``GET <path>`` on the endpoint — a

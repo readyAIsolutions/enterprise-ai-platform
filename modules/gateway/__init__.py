@@ -21,7 +21,7 @@ __version__ = "1.0.0"
 __module__ = "gateway"
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     Event,
@@ -109,17 +109,20 @@ class GatewayModule(Module):
     Config schema::
 
         {
-          "channels": {
-             "alerts": {"type": "telegram", "token": "...", "chat_id": "..."},
-             "ops":    {"type": "discord",  "webhook_url": "..."},
-             "infra":  {"type": "webhook",  "url": "...", "headers": {...}}
-          },
-          "jobs": [
-             {"id": "daily-report", "kind": "cron",
-              "expr": "0 9 * * 1-5", "callback": "send_daily_report"},
-             {"id": "heartbeat", "kind": "interval",
-              "interval": 300, "callback": "heartbeat"}
-          ]
+            "channels": {
+                "alerts": {"type": "telegram", "token": "...", "chat_id": "..."},
+                "ops": {"type": "discord", "webhook_url": "..."},
+                "infra": {"type": "webhook", "url": "...", "headers": {...}},
+            },
+            "jobs": [
+                {
+                    "id": "daily-report",
+                    "kind": "cron",
+                    "expr": "0 9 * * 1-5",
+                    "callback": "send_daily_report",
+                },
+                {"id": "heartbeat", "kind": "interval", "interval": 300, "callback": "heartbeat"},
+            ],
         }
 
     Events published:

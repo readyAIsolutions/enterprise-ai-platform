@@ -19,8 +19,8 @@ Architecture:
 
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 # Ensure core compression engine is importable
 _ENI_CORE = os.path.join(os.path.dirname(__file__), "..", "..", "..", "eni_compression")
@@ -30,31 +30,32 @@ if _ENI_CORE not in sys.path:
 # Import from platform kernel, handling both absolute (from parent dir)
 # and relative (from within enterprise/) contexts.
 try:
-    from enterprise.platform_kernel import Module, module, HealthStatus
+    from enterprise.platform_kernel import HealthStatus, Module, module
 except ImportError:
     # Running from inside enterprise/ — need the parent on sys.path
     _enterprise_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     _parent = os.path.dirname(_enterprise_dir)
     if _parent not in sys.path:
         sys.path.insert(0, _parent)
-    from enterprise.platform_kernel import Module, module, HealthStatus
+    from enterprise.platform_kernel import HealthStatus, Module, module
 
+from .codecs import (
+    Bz2Codec,
+    Codec,
+    CodecRegistry,
+    GzipCodec,
+    JsonCodec,
+    NOOPCodec,
+    XZCodec,
+    negotiate_ratio,
+)
 from .compression_bridge import (
     CompressionBridge,
     CompressionHealthCheck,
 )
-from .codecs import (
-    Codec,
-    XZCodec,
-    GzipCodec,
-    Bz2Codec,
-    JsonCodec,
-    NOOPCodec,
-    CodecRegistry,
-    negotiate_ratio,
-)
 
 # ── Module class registered with the platform kernel ──────────────────────
+
 
 @module(name="compression_bridge", version="3.0.0")
 class CompressionBridgeModule(Module):
@@ -125,6 +126,7 @@ class CompressionBridgeModule(Module):
 
 
 # ── Module factory (platform contract) ─────────────────────────────────────
+
 
 def create_compression_bridge_module(config: dict | None = None) -> CompressionBridgeModule:
     """Create and return a CompressionBridgeModule instance.

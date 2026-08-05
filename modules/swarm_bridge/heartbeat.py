@@ -20,6 +20,7 @@ Provides real, clock-driven liveness tracking (no stubs):
 The clock is injectable (SwarmClock or any object exposing now()) so tests can
 drive time deterministically.  Stdlib only — no third-party dependencies.
 """
+
 from __future__ import annotations
 
 import json
@@ -27,8 +28,11 @@ import logging
 import sqlite3
 import threading
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Set, Union, cast
+from dataclasses import asdict, dataclass, field
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    import builtins
 
 logger = logging.getLogger("enterprise.swarm.heartbeat")
 
@@ -95,12 +99,12 @@ class SwarmMember:
     member_id: str
     role: str
     addr: str
-    capabilities: List[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
     status: str = STATUS_ALIVE
-    last_heartbeat: Optional[float] = None
-    registered_at: Optional[float] = None
+    last_heartbeat: float | None = None
+    registered_at: float | None = None
 
-    def mark_alive(self, timestamp: Optional[float] = None) -> None:
+    def mark_alive(self, timestamp: float | None = None) -> None:
         """Stamp a fresh heartbeat and flip status to alive."""
         self.last_heartbeat = timestamp
         self.status = STATUS_ALIVE
@@ -108,11 +112,11 @@ class SwarmMember:
     def is_alive(self) -> bool:
         return self.status in (STATUS_ALIVE,)
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, object]) -> "SwarmMember":
+    def from_dict(cls, data: dict[str, object]) -> SwarmMember:
         allowed = {
             "member_id",
             "role",
@@ -123,7 +127,7 @@ class SwarmMember:
             "registered_at",
         }
         kwargs = {k: v for k, v in data.items() if k in allowed}
-        caps_val = cast(Optional[List[str]], kwargs.get("capabilities"))
+        caps_val = cast("list[str] | None", kwargs.get("capabilities"))
         last_hb = kwargs.get("last_heartbeat")
         reg_at = kwargs.get("registered_at")
         return cls(
@@ -132,8 +136,8 @@ class SwarmMember:
             addr=str(kwargs.get("addr", "")),
             capabilities=list(caps_val or []),
             status=str(kwargs.get("status", STATUS_ALIVE)),
-            last_heartbeat=float(cast(float, last_hb)) if last_hb is not None else None,
-            registered_at=float(cast(float, reg_at)) if reg_at is not None else None,
+            last_heartbeat=float(cast("float", last_hb)) if last_hb is not None else None,
+            registered_at=float(cast("float", reg_at)) if reg_at is not None else None,
         )
 
 
@@ -149,10 +153,10 @@ class MemberRegistry:
     thread-safe.
     """
 
-    def __init__(self, db_path: Optional[str] = None, clock: Optional[SwarmClock] = None) -> None:
-        self._members: Dict[str, SwarmMember] = {}
+    def __init__(self, db_path: str | None = None, clock: SwarmClock | None = None) -> None:
+        self._members: dict[str, SwarmMember] = {}
         self._lock = threading.RLock()
-        self._db_path: Optional[str] = db_path
+        self._db_path: str | None = db_path
         self._clock = clock or SwarmClock()
         if db_path is not None:
             self._init_db(db_path)
@@ -230,7 +234,7 @@ class MemberRegistry:
         with self._lock:
             for row in rows:
                 member_id, role, addr, cap_json, status, lh, ra = row
-                caps: List[str] = []
+                caps: list[str] = []
                 if cap_json:
                     try:
                         caps = json.loads(cap_json)
@@ -268,7 +272,7 @@ class MemberRegistry:
             self._persist(member)
             return member
 
-    def unregister(self, member_id: str) -> Optional[SwarmMember]:
+    def unregister(self, member_id: str) -> SwarmMember | None:
         """Remove a member.  Returns the removed member, or None if absent."""
         with self._lock:
             removed = self._members.pop(member_id, None)
@@ -276,14 +280,15 @@ class MemberRegistry:
                 self._delete_row(member_id)
             return removed
 
-    def get(self, member_id: str) -> Optional[SwarmMember]:
+    def get(self, member_id: str) -> SwarmMember | None:
         with self._lock:
             return self._members.get(member_id)
 
     def get_or_raise(self, member_id: str) -> SwarmMember:
         member = self.get(member_id)
         if member is None:
-            raise KeyError(f"unknown swarm member: {member_id!r}")
+            msg = f"unknown swarm member: {member_id!r}"
+            raise KeyError(msg)
         return member
 
     def contains(self, member_id: str) -> bool:
@@ -300,9 +305,9 @@ class MemberRegistry:
 
     def list(
         self,
-        role: Optional[str] = None,
-        status: Optional[str] = None,
-    ) -> List[SwarmMember]:
+        role: str | None = None,
+        status: str | None = None,
+    ) -> builtins.list[SwarmMember]:
         """Return members, optionally filtered by role and/or status."""
         with self._lock:
             members = list(self._members.values())
@@ -314,11 +319,11 @@ class MemberRegistry:
         members.sort(key=lambda m: m.member_id)
         return members
 
-    def roles(self) -> Set[str]:
+    def roles(self) -> set[str]:
         with self._lock:
             return {m.role for m in self._members.values()}
 
-    def snapshots(self) -> List[Dict[str, object]]:
+    def snapshots(self) -> builtins.list[dict[str, object]]:
         with self._lock:
             return [m.to_dict() for m in self._members.values()]
 
@@ -352,14 +357,14 @@ class HeartbeatProtocol:
         self,
         registry: MemberRegistry,
         floor_misses: int = 2,
-        clock: Optional[SwarmClock] = None,
+        clock: SwarmClock | None = None,
     ) -> None:
         self._registry = registry
         self._clock = clock or getattr(registry, "_clock", None) or SwarmClock()
         # floor_misses = consecutive missed passes tolerated before "lost".
         # First miss -> absent; once misses >= floor, escalate to lost.
         self._floor_misses = max(1, int(floor_misses))
-        self._miss_counts: Dict[str, int] = {}
+        self._miss_counts: dict[str, int] = {}
 
     def now(self) -> float:
         return self._clock.now()
@@ -368,12 +373,13 @@ class HeartbeatProtocol:
     def send_heartbeat(
         self,
         member_id: str,
-        timestamp: Optional[float] = None,
+        timestamp: float | None = None,
     ) -> SwarmMember:
         """Record a heartbeat for a registered member and mark it alive."""
         member = self._registry.get(member_id)
         if member is None:
-            raise KeyError(f"cannot heartbeat unregistered member: {member_id!r}")
+            msg = f"cannot heartbeat unregistered member: {member_id!r}"
+            raise KeyError(msg)
         ts = self._clock.now() if timestamp is None else timestamp
         with getattr(self._registry, "_lock", threading.RLock()):
             member.mark_alive(ts)
@@ -385,7 +391,8 @@ class HeartbeatProtocol:
         """Force a member to the alive state without updating its heartbeat time."""
         member = self._registry.get(member_id)
         if member is None:
-            raise KeyError(f"cannot mark unregistered member alive: {member_id!r}")
+            msg = f"cannot mark unregistered member alive: {member_id!r}"
+            raise KeyError(msg)
         with getattr(self._registry, "_lock", threading.RLock()):
             member.status = STATUS_ALIVE
             self._registry._persist(member)
@@ -412,9 +419,9 @@ class HeartbeatProtocol:
     # -- liveness checking ---------------------------------------------------
     def check_liveness(
         self,
-        now: Optional[float] = None,
+        now: float | None = None,
         timeout: float = DEFAULT_HEARTBEAT_TIMEOUT,
-    ) -> List[SwarmMember]:
+    ) -> list[SwarmMember]:
         """Flag members with stale heartbeats as absent/lost.
 
         A member whose ``last_heartbeat`` is more than ``timeout`` seconds in
@@ -423,7 +430,7 @@ class HeartbeatProtocol:
         list of members whose status changed during this pass.
         """
         ts = self._clock.now() if now is None else now
-        affected: List[SwarmMember] = []
+        affected: list[SwarmMember] = []
 
         members = self._registry.list()
         for member in members:
@@ -449,9 +456,9 @@ class HeartbeatProtocol:
 
     def tick(
         self,
-        now: Optional[float] = None,
+        now: float | None = None,
         timeout: float = DEFAULT_HEARTBEAT_TIMEOUT,
-    ) -> List[SwarmMember]:
+    ) -> list[SwarmMember]:
         return self.check_liveness(now=now, timeout=timeout)
 
 
@@ -470,10 +477,10 @@ class HealthReport:
     total: int
     required: int
     missing_required: int
-    critical_roles_lost: List[str]
-    members: List[Dict[str, object]] = field(default_factory=list)
+    critical_roles_lost: list[str]
+    members: list[dict[str, object]] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "status": self.status,
             "healthy": self.healthy,
@@ -501,21 +508,21 @@ class HealthAggregator:
         self,
         registry: MemberRegistry,
         required: int = 1,
-        critical_roles: Optional[Set[str]] = None,
+        critical_roles: set[str] | None = None,
         heartbeat_timeout: float = DEFAULT_HEARTBEAT_TIMEOUT,
-        clock: Optional[SwarmClock] = None,
+        clock: SwarmClock | None = None,
     ) -> None:
         self._registry = registry
         self._required = max(0, int(required))
-        self._critical_roles: Set[str] = set(critical_roles or [])
+        self._critical_roles: set[str] = set(critical_roles or [])
         self._heartbeat_timeout = float(heartbeat_timeout)
         self._clock = clock or getattr(registry, "_clock", None) or SwarmClock()
         self._protocol = HeartbeatProtocol(registry, clock=self._clock)
 
     def health(
         self,
-        now: Optional[float] = None,
-        timeout: Optional[float] = None,
+        now: float | None = None,
+        timeout: float | None = None,
         apply_liveness: bool = True,
     ) -> HealthReport:
         """Compute swarm health.
@@ -540,8 +547,10 @@ class HealthAggregator:
 
         # critical roles with zero alive members
         critical_lost = sorted(
-            r for r in self._critical_roles
-            if r in self._registry.roles() and not any(m.role == r and m.is_alive() for m in members)
+            r
+            for r in self._critical_roles
+            if r in self._registry.roles()
+            and not any(m.role == r and m.is_alive() for m in members)
         )
 
         healthy = (alive_count >= self._required) and not critical_lost
@@ -555,7 +564,7 @@ class HealthAggregator:
         else:
             status = "degraded"
 
-        report = HealthReport(
+        return HealthReport(
             status=status,
             healthy=healthy,
             alive_count=alive_count,
@@ -567,7 +576,6 @@ class HealthAggregator:
             critical_roles_lost=critical_lost,
             members=[m.to_dict() for m in members],
         )
-        return report
 
 
 # Convenience — a single registry+protocol+aggregator bundle
@@ -577,9 +585,9 @@ class SwarmHealth:
     def __init__(
         self,
         required: int = 1,
-        critical_roles: Optional[Set[str]] = None,
-        db_path: Optional[str] = None,
-        clock: Optional[SwarmClock] = None,
+        critical_roles: set[str] | None = None,
+        db_path: str | None = None,
+        clock: SwarmClock | None = None,
     ) -> None:
         self.clock = clock or SwarmClock()
         self.registry = MemberRegistry(db_path=db_path, clock=self.clock)

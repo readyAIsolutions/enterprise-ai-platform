@@ -32,9 +32,13 @@ import statistics
 import tempfile
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    import builtins
+    from collections.abc import Callable, Sequence
 
 logger = logging.getLogger("enterprise.innovation_rd.experiments")
 
@@ -58,11 +62,7 @@ def _log_gamma(x: float) -> float:
     ]
     g = 7
     if x < 0.5:
-        return (
-            math.log(math.pi)
-            - math.log(math.sin(math.pi * x))
-            - _log_gamma(1.0 - x)
-        )
+        return math.log(math.pi) - math.log(math.sin(math.pi * x)) - _log_gamma(1.0 - x)
     x -= 1.0
     a = coeff[0]
     t = x + g + 0.5
@@ -119,11 +119,7 @@ def _betainc(a: float, b: float, x: float) -> float:
     if x >= 1.0:
         return 1.0
     bt = math.exp(
-        _log_gamma(a + b)
-        - _log_gamma(a)
-        - _log_gamma(b)
-        + a * math.log(x)
-        + b * math.log(1.0 - x)
+        _log_gamma(a + b) - _log_gamma(a) - _log_gamma(b) + a * math.log(x) + b * math.log(1.0 - x)
     )
     if x < (a + 1.0) / (a + b + 2.0):
         return bt * _betacf(a, b, x) / a
@@ -150,9 +146,7 @@ def student_t_two_sided_p(t: float, df: float) -> float:
 # ---------------------------------------------------------------------------
 
 
-def welch_t_test(
-    before: Sequence[float], after: Sequence[float]
-) -> Tuple[float, float, float]:
+def welch_t_test(before: Sequence[float], after: Sequence[float]) -> tuple[float, float, float]:
     """Welch's unequal-variance t-test over two independent samples.
 
     Returns ``(t_statistic, degrees_of_freedom, two_sided_p_value)``.
@@ -164,7 +158,8 @@ def welch_t_test(
     n1 = len(before)
     n2 = len(after)
     if n1 < 2 or n2 < 2:
-        raise ValueError("Welch's t-test requires at least 2 samples per group")
+        msg = "Welch's t-test requires at least 2 samples per group"
+        raise ValueError(msg)
     m1 = statistics.fmean(before)
     m2 = statistics.fmean(after)
     v1 = statistics.variance(before)
@@ -176,9 +171,7 @@ def welch_t_test(
     if se == 0.0:
         return (0.0, float("inf"), 1.0)
     t = (m2 - m1) / se
-    df = (v1 / n1 + v2 / n2) ** 2 / (
-        (v1 / n1) ** 2 / (n1 - 1) + (v2 / n2) ** 2 / (n2 - 1)
-    )
+    df = (v1 / n1 + v2 / n2) ** 2 / ((v1 / n1) ** 2 / (n1 - 1) + (v2 / n2) ** 2 / (n2 - 1))
     if not math.isfinite(df) or df <= 0:
         df = float(n1 + n2 - 2)
     p = student_t_two_sided_p(t, df)
@@ -194,7 +187,7 @@ def permutation_test(
     before: Sequence[float],
     after: Sequence[float],
     n_permutations: int = 10_000,
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> float:
     """Two-sided permutation p-value comparing group means.
 
@@ -228,7 +221,7 @@ def bootstrap_p_value(
     before: Sequence[float],
     after: Sequence[float],
     n_bootstrap: int = 10_000,
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> float:
     """Bootstrap p-value (difference-of-means resampling).
 
@@ -280,9 +273,9 @@ class AssessmentResult:
     significant: bool
     method: str
     alpha: float = 0.05
-    t_statistic: Optional[float] = None
-    degrees_of_freedom: Optional[float] = None
-    effect_size: Optional[float] = None
+    t_statistic: float | None = None
+    degrees_of_freedom: float | None = None
+    effect_size: float | None = None
 
     def conclusion(self) -> str:
         """Human-readable one-line conclusion."""
@@ -304,7 +297,7 @@ def assess(
     after: Sequence[float],
     alpha: float = 0.05,
     fallback_to_bootstrap: bool = False,
-    seed: Optional[int] = None,
+    seed: int | None = None,
     method: str = "auto",
 ) -> AssessmentResult:
     """Reduce before/after samples to a p-value and significance decision.
@@ -356,7 +349,7 @@ def assess(
     )
 
 
-def _effect_size(before: Sequence[float], after: Sequence[float]) -> Optional[float]:
+def _effect_size(before: Sequence[float], after: Sequence[float]) -> float | None:
     """Cohen's d (pooled) effect size, or None when incalculable."""
     n1 = len(before)
     n2 = len(after)
@@ -387,17 +380,17 @@ class Experiment:
     id: str
     hypothesis: str
     status: str = "draft"
-    metrics_before: List[float] = field(default_factory=list)
-    metrics_after: List[float] = field(default_factory=list)
-    p_value: Optional[float] = None
-    significance: Optional[bool] = None
+    metrics_before: list[float] = field(default_factory=list)
+    metrics_after: list[float] = field(default_factory=list)
+    p_value: float | None = None
+    significance: bool | None = None
     conclusion: str = ""
     method: str = ""
     alpha: float = 0.05
     created_at: str = field(default_factory=lambda: _now_iso())
     updated_at: str = field(default_factory=lambda: _now_iso())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dictionary (JSON-friendly)."""
         return {
             "id": self.id,
@@ -415,7 +408,7 @@ class Experiment:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Experiment":
+    def from_dict(cls, data: dict[str, Any]) -> Experiment:
         """Reconstruct from a dictionary produced by ``to_dict``."""
         return cls(
             id=str(data.get("id", "")),
@@ -434,7 +427,7 @@ class Experiment:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +445,7 @@ class ExperimentRegistry:
 
     def __init__(
         self,
-        db_path: Optional[Union[str, os.PathLike]] = None,
+        db_path: str | os.PathLike | None = None,
         *,
         autocommit: bool = True,
     ) -> None:
@@ -496,9 +489,7 @@ class ExperimentRegistry:
             self._conn.commit()
 
     # -- lifecycle ----------------------------------------------------------
-    def register_experiment(
-        self, hypothesis: str, experiment_id: Optional[str] = None
-    ) -> Experiment:
+    def register_experiment(self, hypothesis: str, experiment_id: str | None = None) -> Experiment:
         """Create and persist a new experiment in DRAFT status."""
         eid = experiment_id or f"exp-{uuid4().hex[:12]}"
         exp = Experiment(id=eid, hypothesis=hypothesis, status="draft")
@@ -577,7 +568,7 @@ class ExperimentRegistry:
         *,
         alpha: float = 0.05,
         fallback_to_bootstrap: bool = False,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ) -> Experiment:
         """Run the statistical test and conclude the experiment.
 
@@ -586,7 +577,8 @@ class ExperimentRegistry:
         """
         exp = self.get(experiment_id)
         if exp is None:
-            raise KeyError(f"No experiment registered with id {experiment_id!r}")
+            msg = f"No experiment registered with id {experiment_id!r}"
+            raise KeyError(msg)
         result = assess(
             exp.metrics_before,
             exp.metrics_after,
@@ -612,7 +604,7 @@ class ExperimentRegistry:
         *,
         alpha: float = 0.05,
         fallback_to_bootstrap: bool = False,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ) -> Experiment:
         """Alias for ``finish`` — compute stats and reach a conclusion."""
         return self.finish(
@@ -635,7 +627,7 @@ class ExperimentRegistry:
         )
 
     # -- query --------------------------------------------------------------
-    def get(self, experiment_id: str) -> Optional[Experiment]:
+    def get(self, experiment_id: str) -> Experiment | None:
         with self._lock:
             row = self._conn.execute(
                 "SELECT * FROM experiments WHERE id = ?", (experiment_id,)
@@ -644,18 +636,14 @@ class ExperimentRegistry:
             return None
         return self._row_to_experiment(row)
 
-    def list(self) -> List[Experiment]:
+    def list(self) -> builtins.list[Experiment]:
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT * FROM experiments ORDER BY created_at"
-            ).fetchall()
+            rows = self._conn.execute("SELECT * FROM experiments ORDER BY created_at").fetchall()
         return [self._row_to_experiment(r) for r in rows]
 
     def count(self) -> int:
         with self._lock:
-            row = self._conn.execute(
-                "SELECT COUNT(*) AS n FROM experiments"
-            ).fetchone()
+            row = self._conn.execute("SELECT COUNT(*) AS n FROM experiments").fetchone()
         return int(row["n"]) if row else 0
 
     # -- internals ----------------------------------------------------------
@@ -667,9 +655,7 @@ class ExperimentRegistry:
         params = [fields[c] for c in cols]
         params.append(experiment_id)
         with self._lock:
-            cur = self._conn.execute(
-                f"UPDATE experiments SET {assignments} WHERE id = ?", params
-            )
+            cur = self._conn.execute(f"UPDATE experiments SET {assignments} WHERE id = ?", params)
             self._commit()
         return cur.rowcount > 0
 
@@ -683,16 +669,10 @@ class ExperimentRegistry:
             id=str(row["id"]),
             hypothesis=str(row["hypothesis"]),
             status=str(row["status"]),
-            metrics_before=[
-                float(x) for x in json.loads(row["metrics_before"] or "[]")
-            ],
-            metrics_after=[
-                float(x) for x in json.loads(row["metrics_after"] or "[]")
-            ],
+            metrics_before=[float(x) for x in json.loads(row["metrics_before"] or "[]")],
+            metrics_after=[float(x) for x in json.loads(row["metrics_after"] or "[]")],
             p_value=row["p_value"],
-            significance=(
-                bool(row["significance"]) if row["significance"] is not None else None
-            ),
+            significance=(bool(row["significance"]) if row["significance"] is not None else None),
             conclusion=str(row["conclusion"] or ""),
             method=str(row["method"] or ""),
             alpha=float(row["alpha"] or 0.05),
@@ -707,7 +687,7 @@ class ExperimentRegistry:
             finally:
                 self._conn.close()
 
-    def __enter__(self) -> "ExperimentRegistry":
+    def __enter__(self) -> ExperimentRegistry:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -732,7 +712,7 @@ class HypothesisTest:
         after: Sequence[float],
         alpha: float = 0.05,
         *,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ) -> None:
         self.before = list(before)
         self.after = list(after)
@@ -754,7 +734,7 @@ class HypothesisTest:
             seed=self.seed,
         ).p_value
 
-    def is_significant(self, alpha: Optional[float] = None) -> bool:
+    def is_significant(self, alpha: float | None = None) -> bool:
         """Return True if the difference is significant at ``alpha``."""
         threshold = self.alpha if alpha is None else alpha
         return assess(
@@ -798,7 +778,7 @@ class ExperimentRunner:
         registry: ExperimentRegistry,
         alpha: float = 0.05,
         *,
-        seed: Optional[int] = None,
+        seed: int | None = None,
         fallback_to_bootstrap: bool = False,
     ) -> None:
         self.registry = registry
@@ -807,16 +787,17 @@ class ExperimentRunner:
         self.fallback_to_bootstrap = fallback_to_bootstrap
 
     @staticmethod
-    def _coerce_samples(value: Any) -> List[float]:
+    def _coerce_samples(value: Any) -> list[float]:
         if isinstance(value, (int, float)):
             return [float(value)]
         try:
             return [float(v) for v in value]
         except (TypeError, ValueError):
-            raise ValueError(
+            msg = (
                 f"Runner callables must return a number or sequence of numbers, "
                 f"got {type(value).__name__}"
             )
+            raise ValueError(msg)
 
     def run(
         self,
@@ -836,10 +817,8 @@ class ExperimentRunner:
         """
         exp = self.registry.get(experiment_id)
         if exp is None:
-            raise KeyError(
-                f"Experiment {experiment_id!r} not registered — call "
-                f"register_experiment() first"
-            )
+            msg = f"Experiment {experiment_id!r} not registered — call register_experiment() first"
+            raise KeyError(msg)
 
         if exp.status != "running":
             self.registry.start(experiment_id)
@@ -869,7 +848,7 @@ class ExperimentRunner:
         hypothesis: str,
         fn_before: Callable[[], Any],
         fn_after: Callable[[], Any],
-        experiment_id: Optional[str] = None,
+        experiment_id: str | None = None,
     ) -> Experiment:
         """Register a fresh experiment, run it, and return the conclusion."""
         exp = self.registry.register_experiment(hypothesis, experiment_id)

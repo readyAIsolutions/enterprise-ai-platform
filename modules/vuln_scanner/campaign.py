@@ -46,20 +46,18 @@ so affinity is deterministic and fully unit-testable offline.
 from __future__ import annotations
 
 import statistics
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
+from typing import Any, Union
 
 from .vuln_scanner import (
     Probe,
     ProbeRegistry,
-    ProbeResult,
     Rescorer,
-    ScanReport,
     Scanner,
     _clamp,
-    default_probes,
 )
 
 __all__ = [
@@ -77,7 +75,7 @@ __all__ = [
 # An injectable, offline target. A callable ``prompt -> response`` or a canned
 # ``{prompt: response}`` dict — mirrors ``Scanner``'s ``Endpoint`` so tests run
 # fully offline.
-Target = Union[Callable[[str], str], Dict[str, str], Mapping[str, str]]
+Target = Union[Callable[[str], str], dict[str, str], Mapping[str, str]]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -98,11 +96,11 @@ class Severity(Enum):
         return self.value
 
     @classmethod
-    def order(cls) -> List[str]:
+    def order(cls) -> list[str]:
         return ["low", "med", "high", "critical"]
 
     @classmethod
-    def parse(cls, value: Union[str, "Severity"]) -> "Severity":
+    def parse(cls, value: str | Severity) -> Severity:
         if isinstance(value, cls):
             return value
         return cls(str(value).lower())
@@ -113,7 +111,7 @@ class Severity(Enum):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-DEFAULT_SEVERITY_WEIGHTS: Dict[str, float] = {
+DEFAULT_SEVERITY_WEIGHTS: dict[str, float] = {
     "low": 0.25,
     "med": 0.5,
     "high": 0.75,
@@ -130,26 +128,24 @@ class SeverityWeight:
 
     def __init__(
         self,
-        weights: Optional[Mapping[str, float]] = None,
+        weights: Mapping[str, float] | None = None,
     ) -> None:
         merged = dict(DEFAULT_SEVERITY_WEIGHTS)
         if weights:
             merged.update({k.lower(): float(v) for k, v in weights.items()})
-        self._weights: Dict[str, float] = {
-            k: _clamp(v) for k, v in merged.items()
-        }
+        self._weights: dict[str, float] = {k: _clamp(v) for k, v in merged.items()}
 
-    def weight(self, severity: Union[str, Severity]) -> float:
+    def weight(self, severity: str | Severity) -> float:
         return self._weights.get(Severity.parse(severity).value, 0.0)
 
-    def as_dict(self) -> Dict[str, float]:
+    def as_dict(self) -> dict[str, float]:
         return dict(self._weights)
 
-    def supported(self) -> List[str]:
+    def supported(self) -> list[str]:
         return Severity.order()
 
 
-DEFAULT_CATEGORY_SEVERITY: Dict[str, str] = {
+DEFAULT_CATEGORY_SEVERITY: dict[str, str] = {
     "jailbreak": "critical",
     "data_exfil": "critical",
     "prompt_injection": "high",
@@ -170,16 +166,14 @@ class SeverityMapping:
 
     def __init__(
         self,
-        by_category: Optional[Mapping[str, str]] = None,
-        by_name: Optional[Mapping[str, str]] = None,
-        default: Union[str, Severity] = "med",
+        by_category: Mapping[str, str] | None = None,
+        by_name: Mapping[str, str] | None = None,
+        default: str | Severity = "med",
     ) -> None:
-        self._by_category: Dict[str, str] = dict(DEFAULT_CATEGORY_SEVERITY)
+        self._by_category: dict[str, str] = dict(DEFAULT_CATEGORY_SEVERITY)
         if by_category:
-            self._by_category.update(
-                {k.lower(): str(v).lower() for k, v in by_category.items()}
-            )
-        self._by_name: Dict[str, str] = {
+            self._by_category.update({k.lower(): str(v).lower() for k, v in by_category.items()})
+        self._by_name: dict[str, str] = {
             k.lower(): str(v).lower() for k, v in (by_name or {}).items()
         }
         self._default = str(default).lower()
@@ -200,7 +194,7 @@ class SeverityMapping:
 
 
 # Applicability tags per probe name — "which contexts is this probe relevant to".
-PROBE_TAGS: Dict[str, set] = {
+PROBE_TAGS: dict[str, set] = {
     "prompt_injection": {"code", "output", "prompt", "llm"},
     "jailbreak": {"code", "output", "safety", "llm"},
     "pii_leak": {"output", "data", "privacy", "code"},
@@ -212,7 +206,7 @@ PROBE_TAGS: Dict[str, set] = {
 
 # Feature keywords per known context profile. A caller may supply arbitrary
 # contexts; the overlap scoring below works for any keyword set.
-CONTEXT_FEATURES: Dict[str, set] = {
+CONTEXT_FEATURES: dict[str, set] = {
     "code": {"code", "sql", "shell", "command", "api", "secrets", "exfil"},
     "output": {"output", "content", "text", "data", "privacy"},
     "model-type": {"llm", "prompt", "safety", "robustness", "content"},
@@ -246,23 +240,21 @@ class ProbeAffinity:
 
     def __init__(
         self,
-        registry: Optional[ProbeRegistry] = None,
-        tags: Optional[Mapping[str, Sequence[str]]] = None,
+        registry: ProbeRegistry | None = None,
+        tags: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
         self._registry = registry if registry is not None else ProbeRegistry()
-        self._tags: Dict[str, frozenset] = {}
+        self._tags: dict[str, frozenset] = {}
         merged = dict(PROBE_TAGS)
         if tags:
             merged.update({k: set(v) for k, v in tags.items()})
         for probe in self._registry.all():
-            self._tags[probe.name] = frozenset(
-                merged.get(probe.name, frozenset())
-            )
+            self._tags[probe.name] = frozenset(merged.get(probe.name, frozenset()))
 
     def registry(self) -> ProbeRegistry:
         return self._registry
 
-    def relevance(self, probe: Union[Probe, str], context: str) -> float:
+    def relevance(self, probe: Probe | str, context: str) -> float:
         """Return 0..1 relevance of *probe* to *context* (pure & deterministic)."""
         name = probe.name if isinstance(probe, Probe) else probe
         probe_tags = self._tags.get(name, frozenset())
@@ -271,21 +263,19 @@ class ProbeAffinity:
         overlap = len(probe_tags & _normalized_features(context))
         return round(overlap / float(len(probe_tags)), 4)
 
-    def rank(self, context: str) -> List[tuple]:
+    def rank(self, context: str) -> list[tuple]:
         """Return ``[(probe_name, relevance), ...]`` sorted by relevance desc,
         then probe name asc (deterministic tie-break)."""
-        ranked = [
-            (p.name, self.relevance(p.name, context)) for p in self._registry.all()
-        ]
+        ranked = [(p.name, self.relevance(p.name, context)) for p in self._registry.all()]
         ranked.sort(key=lambda item: (-item[1], item[0]))
         return ranked
 
     def select(
         self,
         context: str,
-        k: Optional[int] = None,
+        k: int | None = None,
         min_relevance: float = 0.0,
-    ) -> List[str]:
+    ) -> list[str]:
         """Deterministically pick the best-suited probe names for *context*.
 
         Args:
@@ -294,16 +284,12 @@ class ProbeAffinity:
             k: Optional max number of probes to return.
             min_relevance: Return only probes with relevance >= this threshold.
         """
-        ranked = [
-            (name, rel)
-            for name, rel in self.rank(context)
-            if rel >= min_relevance
-        ]
+        ranked = [(name, rel) for name, rel in self.rank(context) if rel >= min_relevance]
         if k is not None:
             ranked = ranked[: max(0, int(k))]
         return [name for name, _ in ranked]
 
-    def best(self, context: str) -> Optional[str]:
+    def best(self, context: str) -> str | None:
         """Return the single most-relevant probe name (or ``None`` if none)."""
         ranked = [n for n, rel in self.rank(context) if rel > 0.0]
         return ranked[0] if ranked else None
@@ -336,11 +322,11 @@ class CampaignReport:
     total: int = 0
     passed: int = 0
     critical_count: int = 0
-    severity_distribution: Dict[str, int] = field(default_factory=dict)
-    by_probe: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    severity_distribution: dict[str, int] = field(default_factory=dict)
+    by_probe: dict[str, dict[str, Any]] = field(default_factory=dict)
     overall_risk_score: float = 0.0
     context: str = ""
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def ok(self) -> bool:
@@ -351,7 +337,7 @@ class CampaignReport:
     def failed(self) -> int:
         return self.total - self.passed
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         dist = {sev: self.severity_distribution.get(sev, 0) for sev in Severity.order()}
         return {
             "name": self.name,
@@ -365,9 +351,7 @@ class CampaignReport:
             "ok": self.ok,
             "severity_distribution": dist,
             "overall_risk_score": round(float(self.overall_risk_score), 2),
-            "by_probe": {
-                k: dict(v) for k, v in self.by_probe.items()
-            },
+            "by_probe": {k: dict(v) for k, v in self.by_probe.items()},
         }
 
 
@@ -377,7 +361,8 @@ def _coerce_target(target: Target) -> Callable[[str], str]:
         return target
     if isinstance(target, Mapping):
         return lambda p: target.get(p, "")
-    raise TypeError("target must be a callable or a {prompt: response} mapping")
+    msg = "target must be a callable or a {prompt: response} mapping"
+    raise TypeError(msg)
 
 
 class ScanCampaign:
@@ -397,55 +382,51 @@ class ScanCampaign:
         name: str,
         probes: Sequence[Probe],
         target: Target,
-        rescorer: Optional[Rescorer] = None,
-        severity_mapping: Optional[SeverityMapping] = None,
-        severity_weight: Optional[SeverityWeight] = None,
+        rescorer: Rescorer | None = None,
+        severity_mapping: SeverityMapping | None = None,
+        severity_weight: SeverityWeight | None = None,
     ) -> None:
         if not name:
-            raise ValueError("campaign needs a name")
-        resolved: List[Probe] = []
+            msg = "campaign needs a name"
+            raise ValueError(msg)
+        resolved: list[Probe] = []
         for p in probes:
             if isinstance(p, Probe):
                 resolved.append(p)
             else:
-                raise TypeError("probes must be Probe instances")
+                msg = "probes must be Probe instances"
+                raise TypeError(msg)
         if not resolved:
-            raise ValueError("campaign needs at least one probe")
+            msg = "campaign needs at least one probe"
+            raise ValueError(msg)
         self.name = name
         self.probes = resolved
         self.target = _coerce_target(target)
-        self.rescorer = rescorer if rescorer is not None else Rescorer(
-            ProbeRegistry(resolved)
-        )
+        self.rescorer = rescorer if rescorer is not None else Rescorer(ProbeRegistry(resolved))
         self.severity_mapping = (
             severity_mapping if severity_mapping is not None else SeverityMapping()
         )
-        self.severity_weight = (
-            severity_weight if severity_weight is not None else SeverityWeight()
-        )
+        self.severity_weight = severity_weight if severity_weight is not None else SeverityWeight()
 
-    def probe_names(self) -> List[str]:
+    def probe_names(self) -> list[str]:
         return [p.name for p in self.probes]
 
     def run(self, target_label: str = "<anonymous>", context: str = "") -> CampaignReport:
         """Run every probe against the target and build a :class:`CampaignReport`."""
-        by_probe: Dict[str, Dict[str, Any]] = {}
+        by_probe: dict[str, dict[str, Any]] = {}
         total = len(self.probes)
         passed = 0
         critical_count = 0
-        severity_distribution: Dict[str, int] = {sev: 0 for sev in Severity.order()}
+        severity_distribution: dict[str, int] = dict.fromkeys(Severity.order(), 0)
         risk_weighted_sum = 0.0
 
         for probe in self.probes:
             prompts = probe.prompts()
             responses = [self.target(p) for p in prompts]
-            if responses:
-                avg = statistics.mean(probe.detect(r) for r in responses)
-            else:
-                avg = 0.0
+            avg = statistics.mean(probe.detect(r) for r in responses) if responses else 0.0
             passed_flag = self.rescorer.probe_passes(probe.name, avg)
             severity = self.severity_mapping.severity_for(probe)
-            w = self.severity_weight.weight(severity)
+            self.severity_weight.weight(severity)
 
             if passed_flag:
                 passed += 1
@@ -498,28 +479,22 @@ class CampaignRunner:
 
     def __init__(
         self,
-        scanner: Optional[Scanner] = None,
-        registry: Optional[ProbeRegistry] = None,
-        affinity: Optional[ProbeAffinity] = None,
-        severity_mapping: Optional[SeverityMapping] = None,
-        severity_weight: Optional[SeverityWeight] = None,
+        scanner: Scanner | None = None,
+        registry: ProbeRegistry | None = None,
+        affinity: ProbeAffinity | None = None,
+        severity_mapping: SeverityMapping | None = None,
+        severity_weight: SeverityWeight | None = None,
     ) -> None:
         self._registry = (
             registry
             if registry is not None
             else (scanner.registry if scanner is not None else ProbeRegistry())
         )
-        self._affinity = (
-            affinity
-            if affinity is not None
-            else ProbeAffinity(self._registry)
-        )
+        self._affinity = affinity if affinity is not None else ProbeAffinity(self._registry)
         self._severity_mapping = (
             severity_mapping if severity_mapping is not None else SeverityMapping()
         )
-        self._severity_weight = (
-            severity_weight if severity_weight is not None else SeverityWeight()
-        )
+        self._severity_weight = severity_weight if severity_weight is not None else SeverityWeight()
         self._scanner = scanner
 
     def affinity(self) -> ProbeAffinity:
@@ -529,9 +504,9 @@ class CampaignRunner:
         self,
         name: str,
         target: Target,
-        probes: Optional[Sequence[Probe]] = None,
+        probes: Sequence[Probe] | None = None,
         context: str = "",
-        k: Optional[int] = None,
+        k: int | None = None,
         min_relevance: float = 0.0,
     ) -> ScanCampaign:
         """Build a :class:`ScanCampaign`.
@@ -542,9 +517,7 @@ class CampaignRunner:
         if probes is not None and len(list(probes)) > 0:
             chosen = list(probes)
         else:
-            names = self._affinity.select(
-                context, k=k, min_relevance=min_relevance
-            )
+            names = self._affinity.select(context, k=k, min_relevance=min_relevance)
             if not names:
                 names = self._affinity.select("general", k=k)
             chosen = [self._registry.get(n) for n in names]
@@ -560,10 +533,10 @@ class CampaignRunner:
         self,
         name: str,
         target: Target,
-        probes: Optional[Sequence[Probe]] = None,
+        probes: Sequence[Probe] | None = None,
         context: str = "",
         target_label: str = "<anonymous>",
-        k: Optional[int] = None,
+        k: int | None = None,
         min_relevance: float = 0.0,
     ) -> CampaignReport:
         """Build (explicit or affinity-selected) and run a campaign end-to-end."""

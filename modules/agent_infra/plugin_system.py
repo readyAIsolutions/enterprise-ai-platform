@@ -27,6 +27,7 @@ Plugin manifest schema (plugin.json):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import importlib
 import importlib.util
@@ -36,13 +37,15 @@ import os
 import sys
 import threading
 import time
-import traceback
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any
 
-from enterprise.platform_kernel import EventBus, Event, HealthStatus
+from enterprise.platform_kernel import Event, EventBus
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _logger: logging.Logger = logging.getLogger("enterprise.agent_infra.plugins")
 
@@ -51,8 +54,10 @@ _logger: logging.Logger = logging.getLogger("enterprise.agent_infra.plugins")
 # Enums & Dataclasses
 # =============================================================================
 
+
 class PluginState(Enum):
     """Plugin lifecycle state."""
+
     UNLOADED = "unloaded"
     LOADING = "loading"
     LOADED = "loaded"
@@ -64,6 +69,7 @@ class PluginState(Enum):
 
 class PluginPermission(Enum):
     """Permission scopes for sandboxed plugins."""
+
     FILESYSTEM_READ = "filesystem:read"
     FILESYSTEM_WRITE = "filesystem:write"
     NETWORK = "network"
@@ -77,17 +83,18 @@ class PluginPermission(Enum):
 @dataclass
 class PluginMetadata:
     """Metadata for a plugin loaded from its manifest."""
+
     name: str
     version: str
     description: str = ""
     author: str = ""
     main: str = "plugin.py"
-    dependencies: Dict[str, str] = field(default_factory=dict)
-    permissions: List[str] = field(default_factory=list)
-    marketplace: Dict[str, Any] = field(default_factory=dict)
+    dependencies: dict[str, str] = field(default_factory=dict)
+    permissions: list[str] = field(default_factory=list)
+    marketplace: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_manifest(cls, data: Dict[str, Any]) -> "PluginMetadata":
+    def from_manifest(cls, data: dict[str, Any]) -> PluginMetadata:
         return cls(
             name=data.get("name", "unknown"),
             version=data.get("version", "0.0.0"),
@@ -103,12 +110,13 @@ class PluginMetadata:
 @dataclass
 class PluginInstance:
     """A loaded plugin instance with metadata, state, and module reference."""
+
     metadata: PluginMetadata
     path: str
     state: PluginState = PluginState.UNLOADED
-    module: Optional[Any] = None
-    hooks: Dict[str, List[Callable[..., Any]]] = field(default_factory=dict)
-    error: Optional[str] = None
+    module: Any | None = None
+    hooks: dict[str, list[Callable[..., Any]]] = field(default_factory=dict)
+    error: str | None = None
     loaded_at: float = 0.0
     checksum: str = ""
 
@@ -117,6 +125,7 @@ class PluginInstance:
 # Plugin Sandbox
 # =============================================================================
 
+
 class PluginSandbox:
     """Restricted execution environment for plugins.
 
@@ -124,18 +133,23 @@ class PluginSandbox:
     and module imports are all gated behind permission checks.
     """
 
-    RESTRICTED_MODULES: Set[str] = {
-        "os", "subprocess", "socket", "shutil", "ctypes", "sys",
+    RESTRICTED_MODULES: set[str] = {
+        "os",
+        "subprocess",
+        "socket",
+        "shutil",
+        "ctypes",
+        "sys",
     }
 
-    def __init__(self, permissions: List[str]) -> None:
-        self._permissions: Set[str] = set(permissions)
+    def __init__(self, permissions: list[str]) -> None:
+        self._permissions: set[str] = set(permissions)
 
     def has_permission(self, permission: str) -> bool:
         """Check if the plugin has a specific permission."""
         return permission in self._permissions
 
-    def validate_manifest(self, metadata: PluginMetadata) -> Tuple[bool, Optional[str]]:
+    def validate_manifest(self, metadata: PluginMetadata) -> tuple[bool, str | None]:
         """Validate a plugin manifest for required fields and security.
 
         Returns:
@@ -168,10 +182,8 @@ class PluginSandbox:
         for fpath in files:
             if fpath.is_file() and fpath.suffix in (".py", ".json", ".yaml", ".yml", ".toml"):
                 hasher.update(str(fpath.relative_to(root)).encode())
-                try:
+                with contextlib.suppress(OSError):
                     hasher.update(fpath.read_bytes())
-                except OSError:
-                    pass
 
         return hasher.hexdigest()
 
@@ -180,20 +192,22 @@ class PluginSandbox:
 # Plugin Marketplace
 # =============================================================================
 
+
 @dataclass
 class MarketplaceEntry:
     """An entry in the plugin marketplace."""
+
     name: str
     version: str
     description: str
     author: str
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     downloads: int = 0
     rating: float = 0.0
     price: float = 0.0
     installed: bool = False
-    installed_version: Optional[str] = None
-    remote_url: Optional[str] = None
+    installed_version: str | None = None
+    remote_url: str | None = None
 
 
 class PluginMarketplace:
@@ -203,17 +217,17 @@ class PluginMarketplace:
     build, we provide a local marketplace with simulated catalog.
     """
 
-    def __init__(self, event_bus: Optional[EventBus] = None) -> None:
+    def __init__(self, event_bus: EventBus | None = None) -> None:
         self._event_bus = event_bus
-        self._catalog: Dict[str, MarketplaceEntry] = {}
-        self._registry_url: Optional[str] = None
+        self._catalog: dict[str, MarketplaceEntry] = {}
+        self._registry_url: str | None = None
         self._populate_default_catalog()
 
     def set_registry_url(self, url: str) -> None:
         """Set the remote registry URL."""
         self._registry_url = url
 
-    def search(self, query: str) -> List[MarketplaceEntry]:
+    def search(self, query: str) -> list[MarketplaceEntry]:
         """Search the marketplace catalog.
 
         Args:
@@ -223,7 +237,7 @@ class PluginMarketplace:
             Matching marketplace entries.
         """
         query_lower = query.lower()
-        results: List[MarketplaceEntry] = []
+        results: list[MarketplaceEntry] = []
 
         for entry in self._catalog.values():
             if (
@@ -235,15 +249,15 @@ class PluginMarketplace:
 
         return sorted(results, key=lambda e: (-e.downloads, -e.rating))
 
-    def get_entry(self, name: str) -> Optional[MarketplaceEntry]:
+    def get_entry(self, name: str) -> MarketplaceEntry | None:
         """Get a single marketplace entry by plugin name."""
         return self._catalog.get(name)
 
-    def list_all(self) -> List[MarketplaceEntry]:
+    def list_all(self) -> list[MarketplaceEntry]:
         """List all marketplace entries."""
         return sorted(self._catalog.values(), key=lambda e: (-e.downloads, -e.rating))
 
-    def install(self, name: str, version: Optional[str] = None) -> Tuple[bool, str]:
+    def install(self, name: str, version: str | None = None) -> tuple[bool, str]:
         """Simulate installing a plugin from the marketplace.
 
         Returns:
@@ -264,15 +278,17 @@ class PluginMarketplace:
         _logger.info("Installed plugin '%s' version %s from marketplace", name, target_version)
 
         if self._event_bus:
-            self._event_bus.publish(Event.create(
-                "claude.infra.plugin.marketplace",
-                "plugin_marketplace",
-                {"action": "install", "name": name, "version": target_version},
-            ))
+            self._event_bus.publish(
+                Event.create(
+                    "claude.infra.plugin.marketplace",
+                    "plugin_marketplace",
+                    {"action": "install", "name": name, "version": target_version},
+                )
+            )
 
         return True, f"Installed plugin '{name}' version {target_version}"
 
-    def uninstall(self, name: str) -> Tuple[bool, str]:
+    def uninstall(self, name: str) -> tuple[bool, str]:
         """Simulate uninstalling a plugin."""
         entry = self._catalog.get(name)
         if entry is None:
@@ -283,15 +299,17 @@ class PluginMarketplace:
         _logger.info("Uninstalled plugin '%s'", name)
 
         if self._event_bus:
-            self._event_bus.publish(Event.create(
-                "claude.infra.plugin.marketplace",
-                "plugin_marketplace",
-                {"action": "uninstall", "name": name},
-            ))
+            self._event_bus.publish(
+                Event.create(
+                    "claude.infra.plugin.marketplace",
+                    "plugin_marketplace",
+                    {"action": "uninstall", "name": name},
+                )
+            )
 
         return True, f"Uninstalled plugin '{name}'"
 
-    def get_installed(self) -> List[MarketplaceEntry]:
+    def get_installed(self) -> list[MarketplaceEntry]:
         """Return all installed marketplace plugins."""
         return [e for e in self._catalog.values() if e.installed]
 
@@ -385,6 +403,7 @@ class PluginMarketplace:
 # Plugin Manager
 # =============================================================================
 
+
 class PluginManager:
     """Manages plugin lifecycle: discovery, loading, hot-reload, unloading.
 
@@ -394,12 +413,12 @@ class PluginManager:
 
     def __init__(
         self,
-        event_bus: Optional[EventBus] = None,
-        config: Optional[Dict[str, Any]] = None,
+        event_bus: EventBus | None = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         cfg = config or {}
         self._event_bus = event_bus
-        self._plugin_dirs: List[str] = cfg.get(
+        self._plugin_dirs: list[str] = cfg.get(
             "plugin_dirs",
             [
                 os.path.expanduser("~/.hermes/plugins"),
@@ -407,15 +426,15 @@ class PluginManager:
             ],
         )
         self._auto_hot_reload: bool = cfg.get("auto_hot_reload", True)
-        self._plugins: Dict[str, PluginInstance] = {}
+        self._plugins: dict[str, PluginInstance] = {}
         self._sandbox = PluginSandbox(permissions=[])
         self._marketplace = PluginMarketplace(event_bus=event_bus)
         self._lock = threading.RLock()
-        self._watchers: List[Any] = []  # File watchers for hot-reload
-        self._hot_reload_tasks: Dict[str, asyncio.Task[None]] = {}
+        self._watchers: list[Any] = []  # File watchers for hot-reload
+        self._hot_reload_tasks: dict[str, asyncio.Task[None]] = {}
 
     @property
-    def plugins(self) -> Dict[str, PluginInstance]:
+    def plugins(self) -> dict[str, PluginInstance]:
         return self._plugins
 
     @property
@@ -427,8 +446,9 @@ class PluginManager:
         _logger.info("Plugin Manager initializing...")
 
         discovered = self._discover_plugins()
-        _logger.info("Discovered %d plugins across %d directories",
-                     len(discovered), len(self._plugin_dirs))
+        _logger.info(
+            "Discovered %d plugins across %d directories", len(discovered), len(self._plugin_dirs)
+        )
 
         for plugin_path, manifest in discovered:
             try:
@@ -459,13 +479,13 @@ class PluginManager:
                 _logger.exception("Error unloading plugin '%s' during shutdown", name)
         _logger.info("Plugin Manager shut down")
 
-    def _discover_plugins(self) -> List[Tuple[str, Dict[str, Any]]]:
+    def _discover_plugins(self) -> list[tuple[str, dict[str, Any]]]:
         """Scan plugin directories for valid plugin manifests.
 
         Returns:
             List of (plugin_dir_path, manifest_dict) tuples.
         """
-        discovered: List[Tuple[str, Dict[str, Any]]] = []
+        discovered: list[tuple[str, dict[str, Any]]] = []
 
         for base_dir in self._plugin_dirs:
             base = Path(base_dir)
@@ -489,7 +509,7 @@ class PluginManager:
 
         return discovered
 
-    async def _load_plugin(self, path: str, manifest: Dict[str, Any]) -> Optional[PluginInstance]:
+    async def _load_plugin(self, path: str, manifest: dict[str, Any]) -> PluginInstance | None:
         """Load a single plugin from its path and manifest."""
         metadata = PluginMetadata.from_manifest(manifest)
 
@@ -523,21 +543,23 @@ class PluginManager:
         try:
             entry_file = os.path.join(path, metadata.main)
             if not os.path.isfile(entry_file):
-                raise FileNotFoundError(f"Entry file not found: {metadata.main}")
+                msg = f"Entry file not found: {metadata.main}"
+                raise FileNotFoundError(msg)
 
             spec = importlib.util.spec_from_file_location(
                 f"agent_plugins.{metadata.name}",
                 entry_file,
             )
             if spec is None or spec.loader is None:
-                raise ImportError(f"Could not load spec for {metadata.name}")
+                msg = f"Could not load spec for {metadata.name}"
+                raise ImportError(msg)
 
             module = importlib.util.module_from_spec(spec)
             sys.modules[f"agent_plugins.{metadata.name}"] = module
             spec.loader.exec_module(module)
 
             # Discover hooks
-            hooks: Dict[str, List[Callable[..., Any]]] = {}
+            hooks: dict[str, list[Callable[..., Any]]] = {}
             for hook_attr in ("on_load", "on_enable", "on_disable", "on_unload", "on_message"):
                 if hasattr(module, hook_attr):
                     hooks.setdefault(hook_attr, []).append(getattr(module, hook_attr))
@@ -575,12 +597,17 @@ class PluginManager:
             _logger.info("Plugin loaded: %s v%s", metadata.name, metadata.version)
 
             if self._event_bus:
-                self._event_bus.publish(Event.create(
-                    "claude.infra.plugin.loaded",
-                    "plugin_manager",
-                    {"name": metadata.name, "version": metadata.version,
-                     "state": instance.state.value},
-                ))
+                self._event_bus.publish(
+                    Event.create(
+                        "claude.infra.plugin.loaded",
+                        "plugin_manager",
+                        {
+                            "name": metadata.name,
+                            "version": metadata.version,
+                            "state": instance.state.value,
+                        },
+                    )
+                )
 
             return instance
 
@@ -635,12 +662,13 @@ class PluginManager:
             _logger.info("Plugin unloaded: %s", name)
 
             if self._event_bus:
-                self._event_bus.publish(Event.create(
-                    "claude.infra.plugin.loaded",
-                    "plugin_manager",
-                    {"name": name, "state": PluginState.UNLOADED.value,
-                     "action": "unloaded"},
-                ))
+                self._event_bus.publish(
+                    Event.create(
+                        "claude.infra.plugin.loaded",
+                        "plugin_manager",
+                        {"name": name, "state": PluginState.UNLOADED.value, "action": "unloaded"},
+                    )
+                )
 
         return True
 
@@ -672,13 +700,14 @@ class PluginManager:
             await self.unload_plugin(name)
             new_instance = await self._load_plugin(path, manifest)
             return new_instance is not None and new_instance.state in (
-                PluginState.LOADED, PluginState.ENABLED
+                PluginState.LOADED,
+                PluginState.ENABLED,
             )
         except Exception as exc:
             _logger.exception("Hot-reload failed for '%s': %s", name, exc)
             return False
 
-    async def reload_all(self) -> Dict[str, bool]:
+    async def reload_all(self) -> dict[str, bool]:
         """Hot-reload all loaded plugins.
 
         Returns:
@@ -687,7 +716,7 @@ class PluginManager:
         with self._lock:
             names = list(self._plugins.keys())
 
-        results: Dict[str, bool] = {}
+        results: dict[str, bool] = {}
         for name in names:
             results[name] = await self.reload_plugin(name)
 
@@ -708,12 +737,13 @@ class PluginManager:
             if meta.name == name:
                 instance = await self._load_plugin(plugin_path, manifest)
                 return instance is not None and instance.state in (
-                    PluginState.LOADED, PluginState.ENABLED
+                    PluginState.LOADED,
+                    PluginState.ENABLED,
                 )
         _logger.warning("No plugin named '%s' discovered", name)
         return False
 
-    def changed_plugins(self) -> Dict[str, bool]:
+    def changed_plugins(self) -> dict[str, bool]:
         """Detect which loaded plugins changed on disk.
 
         Recomputes each loaded plugin's checksum and reports True when the
@@ -726,7 +756,7 @@ class PluginManager:
         with self._lock:
             names = list(self._plugins.keys())
 
-        result: Dict[str, bool] = {}
+        result: dict[str, bool] = {}
         for name in names:
             inst = self.get_plugin(name)
             if inst is None:
@@ -735,7 +765,7 @@ class PluginManager:
             result[name] = bool(current) and current != inst.checksum
         return result
 
-    async def reload_changed(self) -> Dict[str, bool]:
+    async def reload_changed(self) -> dict[str, bool]:
         """Hot-reload only the plugins whose files changed on disk.
 
         Idempotent: if nothing changed, nothing is reloaded and the returned
@@ -745,18 +775,18 @@ class PluginManager:
         Returns:
             Dict mapping changed plugin name to reload-success boolean.
         """
-        results: Dict[str, bool] = {}
+        results: dict[str, bool] = {}
         for name, is_changed in self.changed_plugins().items():
             if is_changed:
                 results[name] = await self.reload_plugin(name)
         return results
 
-    def get_plugin(self, name: str) -> Optional[PluginInstance]:
+    def get_plugin(self, name: str) -> PluginInstance | None:
         """Get a loaded plugin by name."""
         with self._lock:
             return self._plugins.get(name)
 
-    def list_plugins(self) -> List[Dict[str, Any]]:
+    def list_plugins(self) -> list[dict[str, Any]]:
         """List all loaded plugins with metadata."""
         with self._lock:
             return [
@@ -772,7 +802,7 @@ class PluginManager:
                 for p in self._plugins.values()
             ]
 
-    def list_plugin_names(self) -> List[str]:
+    def list_plugin_names(self) -> list[str]:
         """List names of all loaded plugins."""
         with self._lock:
             return list(self._plugins.keys())

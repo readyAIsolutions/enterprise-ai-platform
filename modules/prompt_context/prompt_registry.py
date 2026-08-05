@@ -17,23 +17,23 @@ from __future__ import annotations
 
 import hashlib
 import json
-import uuid
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, TypeVar, Generic
-from collections import defaultdict
 import re
-import copy
 import threading
-
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
-class PromptStatus(str, Enum):
+
+class PromptStatus(StrEnum):
     """Lifecycle states for prompt templates."""
+
     DRAFT = "draft"
     ACTIVE = "active"
     DEPRECATED = "deprecated"
@@ -41,8 +41,9 @@ class PromptStatus(str, Enum):
     EXPERIMENTAL = "experimental"
 
 
-class ChangeType(str, Enum):
+class ChangeType(StrEnum):
     """Types of changes recorded in the changelog."""
+
     CREATED = "created"
     MODIFIED = "modified"
     VARIABLE_ADDED = "variable_added"
@@ -57,8 +58,9 @@ class ChangeType(str, Enum):
     ACTIVATED = "activated"
 
 
-class MetricName(str, Enum):
+class MetricName(StrEnum):
     """Standard performance metric names."""
+
     ACCURACY = "accuracy"
     HALLUCINATION_RATE = "hallucination_rate"
     TOKEN_EFFICIENCY = "token_efficiency"
@@ -76,18 +78,20 @@ class MetricName(str, Enum):
 # Data Classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ChangelogEntry:
     """A single entry in the prompt's changelog."""
+
     version: str
     change_type: ChangeType
     description: str
     author: str
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    diff: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    diff: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
             "change_type": self.change_type.value,
@@ -99,7 +103,7 @@ class ChangelogEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChangelogEntry":
+    def from_dict(cls, data: dict[str, Any]) -> ChangelogEntry:
         return cls(
             version=data["version"],
             change_type=ChangeType(data["change_type"]),
@@ -114,14 +118,15 @@ class ChangelogEntry:
 @dataclass
 class PerformanceMetric:
     """A single performance measurement for a prompt version."""
+
     version: str
     metric_name: MetricName
     value: float
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     sample_size: int = 1
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
             "metric_name": self.metric_name.value,
@@ -132,7 +137,7 @@ class PerformanceMetric:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PerformanceMetric":
+    def from_dict(cls, data: dict[str, Any]) -> PerformanceMetric:
         return cls(
             version=data["version"],
             metric_name=MetricName(data["metric_name"]),
@@ -146,15 +151,16 @@ class PerformanceMetric:
 @dataclass
 class PromptVersion:
     """A specific version snapshot of a prompt."""
+
     version: str
     objective: str
     template: str
-    variables: Set[str]
+    variables: set[str]
     status: PromptStatus
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    parent_version: Optional[str] = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    parent_version: str | None = None
     checksum: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.checksum:
@@ -164,7 +170,7 @@ class PromptVersion:
         content = f"{self.objective}|{self.template}|{sorted(self.variables)}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
             "objective": self.objective,
@@ -178,7 +184,7 @@ class PromptVersion:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PromptVersion":
+    def from_dict(cls, data: dict[str, Any]) -> PromptVersion:
         return cls(
             version=data["version"],
             objective=data["objective"],
@@ -195,18 +201,19 @@ class PromptVersion:
 @dataclass
 class PromptRecord:
     """Full record of a prompt with all versions and history."""
+
     prompt_id: str
     name: str
     current_version: str
-    versions: Dict[str, PromptVersion] = field(default_factory=dict)
-    changelog: List[ChangelogEntry] = field(default_factory=list)
-    performance_history: List[PerformanceMetric] = field(default_factory=list)
-    tags: List[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    versions: dict[str, PromptVersion] = field(default_factory=dict)
+    changelog: list[ChangelogEntry] = field(default_factory=list)
+    performance_history: list[PerformanceMetric] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "prompt_id": self.prompt_id,
             "name": self.name,
@@ -221,7 +228,7 @@ class PromptRecord:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PromptRecord":
+    def from_dict(cls, data: dict[str, Any]) -> PromptRecord:
         record = cls(
             prompt_id=data["prompt_id"],
             name=data["name"],
@@ -244,24 +251,24 @@ class PromptRecord:
 # Utility: Semantic Versioning
 # ---------------------------------------------------------------------------
 
+
 class SemanticVersion:
     """Semantic version parser and comparator (MAJOR.MINOR.PATCH[-pre])."""
 
-    _PATTERN = re.compile(
-        r"^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.]+))?$"
-    )
+    _PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.]+))?$")
 
-    def __init__(self, major: int, minor: int, patch: int, pre: Optional[str] = None):
+    def __init__(self, major: int, minor: int, patch: int, pre: str | None = None) -> None:
         self.major = major
         self.minor = minor
         self.patch = patch
         self.pre = pre
 
     @classmethod
-    def parse(cls, version_str: str) -> "SemanticVersion":
+    def parse(cls, version_str: str) -> SemanticVersion:
         m = cls._PATTERN.match(version_str.strip())
         if not m:
-            raise ValueError(f"Invalid semantic version: {version_str}")
+            msg = f"Invalid semantic version: {version_str}"
+            raise ValueError(msg)
         return cls(
             major=int(m.group(1)),
             minor=int(m.group(2)),
@@ -270,23 +277,25 @@ class SemanticVersion:
         )
 
     @classmethod
-    def try_parse(cls, version_str: str) -> Optional["SemanticVersion"]:
+    def try_parse(cls, version_str: str) -> SemanticVersion | None:
         try:
             return cls.parse(version_str)
         except ValueError:
             return None
 
-    def bump_major(self) -> "SemanticVersion":
+    def bump_major(self) -> SemanticVersion:
         return SemanticVersion(self.major + 1, 0, 0)
 
-    def bump_minor(self) -> "SemanticVersion":
+    def bump_minor(self) -> SemanticVersion:
         return SemanticVersion(self.major, self.minor + 1, 0)
 
-    def bump_patch(self) -> "SemanticVersion":
+    def bump_patch(self) -> SemanticVersion:
         return SemanticVersion(self.major, self.minor, self.patch + 1)
 
-    def bump_pre(self, label: str = "alpha") -> "SemanticVersion":
-        return SemanticVersion(self.major, self.minor, self.patch, pre=f"{label}.1" if not self.pre else f"{label}.1")
+    def bump_pre(self, label: str = "alpha") -> SemanticVersion:
+        return SemanticVersion(
+            self.major, self.minor, self.patch, pre=f"{label}.1" if not self.pre else f"{label}.1"
+        )
 
     def __str__(self) -> str:
         base = f"{self.major}.{self.minor}.{self.patch}"
@@ -301,10 +310,13 @@ class SemanticVersion:
         if not isinstance(other, SemanticVersion):
             return NotImplemented
         return (self.major, self.minor, self.patch, self.pre) == (
-            other.major, other.minor, other.patch, other.pre,
+            other.major,
+            other.minor,
+            other.patch,
+            other.pre,
         )
 
-    def __lt__(self, other: "SemanticVersion") -> bool:
+    def __lt__(self, other: SemanticVersion) -> bool:
         # Compare core versions
         if (self.major, self.minor, self.patch) != (other.major, other.minor, other.patch):
             return (self.major, self.minor, self.patch) < (other.major, other.minor, other.patch)
@@ -317,13 +329,13 @@ class SemanticVersion:
             return self.pre < other.pre
         return False
 
-    def __le__(self, other: "SemanticVersion") -> bool:
+    def __le__(self, other: SemanticVersion) -> bool:
         return self < other or self == other
 
-    def __gt__(self, other: "SemanticVersion") -> bool:
+    def __gt__(self, other: SemanticVersion) -> bool:
         return not (self <= other)
 
-    def __ge__(self, other: "SemanticVersion") -> bool:
+    def __ge__(self, other: SemanticVersion) -> bool:
         return not (self < other)
 
     def __hash__(self) -> int:
@@ -333,6 +345,7 @@ class SemanticVersion:
 # ---------------------------------------------------------------------------
 # Prompt ID Generator
 # ---------------------------------------------------------------------------
+
 
 class PromptIDGenerator:
     """Generates collision-resistant prompt IDs."""
@@ -361,6 +374,7 @@ class PromptIDGenerator:
 # ---------------------------------------------------------------------------
 # Prompt Registry
 # ---------------------------------------------------------------------------
+
 
 class PromptRegistryError(Exception):
     """Base exception for prompt registry errors."""
@@ -402,23 +416,27 @@ class PromptRegistry:
         prompt_id = registry.define(
             name="summarizer",
             objective="Summarize articles concisely",
-            template="Summarize the following: {{content}}"
+            template="Summarize the following: {{content}}",
         )
         version = registry.get_current(prompt_id)
         assembled = registry.assemble(prompt_id, variables={"content": "..."})
     """
 
     # Valid state transitions
-    VALID_TRANSITIONS: Dict[PromptStatus, Set[PromptStatus]] = {
+    VALID_TRANSITIONS: dict[PromptStatus, set[PromptStatus]] = {
         PromptStatus.DRAFT: {PromptStatus.ACTIVE, PromptStatus.EXPERIMENTAL, PromptStatus.ARCHIVED},
         PromptStatus.EXPERIMENTAL: {PromptStatus.DRAFT, PromptStatus.ACTIVE, PromptStatus.ARCHIVED},
-        PromptStatus.ACTIVE: {PromptStatus.DEPRECATED, PromptStatus.ARCHIVED, PromptStatus.EXPERIMENTAL},
+        PromptStatus.ACTIVE: {
+            PromptStatus.DEPRECATED,
+            PromptStatus.ARCHIVED,
+            PromptStatus.EXPERIMENTAL,
+        },
         PromptStatus.DEPRECATED: {PromptStatus.ACTIVE, PromptStatus.ARCHIVED},
         PromptStatus.ARCHIVED: {PromptStatus.DRAFT},
     }
 
-    def __init__(self, storage_path: Optional[str] = None, db_path: Optional[str] = None):
-        self._prompts: Dict[str, PromptRecord] = {}
+    def __init__(self, storage_path: str | None = None, db_path: str | None = None) -> None:
+        self._prompts: dict[str, PromptRecord] = {}
         self._lock = threading.RLock()
         self._storage_path = storage_path
         self._db_path = db_path
@@ -494,8 +512,8 @@ class PromptRegistry:
         name: str,
         objective: str,
         template: str,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
         author: str = "system",
         status: PromptStatus = PromptStatus.DRAFT,
     ) -> str:
@@ -518,11 +536,14 @@ class PromptRegistry:
             ValueError: If template has no variables or name is empty.
         """
         if not name or not name.strip():
-            raise ValueError("Prompt name cannot be empty")
+            msg = "Prompt name cannot be empty"
+            raise ValueError(msg)
         if not objective or not objective.strip():
-            raise ValueError("Prompt objective cannot be empty")
+            msg = "Prompt objective cannot be empty"
+            raise ValueError(msg)
         if not template or not template.strip():
-            raise ValueError("Prompt template cannot be empty")
+            msg = "Prompt template cannot be empty"
+            raise ValueError(msg)
 
         prompt_id = PromptIDGenerator.generate(name)
         variables = self._extract_variables(template)
@@ -563,17 +584,19 @@ class PromptRegistry:
         """Retrieve a prompt record by ID."""
         with self._lock:
             if prompt_id not in self._prompts:
-                raise PromptNotFoundError(f"Prompt not found: {prompt_id}")
+                msg = f"Prompt not found: {prompt_id}"
+                raise PromptNotFoundError(msg)
             return self._prompts[prompt_id]
 
     def get_version(self, prompt_id: str, version: str) -> PromptVersion:
         """Retrieve a specific version of a prompt."""
         record = self.get(prompt_id)
         if version not in record.versions:
-            raise VersionNotFoundError(
+            msg = (
                 f"Version {version} not found for prompt {prompt_id}. "
                 f"Available: {list(record.versions.keys())}"
             )
+            raise VersionNotFoundError(msg)
         return record.versions[version]
 
     def get_current(self, prompt_id: str) -> PromptVersion:
@@ -583,26 +606,24 @@ class PromptRegistry:
 
     def list_prompts(
         self,
-        status: Optional[PromptStatus] = None,
-        tags: Optional[List[str]] = None,
-        search: Optional[str] = None,
-    ) -> List[PromptRecord]:
+        status: PromptStatus | None = None,
+        tags: list[str] | None = None,
+        search: str | None = None,
+    ) -> list[PromptRecord]:
         """List prompts with optional filtering."""
         with self._lock:
             results = list(self._prompts.values())
 
             if status:
-                results = [
-                    r for r in results
-                    if r.versions[r.current_version].status == status
-                ]
+                results = [r for r in results if r.versions[r.current_version].status == status]
             if tags:
                 required = set(tags)
                 results = [r for r in results if required.issubset(set(r.tags))]
             if search:
                 search_lower = search.lower()
                 results = [
-                    r for r in results
+                    r
+                    for r in results
                     if search_lower in r.name.lower()
                     or any(search_lower in v.objective.lower() for v in r.versions.values())
                 ]
@@ -612,12 +633,12 @@ class PromptRegistry:
     def update(
         self,
         prompt_id: str,
-        objective: Optional[str] = None,
-        template: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        objective: str | None = None,
+        template: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
         author: str = "system",
-        bump: Optional[str] = None,
+        bump: str | None = None,
     ) -> str:
         """
         Update a prompt, creating a new version.
@@ -702,7 +723,7 @@ class PromptRegistry:
                 record.tags = tags
             if metadata is not None:
                 record.metadata = {**record.metadata, **metadata}
-            record.updated_at = datetime.now(timezone.utc)
+            record.updated_at = datetime.now(UTC)
 
         self._persist(prompt_id)
         return new_version
@@ -737,10 +758,11 @@ class PromptRegistry:
             return
 
         if new_status not in self.VALID_TRANSITIONS.get(current.status, set()):
-            raise InvalidTransitionError(
+            msg = (
                 f"Cannot transition from {current.status.value} to {new_status.value}. "
                 f"Valid transitions: {[s.value for s in self.VALID_TRANSITIONS.get(current.status, set())]}"
             )
+            raise InvalidTransitionError(msg)
 
         change_map = {
             PromptStatus.ACTIVE: ChangeType.ACTIVATED,
@@ -752,13 +774,15 @@ class PromptRegistry:
             record = self._prompts[prompt_id]
             version_obj = record.versions[record.current_version]
             version_obj.status = new_status
-            record.changelog.append(ChangelogEntry(
-                version=record.current_version,
-                change_type=change_map.get(new_status, ChangeType.MODIFIED),
-                description=f"Status changed to {new_status.value}",
-                author=author,
-            ))
-            record.updated_at = datetime.now(timezone.utc)
+            record.changelog.append(
+                ChangelogEntry(
+                    version=record.current_version,
+                    change_type=change_map.get(new_status, ChangeType.MODIFIED),
+                    description=f"Status changed to {new_status.value}",
+                    author=author,
+                )
+            )
+            record.updated_at = datetime.now(UTC)
         self._persist(prompt_id)
 
     # ------------------------------------------------------------------
@@ -788,17 +812,20 @@ class PromptRegistry:
         record = self.get(prompt_id)
 
         if target_version not in record.versions:
-            raise RollbackError(f"Target version {target_version} not found")
+            msg = f"Target version {target_version} not found"
+            raise RollbackError(msg)
 
         if target_version == record.current_version:
-            raise RollbackError(f"Already at version {target_version}")
+            msg = f"Already at version {target_version}"
+            raise RollbackError(msg)
 
         target = record.versions[target_version]
         current = record.versions[record.current_version]
 
         # Validate rollback is to a valid version
         if target.status == PromptStatus.ARCHIVED:
-            raise RollbackError(f"Cannot rollback to archived version {target_version}")
+            msg = f"Cannot rollback to archived version {target_version}"
+            raise RollbackError(msg)
 
         new_version = self._bump_version(current.version, strategy="major")
 
@@ -827,20 +854,20 @@ class PromptRegistry:
             record.versions[new_version] = new_version_obj
             record.current_version = new_version
             record.changelog.append(entry)
-            record.updated_at = datetime.now(timezone.utc)
+            record.updated_at = datetime.now(UTC)
 
         self._persist(prompt_id)
         return new_version
 
-    def get_history(self, prompt_id: str) -> List[ChangelogEntry]:
+    def get_history(self, prompt_id: str) -> list[ChangelogEntry]:
         """Get the full changelog history for a prompt."""
         record = self.get(prompt_id)
         return list(record.changelog)
 
-    def get_version_tree(self, prompt_id: str) -> Dict[str, List[str]]:
+    def get_version_tree(self, prompt_id: str) -> dict[str, list[str]]:
         """Get the version ancestry tree."""
         record = self.get(prompt_id)
-        tree: Dict[str, List[str]] = {}
+        tree: dict[str, list[str]] = {}
         for ver, vobj in record.versions.items():
             parent = vobj.parent_version
             if parent:
@@ -849,9 +876,7 @@ class PromptRegistry:
                 tree.setdefault("root", []).append(ver)
         return tree
 
-    def compare_versions(
-        self, prompt_id: str, version_a: str, version_b: str
-    ) -> Dict[str, Any]:
+    def compare_versions(self, prompt_id: str, version_a: str, version_b: str) -> dict[str, Any]:
         """Compare two versions of a prompt."""
         va = self.get_version(prompt_id, version_a)
         vb = self.get_version(prompt_id, version_b)
@@ -877,9 +902,9 @@ class PromptRegistry:
         prompt_id: str,
         metric_name: MetricName,
         value: float,
-        version: Optional[str] = None,
+        version: str | None = None,
         sample_size: int = 1,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Record a performance metric for a prompt version."""
         record = self.get(prompt_id)
@@ -901,10 +926,10 @@ class PromptRegistry:
     def get_metrics(
         self,
         prompt_id: str,
-        metric_name: Optional[MetricName] = None,
-        version: Optional[str] = None,
+        metric_name: MetricName | None = None,
+        version: str | None = None,
         limit: int = 100,
-    ) -> List[PerformanceMetric]:
+    ) -> list[PerformanceMetric]:
         """Retrieve performance metrics with optional filtering."""
         record = self.get(prompt_id)
         metrics = record.performance_history
@@ -917,15 +942,15 @@ class PromptRegistry:
         return metrics[-limit:]
 
     def get_aggregated_metrics(
-        self, prompt_id: str, version: Optional[str] = None
-    ) -> Dict[MetricName, Dict[str, float]]:
+        self, prompt_id: str, version: str | None = None
+    ) -> dict[MetricName, dict[str, float]]:
         """Get aggregated metrics (avg, min, max, count) per metric name."""
         record = self.get(prompt_id)
         metrics = record.performance_history
         if version:
             metrics = [m for m in metrics if m.version == version]
 
-        grouped: Dict[MetricName, List[float]] = defaultdict(list)
+        grouped: dict[MetricName, list[float]] = defaultdict(list)
         for m in metrics:
             grouped[m.metric_name].append(m.value)
 
@@ -945,14 +970,16 @@ class PromptRegistry:
         prompt_id: str,
         by_metric: MetricName = MetricName.ACCURACY,
         higher_is_better: bool = True,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Find the best-performing version by a given metric."""
         metrics = self.get_metrics(prompt_id, metric_name=by_metric)
 
         if not metrics:
             return None
 
-        key = lambda m: m.value
+        def key(m):
+            return m.value
+
         best = max(metrics, key=key) if higher_is_better else min(metrics, key=key)
         return best.version
 
@@ -963,8 +990,8 @@ class PromptRegistry:
     def assemble(
         self,
         prompt_id: str,
-        variables: Dict[str, str],
-        version: Optional[str] = None,
+        variables: dict[str, str],
+        version: str | None = None,
         validate: bool = True,
     ) -> str:
         """
@@ -983,27 +1010,22 @@ class PromptRegistry:
             ValueError: If required variables are missing (when validate=True).
         """
         prompt_version = (
-            self.get_version(prompt_id, version)
-            if version
-            else self.get_current(prompt_id)
+            self.get_version(prompt_id, version) if version else self.get_current(prompt_id)
         )
 
         if prompt_version.status == PromptStatus.ARCHIVED:
-            raise InvalidTransitionError(
-                f"Cannot assemble archived prompt {prompt_id}"
-            )
+            msg = f"Cannot assemble archived prompt {prompt_id}"
+            raise InvalidTransitionError(msg)
 
         if validate:
             missing = prompt_version.variables - set(variables.keys())
             if missing:
-                raise ValueError(
-                    f"Missing required variables for prompt '{prompt_id}': {missing}"
-                )
+                msg = f"Missing required variables for prompt '{prompt_id}': {missing}"
+                raise ValueError(msg)
             extra = set(variables.keys()) - prompt_version.variables
             if extra:
-                raise ValueError(
-                    f"Unknown variables provided for prompt '{prompt_id}': {extra}"
-                )
+                msg = f"Unknown variables provided for prompt '{prompt_id}': {extra}"
+                raise ValueError(msg)
 
         template = prompt_version.template
         for var_name, value in variables.items():
@@ -1013,8 +1035,8 @@ class PromptRegistry:
         return template
 
     def validate_variables(
-        self, prompt_id: str, variables: Dict[str, str], version: Optional[str] = None
-    ) -> Tuple[bool, List[str], List[str]]:
+        self, prompt_id: str, variables: dict[str, str], version: str | None = None
+    ) -> tuple[bool, list[str], list[str]]:
         """
         Validate variables against a prompt template.
 
@@ -1022,9 +1044,7 @@ class PromptRegistry:
             Tuple of (is_valid, missing_vars, extra_vars).
         """
         prompt_version = (
-            self.get_version(prompt_id, version)
-            if version
-            else self.get_current(prompt_id)
+            self.get_version(prompt_id, version) if version else self.get_current(prompt_id)
         )
 
         missing = sorted(prompt_version.variables - set(variables.keys()))
@@ -1039,8 +1059,8 @@ class PromptRegistry:
         self,
         prompt_id: str,
         name_suffix: str,
-        objective: Optional[str] = None,
-        template: Optional[str] = None,
+        objective: str | None = None,
+        template: str | None = None,
         author: str = "system",
     ) -> str:
         """Create an A/B test variant of a prompt."""
@@ -1063,16 +1083,13 @@ class PromptRegistry:
     # Serialization
     # ------------------------------------------------------------------
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize the entire registry to a dictionary."""
         with self._lock:
-            return {
-                prompt_id: record.to_dict()
-                for prompt_id, record in self._prompts.items()
-            }
+            return {prompt_id: record.to_dict() for prompt_id, record in self._prompts.items()}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PromptRegistry":
+    def from_dict(cls, data: dict[str, Any]) -> PromptRegistry:
         """Deserialize a registry from a dictionary."""
         registry = cls()
         with registry._lock:
@@ -1080,19 +1097,20 @@ class PromptRegistry:
                 registry._prompts[prompt_id] = PromptRecord.from_dict(record_data)
         return registry
 
-    def save(self, path: Optional[str] = None) -> None:
+    def save(self, path: str | None = None) -> None:
         """Persist the registry to disk as JSON."""
         target = path or self._storage_path
         if not target:
-            raise ValueError("No storage path specified")
+            msg = "No storage path specified"
+            raise ValueError(msg)
         data = self.to_dict()
         with open(target, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, default=str)
 
     @classmethod
-    def load(cls, path: str) -> "PromptRegistry":
+    def load(cls, path: str) -> PromptRegistry:
         """Load the registry from a JSON file."""
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         registry = cls.from_dict(data)
         registry._storage_path = path
@@ -1103,7 +1121,7 @@ class PromptRegistry:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _extract_variables(template: str) -> Set[str]:
+    def _extract_variables(template: str) -> set[str]:
         """Extract {{variable}} names from a template."""
         return set(re.findall(r"\{\{(\w+)\}\}", template))
 
@@ -1111,19 +1129,20 @@ class PromptRegistry:
     def _generate_diff(old_template: str, new_template: str) -> str:
         """Generate a simple line-based diff between two templates."""
         import difflib
-        diff_lines = list(difflib.unified_diff(
-            old_template.splitlines(keepends=True),
-            new_template.splitlines(keepends=True),
-            fromfile="previous",
-            tofile="current",
-            lineterm="",
-        ))
+
+        diff_lines = list(
+            difflib.unified_diff(
+                old_template.splitlines(keepends=True),
+                new_template.splitlines(keepends=True),
+                fromfile="previous",
+                tofile="current",
+                lineterm="",
+            )
+        )
         return "".join(diff_lines) if diff_lines else "(no changes)"
 
     @staticmethod
-    def _build_change_description(
-        changes: List[ChangeType], old_ver: str, new_ver: str
-    ) -> str:
+    def _build_change_description(changes: list[ChangeType], old_ver: str, new_ver: str) -> str:
         """Build a human-readable change description."""
         change_names = [c.value for c in changes]
         return f"Updated from {old_ver} to {new_ver}: {', '.join(change_names)}"
@@ -1131,7 +1150,7 @@ class PromptRegistry:
     def _bump_version(
         self,
         current_version: str,
-        strategy: Optional[str] = None,
+        strategy: str | None = None,
         has_objective_change: bool = False,
         has_template_change: bool = False,
     ) -> str:
@@ -1148,18 +1167,16 @@ class PromptRegistry:
 
         if strategy == "major":
             return str(ver.bump_major())
-        elif strategy == "minor":
+        if strategy == "minor":
             return str(ver.bump_minor())
-        elif strategy == "patch":
+        if strategy == "patch":
             return str(ver.bump_patch())
-        else:
-            # Auto-detect based on changes
-            if has_objective_change:
-                return str(ver.bump_major())
-            elif has_template_change:
-                return str(ver.bump_minor())
-            else:
-                return str(ver.bump_patch())
+        # Auto-detect based on changes
+        if has_objective_change:
+            return str(ver.bump_major())
+        if has_template_change:
+            return str(ver.bump_minor())
+        return str(ver.bump_patch())
 
     def __len__(self) -> int:
         with self._lock:
@@ -1178,7 +1195,8 @@ class PromptRegistry:
 # Standalone utility functions
 # ---------------------------------------------------------------------------
 
-def detect_template_issues(template: str) -> List[str]:
+
+def detect_template_issues(template: str) -> list[str]:
     """Detect common issues in a prompt template."""
     issues = []
 
@@ -1197,6 +1215,7 @@ def detect_template_issues(template: str) -> List[str]:
     vars_found = re.findall(r"\{\{(\w+)\}\}", template)
     if len(vars_found) != len(set(vars_found)):
         from collections import Counter
+
         duplicates = [v for v, c in Counter(vars_found).items() if c > 1]
         issues.append(f"Duplicate variable names: {duplicates}")
 

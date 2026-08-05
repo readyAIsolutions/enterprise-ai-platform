@@ -5,10 +5,9 @@ Covers funnel conversion math, per-stage drop-off, NPS banding + formula,
 churn-risk weighting, the JourneyAnalytics facade report, SQLite persistence
 round-trips and component lifecycles. Pure stdlib analytics tests.
 """
+
 from __future__ import annotations
 
-import math
-import os
 import sys
 from pathlib import Path
 
@@ -17,13 +16,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from analytics import (
-    FunnelAnalyst,
-    StageConversion,
     NPS,
-    NPSBand,
     ChurnRisk,
     ChurnRiskLevel,
+    FunnelAnalyst,
     JourneyAnalytics,
+    NPSBand,
 )
 
 STAGES = ["awareness", "evaluation", "purchase", "setup"]
@@ -33,7 +31,8 @@ STAGES = ["awareness", "evaluation", "purchase", "setup"]
 # Funnel
 # ---------------------------------------------------------------------------
 
-def test_funnel_conversion_math():
+
+def test_funnel_conversion_math() -> None:
     fa = FunnelAnalyst(STAGES)
     for _ in range(100):
         fa.feed("awareness", "visit")
@@ -60,7 +59,7 @@ def test_funnel_conversion_math():
     assert fa.overall_conversion() == pytest.approx(10 / 100)
 
 
-def test_funnel_dropoff_at_each_stage():
+def test_funnel_dropoff_at_each_stage() -> None:
     fa = FunnelAnalyst(STAGES)
     for _ in range(100):
         fa.feed("awareness", "visit")
@@ -85,7 +84,7 @@ def test_funnel_dropoff_at_each_stage():
     assert drops["evaluation -> purchase"] == 30
 
 
-def test_funnel_distinct_customer_dedup():
+def test_funnel_distinct_customer_dedup() -> None:
     fa = FunnelAnalyst(["awareness", "evaluation"])
     # c1 re-enters awareness; should only count once per stage.
     fa.feed("awareness", "visit", customer_id="c1")
@@ -101,22 +100,22 @@ def test_funnel_distinct_customer_dedup():
     assert fa.overall_conversion() == pytest.approx(1.0)
 
 
-def test_funnel_unknown_stage_rejected():
+def test_funnel_unknown_stage_rejected() -> None:
     fa = FunnelAnalyst(STAGES)
     with pytest.raises(ValueError):
         fa.feed("nonexistent", "x")
 
 
-def test_funnel_empty_and_zero_guards():
+def test_funnel_empty_and_zero_guards() -> None:
     fa = FunnelAnalyst(STAGES)
     assert fa.overall_conversion() == 0.0
-    assert fa.reach() == {s: 0 for s in STAGES}
+    assert fa.reach() == dict.fromkeys(STAGES, 0)
     assert fa.conversions()[0].rate == 0.0
     with pytest.raises(ValueError):
         FunnelAnalyst([])
 
 
-def test_funnel_report_structure():
+def test_funnel_report_structure() -> None:
     fa = FunnelAnalyst(STAGES)
     for _ in range(10):
         fa.feed("awareness", "visit")
@@ -132,7 +131,8 @@ def test_funnel_report_structure():
 # NPS
 # ---------------------------------------------------------------------------
 
-def test_nps_band_boundaries():
+
+def test_nps_band_boundaries() -> None:
     assert NPS.band(0) is NPSBand.DETRACTOR
     assert NPS.band(6) is NPSBand.DETRACTOR
     assert NPS.band(7) is NPSBand.PASSIVE
@@ -141,7 +141,7 @@ def test_nps_band_boundaries():
     assert NPS.band(10) is NPSBand.PROMOTER
 
 
-def test_nps_invalid_score_rejected():
+def test_nps_invalid_score_rejected() -> None:
     nps = NPS()
     with pytest.raises(ValueError):
         nps.record(-1)
@@ -149,7 +149,7 @@ def test_nps_invalid_score_rejected():
         nps.record(11)
 
 
-def test_nps_formula():
+def test_nps_formula() -> None:
     nps = NPS()
     # 3 promoters, 1 passive, 1 detractor -> NPS = 60 - 20 = 40
     for s in (9, 10, 10, 8, 5):
@@ -164,7 +164,7 @@ def test_nps_formula():
     assert nps.nps() == pytest.approx(40.0)
 
 
-def test_nps_negative_score_and_empty():
+def test_nps_negative_score_and_empty() -> None:
     nps = NPS()
     # all detractors -> -100
     for _ in range(3):
@@ -177,7 +177,7 @@ def test_nps_negative_score_and_empty():
     assert fresh.percentages()[NPSBand.PROMOTER] == 0.0
 
 
-def test_nps_report_and_reset():
+def test_nps_report_and_reset() -> None:
     nps = NPS()
     nps.record(10)
     nps.record(2)
@@ -194,7 +194,8 @@ def test_nps_report_and_reset():
 # Churn risk
 # ---------------------------------------------------------------------------
 
-def test_churn_risk_saturation_top_score():
+
+def test_churn_risk_saturation_top_score() -> None:
     cr = ChurnRisk()
     # all signals at cap -> normalized to 1.0 each -> score 100
     score = cr.update("c1", support_tickets=5, negative_feedback=3, inactivity_days=90)
@@ -202,7 +203,7 @@ def test_churn_risk_saturation_top_score():
     assert cr.risk_level(score) is ChurnRiskLevel.HIGH
 
 
-def test_churn_risk_weighting():
+def test_churn_risk_weighting() -> None:
     # Default weights: tickets .30, feedback .30, inactivity .40
     cr = ChurnRisk()
     # only tickets at cap -> 100 * .30 = 30
@@ -213,24 +214,22 @@ def test_churn_risk_weighting():
     assert cr.update("f_only", negative_feedback=3) == pytest.approx(30.0)
 
 
-def test_churn_risk_linear_scaling():
+def test_churn_risk_linear_scaling() -> None:
     cr = ChurnRisk()
-    score = cr.update(
-        "c1", support_tickets=2, negative_feedback=1, inactivity_days=30
-    )
+    score = cr.update("c1", support_tickets=2, negative_feedback=1, inactivity_days=30)
     # tickets_norm=.4, feedback_norm=1/3, inactivity_norm=1/3
     expected = 100 * (0.30 * 0.4 + 0.30 * (1 / 3) + 0.40 * (1 / 3))
     assert score == pytest.approx(expected, abs=0.01)
 
 
-def test_churn_risk_levels():
+def test_churn_risk_levels() -> None:
     cr = ChurnRisk()
     assert cr.risk_level(10) is ChurnRiskLevel.LOW
     assert cr.risk_level(45) is ChurnRiskLevel.MEDIUM
     assert cr.risk_level(85) is ChurnRiskLevel.HIGH
 
 
-def test_churn_risk_breakdown_and_unknown():
+def test_churn_risk_breakdown_and_unknown() -> None:
     cr = ChurnRisk()
     assert cr.score("missing") == 0.0
     cr.update("c1", support_tickets=5)
@@ -245,7 +244,8 @@ def test_churn_risk_breakdown_and_unknown():
 # JourneyAnalytics facade
 # ---------------------------------------------------------------------------
 
-def test_journey_analytics_report_aggregate():
+
+def test_journey_analytics_report_aggregate() -> None:
     ja = JourneyAnalytics(STAGES)
     # funnel
     for _ in range(10):
@@ -270,7 +270,7 @@ def test_journey_analytics_report_aggregate():
     assert "session_started_at" in rep
 
 
-def test_journey_analytics_churn_aggregate():
+def test_journey_analytics_churn_aggregate() -> None:
     ja = JourneyAnalytics(STAGES)
     # a: 0.30 (tickets) + 0.40 (inactivity) = 70 -> high
     ja.update_churn("a", support_tickets=5, inactivity_days=90)
@@ -290,7 +290,8 @@ def test_journey_analytics_churn_aggregate():
 # Persistence round-trips
 # ---------------------------------------------------------------------------
 
-def test_funnel_sqlite_roundtrip(tmp_path):
+
+def test_funnel_sqlite_roundtrip(tmp_path) -> None:
     db = str(tmp_path / "funnel.db")
     fa = FunnelAnalyst(STAGES)
     for i in range(6):
@@ -304,7 +305,7 @@ def test_funnel_sqlite_roundtrip(tmp_path):
     assert loaded.event_count() == fa.event_count()
 
 
-def test_nps_sqlite_roundtrip(tmp_path):
+def test_nps_sqlite_roundtrip(tmp_path) -> None:
     db = str(tmp_path / "nps.db")
     nps = NPS()
     for s in (9, 10, 7, 7, 3, 1):
@@ -317,7 +318,7 @@ def test_nps_sqlite_roundtrip(tmp_path):
     assert loaded.detractors == nps.detractors
 
 
-def test_churn_sqlite_roundtrip(tmp_path):
+def test_churn_sqlite_roundtrip(tmp_path) -> None:
     db = str(tmp_path / "churn.db")
     cr = ChurnRisk()
     cr.update("a", support_tickets=4, negative_feedback=2, inactivity_days=60)
@@ -330,7 +331,7 @@ def test_churn_sqlite_roundtrip(tmp_path):
     assert loaded.customers() == ["a", "b"]
 
 
-def test_journey_analytics_sqlite_roundtrip(tmp_path):
+def test_journey_analytics_sqlite_roundtrip(tmp_path) -> None:
     db = str(tmp_path / "ja.db")
     ja = JourneyAnalytics(STAGES)
     for _ in range(10):
@@ -349,7 +350,7 @@ def test_journey_analytics_sqlite_roundtrip(tmp_path):
     assert loaded.churn.score("x") == pytest.approx(ja.churn.score("x"))
 
 
-def test_journey_analytics_lifecycle():
+def test_journey_analytics_lifecycle() -> None:
     ja = JourneyAnalytics(STAGES)
     rep = ja.report()
     assert rep["summary"]["total_funnel_events"] == 0

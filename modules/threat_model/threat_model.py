@@ -17,12 +17,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 from enterprise.platform_kernel import (
-    EventBus,
     Event,
+    EventBus,
     EventPriority,
     HealthStatus,
     Module,
@@ -30,6 +30,9 @@ from enterprise.platform_kernel import (
 )
 
 from .risk import ThreatAssessment
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 _logger = logging.getLogger("enterprise.threat_model")
 
@@ -39,7 +42,7 @@ _logger = logging.getLogger("enterprise.threat_model")
 # =============================================================================
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """Risk severity bands derived from the numerical risk score.
 
     risk = likelihood * impact  (each 1-5, so risk is 1-25).
@@ -57,7 +60,7 @@ class Severity(str, Enum):
     CRITICAL = "CRITICAL"
 
     @classmethod
-    def from_risk(cls, risk: int) -> "Severity":
+    def from_risk(cls, risk: int) -> Severity:
         """Map a numeric risk score to a severity band."""
         if risk >= 20:
             return cls.CRITICAL
@@ -94,7 +97,7 @@ class Threat:
     technique: str
     likelihood: int
     impact: int
-    mitigations: List[str] = field(default_factory=list)
+    mitigations: list[str] = field(default_factory=list)
     asset: str = "any"
 
     @property
@@ -118,7 +121,7 @@ class Threat:
 
 # Each entry keys map directly onto Threat fields. ``asset`` is the target
 # asset type token; ``any`` means the threat applies to every asset in scope.
-BUILTIN_THREATS: List[Dict[str, Any]] = [
+BUILTIN_THREATS: list[dict[str, Any]] = [
     # ---- Prompt / injection -------------------------------------------------
     {
         "id": "AML-001",
@@ -388,8 +391,8 @@ class ThreatLibrary:
     :meth:`register`.
     """
 
-    def __init__(self, threats: Optional[Iterable[Threat]] = None) -> None:
-        self._threats: Dict[str, Threat] = {}
+    def __init__(self, threats: Iterable[Threat] | None = None) -> None:
+        self._threats: dict[str, Threat] = {}
         if threats is not None:
             for t in threats:
                 self.register(t)
@@ -402,7 +405,8 @@ class ThreatLibrary:
     def register(self, threat: Threat) -> Threat:
         """Add (or replace) a threat, keyed by its unique id."""
         if not threat.id:
-            raise ValueError("Threat id must not be empty")
+            msg = "Threat id must not be empty"
+            raise ValueError(msg)
         self._threats[threat.id] = threat
         return threat
 
@@ -412,11 +416,11 @@ class ThreatLibrary:
 
     # -- access ---------------------------------------------------------------
 
-    def all(self) -> List[Threat]:
+    def all(self) -> list[Threat]:
         """Return all threats in insertion order."""
         return list(self._threats.values())
 
-    def get(self, threat_id: str) -> Optional[Threat]:
+    def get(self, threat_id: str) -> Threat | None:
         """Return a threat by id, or None."""
         return self._threats.get(threat_id)
 
@@ -428,38 +432,38 @@ class ThreatLibrary:
 
     # -- lookups --------------------------------------------------------------
 
-    def by_category(self, category: str) -> List[Threat]:
+    def by_category(self, category: str) -> list[Threat]:
         """Return all threats in a category (case-insensitive)."""
         cat = category.strip().lower()
         return [t for t in self._threats.values() if t.category.lower() == cat]
 
-    def by_technique(self, technique: str) -> List[Threat]:
+    def by_technique(self, technique: str) -> list[Threat]:
         """Return threats whose ATLAS technique name/ID matches (fuzzy).
 
         Matches if the query appears in the technique string, or the
         technique string contains the query — either direction works.
         """
         query = technique.strip().lower()
-        out: List[Threat] = []
+        out: list[Threat] = []
         for t in self._threats.values():
             tech = t.technique.lower()
             if query in tech or tech in query:
                 out.append(t)
         return out
 
-    def matching(self, asset: str) -> List[Threat]:
+    def matching(self, asset: str) -> list[Threat]:
         """Return threats applicable to a given asset (generic or specific)."""
         return [t for t in self._threats.values() if t.applies_to(asset)]
 
-    def categories(self) -> Set[str]:
+    def categories(self) -> set[str]:
         """Return the set of distinct threat categories."""
         return {t.category for t in self._threats.values()}
 
-    def techniques(self) -> Set[str]:
+    def techniques(self) -> set[str]:
         """Return the set of distinct ATLAS techniques."""
         return {t.technique for t in self._threats.values()}
 
-    def assets(self) -> Set[str]:
+    def assets(self) -> set[str]:
         """Return the set of distinct targeted asset tokens."""
         return {t.asset for t in self._threats.values()}
 
@@ -483,10 +487,10 @@ class ThreatAssessor:
     and optionally filters the result.
     """
 
-    def __init__(self, library: Optional[ThreatLibrary] = None) -> None:
+    def __init__(self, library: ThreatLibrary | None = None) -> None:
         self.library = library or ThreatLibrary()
 
-    def _entry(self, threat: Threat, asset: str) -> Dict[str, Any]:
+    def _entry(self, threat: Threat, asset: str) -> dict[str, Any]:
         return {
             "threat_id": threat.id,
             "name": threat.name,
@@ -504,8 +508,8 @@ class ThreatAssessor:
         self,
         assets: Sequence[str],
         filter_mode: str = FILTER_ALL,
-        category: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        category: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Build a risk register for the given asset inventory.
 
         Args:
@@ -518,9 +522,10 @@ class ThreatAssessor:
             severity alongside the underlying threat details.
         """
         if filter_mode not in VALID_FILTERS:
-            raise ValueError(f"Unknown filter_mode: {filter_mode!r}")
+            msg = f"Unknown filter_mode: {filter_mode!r}"
+            raise ValueError(msg)
 
-        register: List[Dict[str, Any]] = []
+        register: list[dict[str, Any]] = []
         for asset in assets:
             for threat in self.library.matching(asset):
                 register.append(self._entry(threat, asset))
@@ -529,7 +534,8 @@ class ThreatAssessor:
             register = [e for e in register if e["severity"] in (Severity.HIGH, Severity.CRITICAL)]
         elif filter_mode == FILTER_BY_CATEGORY:
             if not category:
-                raise ValueError("filter_mode='by_category' requires a 'category'")
+                msg = "filter_mode='by_category' requires a 'category'"
+                raise ValueError(msg)
             want = category.strip().lower()
             register = [e for e in register if e["category"].lower() == want]
 
@@ -546,18 +552,18 @@ class ThreatModelReporter:
     """Produces ordered threat registers, top risks, and mitigation coverage."""
 
     @staticmethod
-    def sorted_register(register: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def sorted_register(register: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         """Return the register sorted by risk (descending)."""
         return sorted(register, key=lambda e: e["risk"], reverse=True)
 
     @staticmethod
-    def top_n(register: Sequence[Dict[str, Any]], n: int = 5) -> List[Dict[str, Any]]:
+    def top_n(register: Sequence[dict[str, Any]], n: int = 5) -> list[dict[str, Any]]:
         """Return the top ``n`` highest-risk entries (clamped to the register)."""
         n = max(0, int(n))
         return ThreatModelReporter.sorted_register(register)[:n]
 
     @staticmethod
-    def mitigation_coverage(register: Sequence[Dict[str, Any]]) -> float:
+    def mitigation_coverage(register: Sequence[dict[str, Any]]) -> float:
         """Fraction (0.0-1.0) of entries that list at least one mitigation."""
         if not register:
             return 0.0
@@ -566,9 +572,9 @@ class ThreatModelReporter:
 
     def report(
         self,
-        register: Sequence[Dict[str, Any]],
+        register: Sequence[dict[str, Any]],
         top_n: int = 5,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build a full report dict from a register."""
         ordered = self.sorted_register(register)
         risks = [e["risk"] for e in ordered]
@@ -596,7 +602,7 @@ class ThreatModelReporter:
 class STRIDEThreatMapper:
     """Maps an asset to the six STRIDE threat categories with examples."""
 
-    STRIDE_CATEGORIES: List[str] = [
+    STRIDE_CATEGORIES: list[str] = [
         "Spoofing",
         "Tampering",
         "Repudiation",
@@ -605,7 +611,7 @@ class STRIDEThreatMapper:
         "Elevation of Privilege",
     ]
 
-    _EXAMPLES: List[Dict[str, Any]] = [
+    _EXAMPLES: list[dict[str, Any]] = [
         {
             "spoofing": (
                 "Attacker spoofs a trusted system identity to trick the agent "
@@ -636,7 +642,7 @@ class STRIDEThreatMapper:
 
     # map each STRIDE category to a matching ATLAS technique string so every
     # mapped entry carries a meaningful technique reference
-    _TECHNIQUE_BY_STRIDE: Dict[str, str] = {
+    _TECHNIQUE_BY_STRIDE: dict[str, str] = {
         "Spoofing": "AML.T0051 Prompt Injection",
         "Tampering": "AML.T0043 Craft Adversarial Data",
         "Repudiation": "AML.T0010 ML Model Inference",
@@ -645,9 +651,9 @@ class STRIDEThreatMapper:
         "Elevation of Privilege": "AML.T0059 Excessive Agency",
     }
 
-    def map(self, asset: str) -> Dict[str, List[Dict[str, Any]]]:
+    def map(self, asset: str) -> dict[str, list[dict[str, Any]]]:
         """Return a dict of the six STRIDE categories, each with example threats."""
-        result: Dict[str, List[Dict[str, Any]]] = {}
+        result: dict[str, list[dict[str, Any]]] = {}
         examples = self._EXAMPLES[0]
         for cat in self.STRIDE_CATEGORIES:
             key = cat.lower().replace(" ", "_")
@@ -664,8 +670,8 @@ class STRIDEThreatMapper:
         return result
 
     @staticmethod
-    def _mitigations_for(category: str) -> List[str]:
-        _BASE: Dict[str, List[str]] = {
+    def _mitigations_for(category: str) -> list[str]:
+        _BASE: dict[str, list[str]] = {
             "Spoofing": ["Mutual TLS / identity verification", "Prompt-injection guard"],
             "Tampering": ["Output hashing & integrity checks", "Context sanitization"],
             "Repudiation": ["Hash-chained audit logging", "Tool-call attestation"],
@@ -675,7 +681,7 @@ class STRIDEThreatMapper:
         }
         return list(_BASE.get(category, []))
 
-    def categories(self) -> List[str]:
+    def categories(self) -> list[str]:
         """Return the six STRIDE category names."""
         return list(self.STRIDE_CATEGORIES)
 
@@ -690,8 +696,8 @@ class ThreatModelFacade:
 
     def __init__(
         self,
-        library: Optional[ThreatLibrary] = None,
-        config: Optional[Dict[str, Any]] = None,
+        library: ThreatLibrary | None = None,
+        config: dict[str, Any] | None = None,
     ) -> None:
         self.config = config or {}
         self.library = library or ThreatLibrary()
@@ -703,13 +709,13 @@ class ThreatModelFacade:
 
     # -- library delegations -------------------------------------------------
 
-    def by_category(self, category: str) -> List[Threat]:
+    def by_category(self, category: str) -> list[Threat]:
         return self.library.by_category(category)
 
-    def by_technique(self, technique: str) -> List[Threat]:
+    def by_technique(self, technique: str) -> list[Threat]:
         return self.library.by_technique(technique)
 
-    def catalogue(self) -> List[Threat]:
+    def catalogue(self) -> list[Threat]:
         return self.library.all()
 
     # -- analysis ------------------------------------------------------------
@@ -718,12 +724,12 @@ class ThreatModelFacade:
         self,
         assets: Sequence[str],
         filter_mode: str = FILTER_ALL,
-        category: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        category: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Compute a risk register for the given asset inventory."""
         return self.assessor.assess(assets, filter_mode=filter_mode, category=category)
 
-    def stride(self, asset: str) -> Dict[str, List[Dict[str, Any]]]:
+    def stride(self, asset: str) -> dict[str, list[dict[str, Any]]]:
         """Map an asset to its six STRIDE categories with example threats."""
         return self.mapper.map(asset)
 
@@ -731,9 +737,9 @@ class ThreatModelFacade:
         self,
         assets: Sequence[str],
         filter_mode: str = FILTER_ALL,
-        category: Optional[str] = None,
+        category: str | None = None,
         top_n: int = 5,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Assess ``assets`` and return a full threat-model report."""
         register = self.assess(assets, filter_mode=filter_mode, category=category)
         return self.reporter.report(register, top_n=top_n)
@@ -756,16 +762,16 @@ class ThreatModelModule(Module):
         - threat.report.ready — a threat-model report was produced
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._library = ThreatLibrary()
-        self._facade: Optional[ThreatModelFacade] = None
-        self._event_bus: Optional[EventBus] = None
+        self._facade: ThreatModelFacade | None = None
+        self._event_bus: EventBus | None = None
 
     # -- properties ----------------------------------------------------------
 
     @property
-    def facade(self) -> Optional[ThreatModelFacade]:
+    def facade(self) -> ThreatModelFacade | None:
         """Return the active facade, if initialized."""
         return self._facade
 
@@ -786,8 +792,9 @@ class ThreatModelModule(Module):
         try:
             self._facade = ThreatModelFacade(library=self._library)
             self._status = HealthStatus.HEALTHY
-            _logger.info("Threat model module initialized (%d catalogue threats)",
-                         len(self._library))
+            _logger.info(
+                "Threat model module initialized (%d catalogue threats)", len(self._library)
+            )
         except Exception as exc:  # pragma: no cover - defensive
             _logger.exception("Failed to initialize threat model module: %s", exc)
             self._status = HealthStatus.UNHEALTHY
@@ -820,22 +827,22 @@ class ThreatModelModule(Module):
     def require_facade(self) -> ThreatModelFacade:
         """Return the facade or raise if the module is not initialized."""
         if self._facade is None:
-            raise RuntimeError("Threat model module is not initialized")
+            msg = "Threat model module is not initialized"
+            raise RuntimeError(msg)
         return self._facade
 
     def assess(
         self,
         assets: Sequence[str],
         filter_mode: str = FILTER_ALL,
-        category: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        category: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Compute a risk register for the given assets."""
         register = self.require_facade().assess(assets, filter_mode, category)
-        self._publish("threat.register.assessed",
-                      {"assets": list(assets), "count": len(register)})
+        self._publish("threat.register.assessed", {"assets": list(assets), "count": len(register)})
         return register
 
-    def stride(self, asset: str) -> Dict[str, List[Dict[str, Any]]]:
+    def stride(self, asset: str) -> dict[str, list[dict[str, Any]]]:
         """Map an asset to STRIDE categories."""
         return self.require_facade().stride(asset)
 
@@ -843,19 +850,21 @@ class ThreatModelModule(Module):
         self,
         assets: Sequence[str],
         top_n: int = 5,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build a full threat-model report for the given assets."""
         rep = self.require_facade().report(assets, top_n=top_n)
-        self._publish("threat.report.ready",
-                      {"assets": list(assets), "total": rep["total_threats"]})
+        self._publish(
+            "threat.report.ready", {"assets": list(assets), "total": rep["total_threats"]}
+        )
         return rep
 
-    def _publish(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _publish(self, topic: str, payload: dict[str, Any]) -> None:
         """Publish an event on the wired event bus, if any."""
         if self._event_bus is not None:
             self._event_bus.publish(
-                Event.create(topic, source="threat_model", payload=payload,
-                             priority=EventPriority.NORMAL)
+                Event.create(
+                    topic, source="threat_model", payload=payload, priority=EventPriority.NORMAL
+                )
             )
 
 

@@ -33,7 +33,10 @@ import subprocess
 import sys
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger("eni.universal_score.coverage_fleet")
 
@@ -73,7 +76,7 @@ class _Proc:
         self.returncode = returncode
 
 
-def _clean_environ(environ: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def _clean_environ(environ: dict[str, str] | None = None) -> dict[str, str]:
     """Return a sanitized copy of ``os.environ`` for a coverage subprocess.
 
     Defensive against harness/CI-injected corruption: drops a mangled
@@ -100,7 +103,7 @@ def _clean_environ(environ: Optional[Dict[str, str]] = None) -> Dict[str, str]:
     return env
 
 
-def _real_runner(command: List[str], cwd: str, timeout: int) -> _Proc:
+def _real_runner(command: list[str], cwd: str, timeout: int) -> _Proc:
     """Default subprocess runner for :class:`CoverageProbe`.
 
     Captures stdout/stderr as text and enforces the timeout cap. The subprocess
@@ -130,15 +133,16 @@ class CoverageProbe:
     def __init__(
         self,
         project_root: Any,
-        runner: Optional[Callable[..., _Proc]] = None,
+        runner: Callable[..., _Proc] | None = None,
         timeout: int = DEFAULT_TIMEOUT,
-        python_bin: Optional[str] = None,
-        source_dirs: Tuple[str, ...] = DEFAULT_SOURCE_DIRS,
+        python_bin: str | None = None,
+        source_dirs: tuple[str, ...] = DEFAULT_SOURCE_DIRS,
         pytest_opts: str = "-q",
     ) -> None:
         self.root = Path(project_root)
         if not self.root.is_dir():
-            raise FileNotFoundError(f"Project root does not exist: {self.root}")
+            msg = f"Project root does not exist: {self.root}"
+            raise FileNotFoundError(msg)
         self.runner: Callable[..., _Proc] = runner or _real_runner
         self.timeout = int(timeout)
         self.python_bin = python_bin or sys.executable
@@ -148,25 +152,23 @@ class CoverageProbe:
         self.last_run_rc: int = 0
 
     # ------------------------------------------------------------------ utils
-    def _exec(self, command: List[str], check: bool = True) -> _Proc:
+    def _exec(self, command: list[str], check: bool = True) -> _Proc:
         proc = self.runner(command, cwd=str(self.root), timeout=self.timeout)
         if check and getattr(proc, "returncode", 0) != 0:
             detail = getattr(proc, "stderr", "") or getattr(proc, "stdout", "") or ""
             if detail:
                 detail = "\n" + detail.strip()
-            raise CoverageError(
-                f"coverage subprocess failed (rc={proc.returncode}): "
-                f"{' '.join(command)}{detail}"
-            )
+            msg = f"coverage subprocess failed (rc={proc.returncode}): {' '.join(command)}{detail}"
+            raise CoverageError(msg)
         return proc
 
-    def _source_args(self) -> List[str]:
+    def _source_args(self) -> list[str]:
         """--source=... limiting measurement to the configured source dirs."""
         roots = ",".join(str(self.root / d) for d in self.source_dirs)
         return [f"--source={roots}"]
 
     # ------------------------------------------------------------- public API
-    def measure(self) -> Dict[str, Any]:
+    def measure(self) -> dict[str, Any]:
         """Run the project's own tests under coverage and return the raw JSON
         report dict (shape of ``coverage json``).
 
@@ -189,9 +191,10 @@ class CoverageProbe:
         try:
             return json.loads(out)
         except json.JSONDecodeError as exc:  # pragma: no cover - defensive
-            raise CoverageError(f"malformed coverage JSON output: {exc}") from exc
+            msg = f"malformed coverage JSON output: {exc}"
+            raise CoverageError(msg) from exc
 
-    def global_pct(self, data: Optional[Dict[str, Any]] = None) -> float:
+    def global_pct(self, data: dict[str, Any] | None = None) -> float:
         """Rounded global line-coverage % (folds back into Test Quality)."""
         totals = (data or self.measure()).get("totals", {})
         try:
@@ -203,10 +206,10 @@ class CoverageProbe:
 class CoverageReport:
     """Aggregate a raw coverage JSON report into decisions for the scorer."""
 
-    def __init__(self, probe: CoverageProbe, data: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, probe: CoverageProbe, data: dict[str, Any] | None = None) -> None:
         self.probe = probe
-        self.data: Dict[str, Any] = data if data is not None else probe.measure()
-        self.totals: Dict[str, Any] = self.data.get("totals", {})
+        self.data: dict[str, Any] = data if data is not None else probe.measure()
+        self.totals: dict[str, Any] = self.data.get("totals", {})
 
         try:
             self.global_pct = round(float(self.totals.get("percent_covered", 0.0)), 1)
@@ -214,24 +217,22 @@ class CoverageReport:
             self.global_pct = 0.0
 
         # per-file: relative path -> rounded line-coverage %
-        self.per_file: Dict[str, float] = OrderedDict()
+        self.per_file: dict[str, float] = OrderedDict()
         for rel, info in (self.data.get("files", {}) or {}).items():
             try:
-                self.per_file[rel] = round(
-                    float(info["summary"]["percent_covered"]), 1
-                )
+                self.per_file[rel] = round(float(info["summary"]["percent_covered"]), 1)
             except (KeyError, TypeError, ValueError):
                 continue
 
         # statement-weighted per-package %
-        self.per_package: Dict[str, float] = self._aggregate_packages()
-        self.bottom_files: List[Tuple[str, float]] = sorted(
+        self.per_package: dict[str, float] = self._aggregate_packages()
+        self.bottom_files: list[tuple[str, float]] = sorted(
             self.per_file.items(), key=lambda kv: (kv[1], kv[0])
         )[:BOTTOM_FILES_N]
         self.grade: str = self._grade(self.global_pct)
 
     # ------------------------------------------------------------------ utils
-    def _aggregate_packages(self) -> Dict[str, float]:
+    def _aggregate_packages(self) -> dict[str, float]:
         """Group per-file coverage by real module subdir, weighted by executed
         statements (the same weighting ``coverage`` itself uses).
 
@@ -239,7 +240,7 @@ class CoverageReport:
         (the segment after the source root) so ``modules/agent_core/...`` yields
         package ``agent_core`` rather than a single ``modules`` bucket.
         """
-        packages: Dict[str, List[float]] = {}
+        packages: dict[str, list[float]] = {}
         for rel, info in (self.data.get("files", {}) or {}).items():
             summary = info.get("summary", {})
             try:
@@ -271,7 +272,7 @@ class CoverageReport:
                 return letter
         return "F"  # pragma: no cover - GRADE_BOUNDS floor is 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Plain dict for serialization into docs / the score result."""
         return {
             "global_pct": self.global_pct,
@@ -289,9 +290,9 @@ def _repo_root() -> Path:
 
 
 def run_fleet_coverage(
-    root: Optional[Any] = None,
-    report_path: Optional[Any] = None,
-    probe: Optional[CoverageProbe] = None,
+    root: Any | None = None,
+    report_path: Any | None = None,
+    probe: CoverageProbe | None = None,
 ) -> CoverageReport:
     """Run REAL line coverage over the enterprise repo's own ``modules/`` tree
     and write ``docs/COVERAGE_REPORT.md`` with the measured numbers.
@@ -319,8 +320,7 @@ def run_fleet_coverage(
         f"- **Global line coverage: {report.global_pct:g}%**",
         f"- **Grade: {report.grade}**",
         f"- **Files measured: {len(report.per_file)}**",
-        f"- **Test run exit code: {report.probe.last_run_rc}** "
-        "(0 = whole suite green)",
+        f"- **Test run exit code: {report.probe.last_run_rc}** (0 = whole suite green)",
         "",
         "## Per-package coverage",
         "",
@@ -346,6 +346,3 @@ def run_fleet_coverage(
 
 if __name__ == "__main__":  # invoke: python3 modules/universal_score/coverage_fleet.py
     rep = run_fleet_coverage()
-    print(f"Fleet line coverage: {rep.global_pct}% (grade {rep.grade}) "
-          f"across {len(rep.per_file)} files")
-    print(json.dumps(rep.to_dict(), indent=2))

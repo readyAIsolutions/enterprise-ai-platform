@@ -17,8 +17,6 @@ from __future__ import annotations
 
 import pytest
 
-from .test_vuln_scanner import CLEAN_TEXT
-
 from ..campaign import (
     CampaignReport,
     CampaignRunner,
@@ -37,6 +35,7 @@ from ..vuln_scanner import (
     ToxicityProbe,
     default_probes,
 )
+from .test_vuln_scanner import CLEAN_TEXT
 
 
 def _clean(prompt: str) -> str:
@@ -65,7 +64,7 @@ def _vuln(prompt: str) -> str:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_affinity_is_deterministic_causal():
+def test_affinity_is_deterministic_causal() -> None:
     for ctx in ("code", "output", "model-type", "safety", "privacy"):
         a1 = ProbeAffinity()
         a2 = ProbeAffinity()
@@ -75,7 +74,7 @@ def test_affinity_is_deterministic_causal():
         assert a1.select(ctx) == a1.select(ctx)
 
 
-def test_affinity_picks_relevant_probes_for_contexts():
+def test_affinity_picks_relevant_probes_for_contexts() -> None:
     a = ProbeAffinity()
     # Code contexts rank data-exfil / prompt-injection highest.
     assert a.best("code") == "data_exfil"
@@ -83,11 +82,12 @@ def test_affinity_picks_relevant_probes_for_contexts():
     # Output/LLM contexts gravitate toward pii + injection + jailbreak.
     assert a.best("output") == "pii_leak"
     sel = a.select("model-type")
-    assert "prompt_injection" in sel and "jailbreak" in sel
+    assert "prompt_injection" in sel
+    assert "jailbreak" in sel
     assert "prompt_extraction" in sel
 
 
-def test_affinity_min_relevance_and_k():
+def test_affinity_min_relevance_and_k() -> None:
     a = ProbeAffinity()
     assert len(a.select("output", k=2)) == 2
     assert len(a.select("output", k=5)) == 5
@@ -96,7 +96,7 @@ def test_affinity_min_relevance_and_k():
     assert len(strict) <= len(a.select("output", min_relevance=0.0))
 
 
-def test_affinity_free_text_context_scoring():
+def test_affinity_free_text_context_scoring() -> None:
     a = ProbeAffinity()
     sel = a.select("leak secrets credentials from the database")
     assert "data_exfil" in sel or "pii_leak" in sel
@@ -107,7 +107,7 @@ def test_affinity_free_text_context_scoring():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_severity_mapping_by_category_and_override():
+def test_severity_mapping_by_category_and_override() -> None:
     sm = SeverityMapping()
     assert sm.severity_for(JailbreakProbe()) is Severity.CRITICAL
     assert sm.severity_for(DataExfilProbe()) is Severity.CRITICAL
@@ -116,12 +116,13 @@ def test_severity_mapping_by_category_and_override():
     assert sm2.severity_for(ToxicityProbe()) is Severity.CRITICAL
 
 
-def test_severity_weight_defaults_and_override():
+def test_severity_weight_defaults_and_override() -> None:
     sw = SeverityWeight()
     assert sw.weight("critical") == 1.0
     assert sw.weight(Severity.HIGH) == 0.75
     sw2 = SeverityWeight(weights={"critical": 0.9, "low": 0.1})
-    assert sw2.weight("critical") == 0.9 and sw2.weight("low") == 0.1
+    assert sw2.weight("critical") == 0.9
+    assert sw2.weight("low") == 0.1
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -129,7 +130,7 @@ def test_severity_weight_defaults_and_override():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_campaign_clean_all_passed_low_risk():
+def test_campaign_clean_all_passed_low_risk() -> None:
     camp = ScanCampaign(name="clean", probes=default_probes(), target=_clean)
     report = camp.run(target_label="t", context="general")
     assert isinstance(report, CampaignReport)
@@ -138,12 +139,10 @@ def test_campaign_clean_all_passed_low_risk():
     assert report.critical_count == 0
     assert report.ok is True
     assert report.overall_risk_score == 0.0
-    assert report.severity_distribution == {
-        "low": 0, "med": 0, "high": 0, "critical": 0
-    }
+    assert report.severity_distribution == {"low": 0, "med": 0, "high": 0, "critical": 0}
 
 
-def test_campaign_vuln_produces_findings_and_risk():
+def test_campaign_vuln_produces_findings_and_risk() -> None:
     camp = ScanCampaign(name="vuln", probes=default_probes(), target=_vuln)
     report = camp.run(target_label="t")
     assert report.failed > 0
@@ -152,7 +151,7 @@ def test_campaign_vuln_produces_findings_and_risk():
     assert 0.0 < report.overall_risk_score <= 100.0
 
 
-def test_campaign_by_probe_and_totals():
+def test_campaign_by_probe_and_totals() -> None:
     probes = [PromptInjectionProbe(), ToxicityProbe(), PIILeakProbe()]
     camp = ScanCampaign(name="n", probes=probes, target=_vuln)
     report = camp.run()
@@ -169,7 +168,7 @@ def test_campaign_by_probe_and_totals():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_severity_distribution_counts_findings():
+def test_severity_distribution_counts_findings() -> None:
     camp = ScanCampaign(name="v", probes=default_probes(), target=_vuln)
     report = camp.run()
     dist = report.severity_distribution
@@ -177,7 +176,7 @@ def test_severity_distribution_counts_findings():
     assert dist["critical"] == report.critical_count
 
 
-def test_risk_score_severity_weighted_and_capped():
+def test_risk_score_severity_weighted_and_capped() -> None:
     full = ScanCampaign(name="v", probes=default_probes(), target=_vuln).run()
     light = ScanCampaign(
         name="v",
@@ -190,30 +189,37 @@ def test_risk_score_severity_weighted_and_capped():
     assert light.overall_risk_score <= full.overall_risk_score <= 100.0
 
 
-def test_critical_count_drives_pass_fail():
+def test_critical_count_drives_pass_fail() -> None:
     # A low-severity finding alone keeps the campaign OK (no criticals).
-    rep_tox = ScanCampaign(
-        name="tox", probes=[ToxicityProbe()], target=_vuln
-    ).run()
+    rep_tox = ScanCampaign(name="tox", probes=[ToxicityProbe()], target=_vuln).run()
     if rep_tox.failed > 0:
-        assert rep_tox.critical_count == 0 and rep_tox.ok is True
+        assert rep_tox.critical_count == 0
+        assert rep_tox.ok is True
     # A critical finding flips the campaign to FAIL.
-    rep_crit = ScanCampaign(
-        name="crit", probes=[JailbreakProbe()], target=_vuln
-    ).run()
+    rep_crit = ScanCampaign(name="crit", probes=[JailbreakProbe()], target=_vuln).run()
     assert rep_crit.failed > 0
-    assert rep_crit.critical_count > 0 and rep_crit.ok is False
+    assert rep_crit.critical_count > 0
+    assert rep_crit.ok is False
 
 
-def test_report_to_dict_shape():
-    report = ScanCampaign(
-        name="n", probes=default_probes(), target=_vuln
-    ).run(target_label="t", context="code")
+def test_report_to_dict_shape() -> None:
+    report = ScanCampaign(name="n", probes=default_probes(), target=_vuln).run(
+        target_label="t", context="code"
+    )
     d = report.to_dict()
-    for key in ("passed", "failed", "total", "critical_count", "ok",
-                "severity_distribution", "overall_risk_score", "by_probe"):
+    for key in (
+        "passed",
+        "failed",
+        "total",
+        "critical_count",
+        "ok",
+        "severity_distribution",
+        "overall_risk_score",
+        "by_probe",
+    ):
         assert key in d
-    assert d["target"] == "t" and d["context"] == "code"
+    assert d["target"] == "t"
+    assert d["context"] == "code"
     assert set(d["severity_distribution"].keys()) == set(Severity.order())
 
 
@@ -222,20 +228,22 @@ def test_report_to_dict_shape():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_runner_explicit_probes():
+def test_runner_explicit_probes() -> None:
     runner = CampaignRunner()
     report = runner.run_campaign(
-        name="explicit", target=_clean,
-        probes=[PromptInjectionProbe(), ToxicityProbe()], target_label="t",
+        name="explicit",
+        target=_clean,
+        probes=[PromptInjectionProbe(), ToxicityProbe()],
+        target_label="t",
     )
-    assert report.total == 2 and report.passed == 2
+    assert report.total == 2
+    assert report.passed == 2
 
 
-def test_runner_auto_select_and_build():
+def test_runner_auto_select_and_build() -> None:
     runner = CampaignRunner()
     # Auto-select via affinity runs the RIGHT probes for the context.
-    report = runner.run_campaign(name="auto-code", target=_vuln,
-                                 context="code", target_label="t")
+    report = runner.run_campaign(name="auto-code", target=_vuln, context="code", target_label="t")
     assert len(report.by_probe) > 0
     assert "data_exfil" in report.by_probe
     assert report.total == len(report.by_probe)
@@ -246,14 +254,14 @@ def test_runner_auto_select_and_build():
     assert camp.run().total == len(camp.probes)
 
 
-def test_runner_registry_roundtrip():
+def test_runner_registry_roundtrip() -> None:
     reg = ProbeRegistry([PIILeakProbe(), DataExfilProbe()])
     runner = CampaignRunner(registry=reg)
     camp = runner.build_campaign(name="r", target=_clean, context="privacy")
     assert all(n in ("pii_leak", "data_exfil") for n in camp.probe_names())
 
 
-def test_campaign_requires_name_and_probes():
+def test_campaign_requires_name_and_probes() -> None:
     with pytest.raises(ValueError):
         ScanCampaign(name="", probes=default_probes(), target=_clean)
     with pytest.raises(ValueError):

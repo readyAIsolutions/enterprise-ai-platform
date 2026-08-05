@@ -70,9 +70,7 @@ def _parse_error(request_id: Any = None, message: str = "Parse error") -> dict[s
     return _json_rpc_response(request_id, error={"code": -32700, "message": message})
 
 
-def _invalid_request(
-    request_id: Any = None, message: str = "Invalid Request"
-) -> dict[str, Any]:
+def _invalid_request(request_id: Any = None, message: str = "Invalid Request") -> dict[str, Any]:
     return _json_rpc_response(request_id, error={"code": -32600, "message": message})
 
 
@@ -95,10 +93,12 @@ class _MCPHTTPHandler(BaseHTTPRequestHandler):
     # -- plumbing ---------------------------------------------------------
 
     @property
-    def _mcp(self) -> "MCPServer":
+    def _mcp(self) -> MCPServer:
         return self.server.mcp  # type: ignore[attr-defined]
 
-    def _send_bytes(self, body: bytes, status: int = 200, content_type: str = "application/json") -> None:
+    def _send_bytes(
+        self, body: bytes, status: int = 200, content_type: str = "application/json"
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -149,27 +149,21 @@ class _MCPHTTPHandler(BaseHTTPRequestHandler):
                 }
             )
         else:
-            self._send_json(
-                _invalid_request(None, "Not Found"), status=404
-            )
+            self._send_json(_invalid_request(None, "Not Found"), status=404)
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         if path == "/mcp":
             payload = self._parse_body()
             if payload is None:
-                self._send_json(
-                    _parse_error(None, "Malformed JSON request"), status=400
-                )
+                self._send_json(_parse_error(None, "Malformed JSON request"), status=400)
                 return
             response = self._mcp.process_message(payload)
             self._send_json(response)
         elif path == "/sse":
             payload = self._parse_body()
             if payload is None:
-                self._send_json(
-                    _parse_error(None, "Malformed JSON request"), status=400
-                )
+                self._send_json(_parse_error(None, "Malformed JSON request"), status=400)
                 return
             transport = SSETransport(self._mcp)
             self.send_response(200)
@@ -251,13 +245,11 @@ class MCPServer:
         request_id: Any = None,
     ) -> dict[str, Any]:
         """Async JSON-RPC dispatch — delegates to :meth:`ToolServer.handle_request`."""
-        return await self.tool_server.handle_request(
-            method, params=params, request_id=request_id
-        )
+        return await self.tool_server.handle_request(method, params=params, request_id=request_id)
 
     # -- HTTP lifecycle ----------------------------------------------------
 
-    def start(self, host: str = "127.0.0.1", port: int = 0) -> "MCPServer":
+    def start(self, host: str = "127.0.0.1", port: int = 0) -> MCPServer:
         """Start a ThreadingHTTPServer on ``host:port`` in a daemon thread.
 
         When ``port == 0`` the OS assigns an ephemeral port, available as
@@ -320,9 +312,7 @@ class SSETransport:
     # -- SSE encoding ------------------------------------------------------
 
     @staticmethod
-    def format_event(
-        data: Any, event: str = "message", event_id: Any = None
-    ) -> bytes:
+    def format_event(data: Any, event: str = "message", event_id: Any = None) -> bytes:
         """Encode ``data`` as one SSE frame (event + data lines + blank line)."""
         lines: list[str] = []
         if event_id is not None:
@@ -345,15 +335,13 @@ class SSETransport:
         for line in raw.split("\n"):
             if line == "":
                 if data_lines:
-                    events.append(
-                        {"event": event_name, "data": "\n".join(data_lines)}
-                    )
+                    events.append({"event": event_name, "data": "\n".join(data_lines)})
                 event_name = "message"
                 data_lines = []
             elif line.startswith("event:"):
-                event_name = line[len("event:"):].strip()
+                event_name = line[len("event:") :].strip()
             elif line.startswith("data:"):
-                data_lines.append(line[len("data:"):].strip())
+                data_lines.append(line[len("data:") :].strip())
         if data_lines:  # trailing frame without blank line
             events.append({"event": event_name, "data": "\n".join(data_lines)})
         return events
@@ -375,9 +363,7 @@ class SSETransport:
         (always for async handlers), then the ``message`` frame with the result.
         """
         if not isinstance(request_payload, dict):
-            yield self.format_event(
-                _parse_error(None, "Not a JSON-RPC request"), event="message"
-            )
+            yield self.format_event(_parse_error(None, "Not a JSON-RPC request"), event="message")
             return
 
         method = request_payload.get("method")

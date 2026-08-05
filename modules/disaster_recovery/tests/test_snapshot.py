@@ -22,20 +22,19 @@ import pytest
 
 sys.path.insert(0, "/home/hunter/Desktop/Enterprise Builder")
 
-from enterprise.modules.disaster_recovery.snapshot import (
-    SnapshotEngine,
-    Snapshot,
-    ManifestEntry,
-    RestoreReport,
-    snapshot_to_dict,
-    _file_sha256,
-)
 from enterprise.modules.disaster_recovery.backup import BackupManager, BackupType
-
+from enterprise.modules.disaster_recovery.snapshot import (
+    RestoreReport,
+    Snapshot,
+    SnapshotEngine,
+    _file_sha256,
+    snapshot_to_dict,
+)
 
 # --------------------------------------------------------------------------
 # Fixtures / helpers
 # --------------------------------------------------------------------------
+
 
 def _make_tree(root: str, files: dict, subdirs: list = None) -> str:
     """Create a real directory tree. ``files`` maps rel-path -> bytes/str."""
@@ -74,7 +73,8 @@ def sample_tree(tmp_path):
 # create_snapshot — real archive, real numbers
 # --------------------------------------------------------------------------
 
-def test_create_snapshot_produces_real_file(tmp_path):
+
+def test_create_snapshot_produces_real_file(tmp_path) -> None:
     src = _make_tree(str(tmp_path / "src"), {"a.txt": "hello"})
     tgt = str(tmp_path / "snaps")
     eng = SnapshotEngine()
@@ -92,36 +92,29 @@ def test_create_snapshot_produces_real_file(tmp_path):
     assert "._eni_manifest.json" in names
 
 
-def test_snapshot_counts_real_files(sample_tree, tmp_path):
+def test_snapshot_counts_real_files(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     # Real count of regular files: a.txt, sub/b.bin, sub/deep/c.dat, empty.txt = 4
     assert snap.n_files == 4
     # Real total original bytes.
-    expected = (
-        2048
-        + len("hello ENI disaster recovery\n")
-        + 4096
-        + 0
-    )
+    expected = 2048 + len("hello ENI disaster recovery\n") + 4096 + 0
     assert snap.total_size == expected
     # Archive on disk is real and non-trivial.
     assert snap.size > 0
     assert snap.size == os.path.getsize(snap.path)
 
 
-def test_snapshot_manifest_has_real_hashes(sample_tree, tmp_path):
+def test_snapshot_manifest_has_real_hashes(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     entries = {e["path"]: e for e in snap.manifest["entries"] if e["entry_type"] == "file"}
     assert entries["a.txt"]["sha256"] == _file_sha256(os.path.join(sample_tree, "a.txt"))
-    assert entries["sub/b.bin"]["sha256"] == _file_sha256(
-        os.path.join(sample_tree, "sub", "b.bin")
-    )
+    assert entries["sub/b.bin"]["sha256"] == _file_sha256(os.path.join(sample_tree, "sub", "b.bin"))
     assert entries["a.txt"]["size"] == len("hello ENI disaster recovery\n")
 
 
-def test_snapshot_includes_directories_and_empty_dir(sample_tree, tmp_path):
+def test_snapshot_includes_directories_and_empty_dir(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     types = {e["path"]: e["entry_type"] for e in snap.manifest["entries"]}
@@ -130,13 +123,13 @@ def test_snapshot_includes_directories_and_empty_dir(sample_tree, tmp_path):
     assert types["sub/deep"] == "dir"
 
 
-def test_create_snapshot_missing_source_raises(tmp_path):
+def test_create_snapshot_missing_source_raises(tmp_path) -> None:
     eng = SnapshotEngine()
     with pytest.raises(ValueError):
         eng.create_snapshot(str(tmp_path / "does_not_exist"), str(tmp_path / "snaps"))
 
 
-def test_create_snapshot_auto_name_and_unique_ids(tmp_path):
+def test_create_snapshot_auto_name_and_unique_ids(tmp_path) -> None:
     src = _make_tree(str(tmp_path / "src"), {"f": "data"})
     eng = SnapshotEngine()
     s1 = eng.create_snapshot(src, str(tmp_path / "s1"))
@@ -150,7 +143,8 @@ def test_create_snapshot_auto_name_and_unique_ids(tmp_path):
 # list_snapshots
 # --------------------------------------------------------------------------
 
-def test_list_snapshots_returns_snapshot_metadata(tmp_path):
+
+def test_list_snapshots_returns_snapshot_metadata(tmp_path) -> None:
     src = _make_tree(str(tmp_path / "src"), {"f.txt": "alpha"})
     tgt = str(tmp_path / "snaps")
     eng = SnapshotEngine()
@@ -165,19 +159,19 @@ def test_list_snapshots_returns_snapshot_metadata(tmp_path):
     assert loaded.path == snap.path
 
 
-def test_list_snapshots_multiple_newest_first(tmp_path):
+def test_list_snapshots_multiple_newest_first(tmp_path) -> None:
     src = _make_tree(str(tmp_path / "src"), {"f": "data"})
     tgt = str(tmp_path / "snaps")
     eng = SnapshotEngine()
-    s1 = eng.create_snapshot(src, tgt, name="old")
-    s2 = eng.create_snapshot(src, tgt, name="new")
+    eng.create_snapshot(src, tgt, name="old")
+    eng.create_snapshot(src, tgt, name="new")
     lst = eng.list_snapshots(tgt)
     assert {s.name for s in lst} == {"old", "new"}
     # Newest first.
     assert lst[0].name == "new"
 
 
-def test_list_snapshots_empty_dir(tmp_path):
+def test_list_snapshots_empty_dir(tmp_path) -> None:
     eng = SnapshotEngine()
     assert eng.list_snapshots(str(tmp_path / "nonexistent_or_empty")) == []
 
@@ -186,7 +180,8 @@ def test_list_snapshots_empty_dir(tmp_path):
 # restore_snapshot — round-trip
 # --------------------------------------------------------------------------
 
-def test_restore_roundtrip_byte_identical(sample_tree, tmp_path):
+
+def test_restore_roundtrip_byte_identical(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     dest = str(tmp_path / "restored")
@@ -206,7 +201,7 @@ def test_restore_roundtrip_byte_identical(sample_tree, tmp_path):
     )
 
 
-def test_restore_creates_directories(sample_tree, tmp_path):
+def test_restore_creates_directories(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     dest = str(tmp_path / "restored")
@@ -215,7 +210,7 @@ def test_restore_creates_directories(sample_tree, tmp_path):
     assert os.path.isdir(os.path.join(dest, "empty_dir"))
 
 
-def test_restore_overwrites_existing(tmp_path):
+def test_restore_overwrites_existing(tmp_path) -> None:
     src = _make_tree(str(tmp_path / "src"), {"f.txt": "v1"})
     eng = SnapshotEngine()
     snap = eng.create_snapshot(src, str(tmp_path / "snaps"))
@@ -228,7 +223,7 @@ def test_restore_overwrites_existing(tmp_path):
     assert open(os.path.join(dest, "f.txt")).read() == "v1"
 
 
-def test_restore_report_totals_header(sample_tree, tmp_path):
+def test_restore_report_totals_header(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     r = eng.restore_snapshot(snap, str(tmp_path / "restored"))
@@ -242,7 +237,8 @@ def test_restore_report_totals_header(sample_tree, tmp_path):
 # verify — real recomputation + tamper detection
 # --------------------------------------------------------------------------
 
-def test_verify_ok(sample_tree, tmp_path):
+
+def test_verify_ok(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     res = eng.verify(snap)
@@ -251,7 +247,7 @@ def test_verify_ok(sample_tree, tmp_path):
     assert res["matches"] == res["checked"] == 4
 
 
-def test_verify_corrupt_content_byte_flip(sample_tree, tmp_path):
+def test_verify_corrupt_content_byte_flip(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     data = bytearray(open(snap.path, "rb").read())
@@ -262,12 +258,12 @@ def test_verify_corrupt_content_byte_flip(sample_tree, tmp_path):
     assert eng.verify(snap)["status"] == "corrupt"
 
 
-def test_verify_corrupt_missing_member(sample_tree, tmp_path):
+def test_verify_corrupt_missing_member(sample_tree, tmp_path) -> None:
     """Deleting a whole file member from the tar must be flagged corrupt."""
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     # Rebuild a copy of the archive without a.txt, keep manifest as-is.
-    buf = io.BytesIO()
+    io.BytesIO()
     with gzip.open(snap.path, "rb") as fh:
         raw = fh.read()
     members = {}
@@ -292,15 +288,17 @@ def test_verify_corrupt_missing_member(sample_tree, tmp_path):
     assert eng.verify(snap)["status"] == "corrupt"
 
 
-def test_verify_corrupt_manifest_chain_flip(sample_tree, tmp_path):
+def test_verify_corrupt_manifest_chain_flip(sample_tree, tmp_path) -> None:
     """Tampering with a manifest file hash must be flagged corrupt."""
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     # Rebuild the archive with a tampered manifest (one entry's sha256 swapped
     # to a bogus digest) while keeping every real file byte identical.
     from enterprise.modules.disaster_recovery.snapshot import (
-        _MANIFEST_MEMBER, _load_manifest,
+        _MANIFEST_MEMBER,
+        _load_manifest,
     )
+
     with open(snap.path, "rb") as fh:
         archive_bytes = fh.read()  # raw gzipped archive
     manifest = _load_manifest(archive_bytes)
@@ -333,7 +331,7 @@ def test_verify_corrupt_manifest_chain_flip(sample_tree, tmp_path):
     assert eng.verify(snap)["status"] == "corrupt"
 
 
-def test_verify_corrupt_on_unreadable_archive(tmp_path):
+def test_verify_corrupt_on_unreadable_archive(tmp_path) -> None:
     """A totally mangled (non-gzip) archive must report corrupt, not crash."""
     eng = SnapshotEngine()
     src = _make_tree(str(tmp_path / "src"), {"f": "data"})
@@ -351,11 +349,9 @@ def test_verify_corrupt_on_unreadable_archive(tmp_path):
 KEY = b"correct horse battery staple"
 
 
-def test_encrypted_snapshot_is_transformed_on_disk(sample_tree, tmp_path):
+def test_encrypted_snapshot_is_transformed_on_disk(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
-    snap = eng.create_snapshot(
-        sample_tree, str(tmp_path / "snaps"), name="enc", encrypt_key=KEY
-    )
+    snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"), name="enc", encrypt_key=KEY)
     assert snap.encrypted is True
     assert snap.path.endswith(".eni")
     on_disk = open(snap.path, "rb").read()
@@ -364,13 +360,13 @@ def test_encrypted_snapshot_is_transformed_on_disk(sample_tree, tmp_path):
     assert not on_disk.startswith(b"\x1f\x8b")  # not a raw gzip header
 
 
-def test_encrypted_verify_with_key_ok(sample_tree, tmp_path):
+def test_encrypted_verify_with_key_ok(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"), encrypt_key=KEY)
     assert eng.verify(snap, key=KEY)["status"] == "ok"
 
 
-def test_encrypted_list_requires_key(sample_tree, tmp_path):
+def test_encrypted_list_requires_key(sample_tree, tmp_path) -> None:
     tgt = str(tmp_path / "snaps")
     eng = SnapshotEngine()
     eng.create_snapshot(sample_tree, tgt, encrypt_key=KEY)
@@ -382,18 +378,19 @@ def test_encrypted_list_requires_key(sample_tree, tmp_path):
     assert led[0].encrypted is True
 
 
-def test_encrypted_wrong_key_raises(sample_tree, tmp_path):
+def test_encrypted_wrong_key_raises(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"), encrypt_key=KEY)
     # Low-level reader raises on HMAC mismatch (wrong key / tampering).
     from enterprise.modules.disaster_recovery.snapshot import _read_archive
+
     with pytest.raises(ValueError):
         _read_archive(snap.path, b"wrong key")
     # High-level verify degrades to "corrupt" rather than crashing.
     assert eng.verify(snap, key=b"wrong key")["status"] == "corrupt"
 
 
-def test_encrypted_restore_roundtrip(sample_tree, tmp_path):
+def test_encrypted_restore_roundtrip(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"), encrypt_key=KEY)
     dest = str(tmp_path / "restored")
@@ -402,7 +399,7 @@ def test_encrypted_restore_roundtrip(sample_tree, tmp_path):
     assert open(os.path.join(dest, "a.txt")).read() == "hello ENI disaster recovery\n"
 
 
-def test_encrypted_tamper_detected_via_hmac(sample_tree, tmp_path):
+def test_encrypted_tamper_detected_via_hmac(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"), encrypt_key=KEY)
     data = bytearray(open(snap.path, "rb").read())
@@ -412,6 +409,7 @@ def test_encrypted_tamper_detected_via_hmac(sample_tree, tmp_path):
     # HMAC tag mismatch -> hard failure from the low-level reader,
     # and high-level verify reports corrupt.
     from enterprise.modules.disaster_recovery.snapshot import _read_archive
+
     with pytest.raises(ValueError):
         _read_archive(snap.path, KEY)
     assert eng.verify(snap, key=KEY)["status"] == "corrupt"
@@ -421,7 +419,8 @@ def test_encrypted_tamper_detected_via_hmac(sample_tree, tmp_path):
 # Manifest hash-chain integrity
 # --------------------------------------------------------------------------
 
-def test_manifest_chain_detects_reorder(sample_tree, tmp_path):
+
+def test_manifest_chain_detects_reorder(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     # Manually reorder entries in a rebuild and confirm chain_hash differs.
@@ -436,7 +435,7 @@ def test_manifest_chain_detects_reorder(sample_tree, tmp_path):
     assert running.hex() != snap.manifest["chain_hash"]
 
 
-def test_manifest_chain_stable_across_run(sample_tree, tmp_path):
+def test_manifest_chain_stable_across_run(sample_tree, tmp_path) -> None:
     """Same input => same chain_hash (deterministic given identical content)."""
     eng = SnapshotEngine()
     s1 = eng.create_snapshot(sample_tree, str(tmp_path / "a"))
@@ -448,7 +447,8 @@ def test_manifest_chain_stable_across_run(sample_tree, tmp_path):
 # Utility / lifecycle
 # --------------------------------------------------------------------------
 
-def test_snapshot_to_dict(sample_tree, tmp_path):
+
+def test_snapshot_to_dict(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
     snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"))
     d = snapshot_to_dict(snap)
@@ -458,11 +458,11 @@ def test_snapshot_to_dict(sample_tree, tmp_path):
     assert d["created_at"] == snap.created_at
 
 
-def test_snapshot_lifecycle_full(sample_tree, tmp_path):
+def test_snapshot_lifecycle_full(sample_tree, tmp_path) -> None:
     """End-to-end: create -> list -> verify -> restore -> verify restored."""
     eng = SnapshotEngine()
     tgt = str(tmp_path / "snaps")
-    snap = eng.create_snapshot(sample_tree, tgt, name="lifecycle")
+    eng.create_snapshot(sample_tree, tgt, name="lifecycle")
     listed = eng.list_snapshots(tgt)
     assert len(listed) == 1
     assert eng.verify(listed[0])["status"] == "ok"
@@ -474,11 +474,9 @@ def test_snapshot_lifecycle_full(sample_tree, tmp_path):
     assert open(os.path.join(dest, "a.txt")).read() == "hello ENI disaster recovery\n"
 
 
-def test_snapshot_to_dict_encrypted(sample_tree, tmp_path):
+def test_snapshot_to_dict_encrypted(sample_tree, tmp_path) -> None:
     eng = SnapshotEngine()
-    snap = eng.create_snapshot(
-        sample_tree, str(tmp_path / "snaps"), encrypt_key=KEY
-    )
+    snap = eng.create_snapshot(sample_tree, str(tmp_path / "snaps"), encrypt_key=KEY)
     d = snapshot_to_dict(snap)
     assert d["encrypted"] is True
 
@@ -487,7 +485,8 @@ def test_snapshot_to_dict_encrypted(sample_tree, tmp_path):
 # BackupManager integration (real snapshot when real source + store configured)
 # --------------------------------------------------------------------------
 
-def test_backupmanager_real_snapshot_integration(tmp_path):
+
+def test_backupmanager_real_snapshot_integration(tmp_path) -> None:
     src = _make_tree(str(tmp_path / "src"), {"data.txt": "real backup payload"})
     store = str(tmp_path / "store")
     mgr = BackupManager()
@@ -508,7 +507,7 @@ def test_backupmanager_real_snapshot_integration(tmp_path):
     assert open(os.path.join(dest, "data.txt")).read() == "real backup payload"
 
 
-def test_backupmanager_fallback_without_real_store(tmp_path):
+def test_backupmanager_fallback_without_real_store(tmp_path) -> None:
     """No snapshot store configured -> existing simulated-bookkeeping path."""
     mgr = BackupManager()
     mgr.configure_policy("daily", BackupType.FULL, frequency_hours=24)

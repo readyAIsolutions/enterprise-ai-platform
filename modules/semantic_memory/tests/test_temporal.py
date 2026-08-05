@@ -18,13 +18,12 @@ from __future__ import annotations
 import datetime
 
 import pytest
-
 from enterprise.modules.semantic_memory.hybrid import (
     EXACT_TOKEN_BONUS,
     HybridRetriever,
     HybridSemanticMemory,
-    _exact_tokens,
     _bucket_key,
+    _exact_tokens,
 )
 
 DAY = 86400.0
@@ -138,7 +137,7 @@ class TestTemporalRecall:
         m = _in_memory()
         a = m.add("day a memory one")
         b = m.add("day b memory one")
-        c = m.add("day b memory two")
+        m.add("day b memory two")
         _backdate(m, a.id, 30)
         _backdate(m, b.id, 30)
         groups = m.group_by_time_bucket("day")
@@ -238,7 +237,8 @@ class TestRanking:
         m.add("ranking subject one")
         m.add("ranking subject two")
         ranked = m.ranking()
-        assert ranked and all("rank" in it and "score" in it for it in ranked)
+        assert ranked
+        assert all("rank" in it and "score" in it for it in ranked)
         scores = [it["score"] for it in ranked]
         assert scores == sorted(scores, reverse=True)
 
@@ -325,7 +325,8 @@ class TestTemporalPersistence:
             conn = sqlite3.connect(db)
             cols = {row[1] for row in conn.execute("PRAGMA table_info(memories)")}
             conn.close()
-            assert "created_at" in cols and "updated_at" in cols
+            assert "created_at" in cols
+            assert "updated_at" in cols
             # legacy row loads and gets non-null timestamps (treated recent)
             item = m.list()[0]
             assert item["id"] == "legacy1"
@@ -390,7 +391,8 @@ class TestModulePassthrough:
         try:
             r = mod.memory.add("module temporal memory", {"priority": 5})
             assert any(it["id"] == r.id for it in mod.recall_since(0))
-            assert mod.ranking() and mod.ranking()[0]["rank"] == 1
+            assert mod.ranking()
+            assert mod.ranking()[0]["rank"] == 1
             groups = mod.group_by_time_bucket("day")
             assert sum(g["count"] for g in groups.values()) == mod.memory.stats()["total"]
             res = mod.consolidate()  # safe no-op with no thresholds

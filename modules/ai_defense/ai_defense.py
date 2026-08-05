@@ -44,14 +44,12 @@ import abc
 import logging
 import math
 import statistics
-import threading
 import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from typing import Any, Callable, Deque, Dict, Iterable, List, Optional, Sequence, Tuple
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from enterprise.platform_kernel import (
-    EventBus,
     HealthStatus,
     Module,
     module,
@@ -63,6 +61,9 @@ from .rate_limit import (
     SlidingWindowRateLimiter,
     ThrottleGate,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger("enterprise.ai_defense")
 
@@ -88,6 +89,7 @@ __all__ = [
 # Constants / defaults
 # ---------------------------------------------------------------------------
 
+
 def DEFAULT_CLOCK() -> float:
     return time.time()
 
@@ -96,12 +98,12 @@ def DEFAULT_CLOCK() -> float:
 class Judgement(abc.ABC):
     """Base classification result for a single defense decision."""
 
-    def __init__(self, malicious: bool, reason: str = "", score: float = 0.0):
+    def __init__(self, malicious: bool, reason: str = "", score: float = 0.0) -> None:
         self.malicious = malicious
         self.reason = reason
         self.score = float(score)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"malicious": self.malicious, "reason": self.reason, "score": self.score}
 
     def __bool__(self) -> bool:
@@ -112,13 +114,14 @@ class Judgement(abc.ABC):
 # 1. BehavioralAnomalyDetector
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AnomalyConfig:
     """Tunables for the behavioral anomaly detector."""
 
-    window: float = 60.0          # seconds of history considered
-    z_threshold: float = 4.0      # z-score beyond which a burst is anomalous
-    min_samples: int = 5          # need this many samples before judging
+    window: float = 60.0  # seconds of history considered
+    z_threshold: float = 4.0  # z-score beyond which a burst is anomalous
+    min_samples: int = 5  # need this many samples before judging
     flood_events_per_sec: float = 20.0  # event rate beyond this = flood
 
 
@@ -131,16 +134,18 @@ class BehavioralAnomalyDetector:
     mean, or an absolute flood threshold, is flagged as an automated attack.
     """
 
-    def __init__(self, config: Optional[AnomalyConfig] = None, clock: Callable[[], float] = DEFAULT_CLOCK):
+    def __init__(
+        self, config: AnomalyConfig | None = None, clock: Callable[[], float] = DEFAULT_CLOCK
+    ) -> None:
         self.cfg = config or AnomalyConfig()
         self.clock = clock
-        self._events: Dict[str, Deque[float]] = defaultdict(deque)
+        self._events: dict[str, deque[float]] = defaultdict(deque)
         # Slow EWMA baseline (decoupled from the live burst so a burst can't
         # pollute its own baseline).
-        self._ewma_gap: Dict[str, float] = defaultdict(lambda: 0.0)
-        self._ewma_gap2: Dict[str, float] = defaultdict(lambda: 0.0)
-        self._ewma_n: Dict[str, int] = defaultdict(int)
-        self._last: Dict[str, float] = {}
+        self._ewma_gap: dict[str, float] = defaultdict(lambda: 0.0)
+        self._ewma_gap2: dict[str, float] = defaultdict(lambda: 0.0)
+        self._ewma_n: dict[str, int] = defaultdict(int)
+        self._last: dict[str, float] = {}
         self._ALPHA = 0.05
 
     def _prune(self, key: str, now: float) -> None:
@@ -151,17 +156,14 @@ class BehavioralAnomalyDetector:
         if not deq:
             self._events.pop(key, None)
 
-    def observe(self, key: str, at: Optional[float] = None) -> Judgement:
+    def observe(self, key: str, at: float | None = None) -> Judgement:
         """Record an event for `key` and return whether it is anomalous."""
         now = at if at is not None else self.clock()
         deq = self._events[key]
 
         # True current cadence = the most recent inter-arrival gap.
         prev = self._last.get(key)
-        if prev is not None:
-            cur_gap = max(now - prev, 1e-6)
-        else:
-            cur_gap = 0.0
+        cur_gap = max(now - prev, 1e-06) if prev is not None else 0.0
 
         # Update the slow EWMA baseline FIRST (reflects history, not this burst).
         alpha = self._ALPHA
@@ -172,7 +174,9 @@ class BehavioralAnomalyDetector:
                 self._ewma_gap2[key] = cur_gap * cur_gap
             else:
                 self._ewma_gap[key] = alpha * cur_gap + (1 - alpha) * self._ewma_gap[key]
-                self._ewma_gap2[key] = alpha * cur_gap * cur_gap + (1 - alpha) * self._ewma_gap2[key]
+                self._ewma_gap2[key] = (
+                    alpha * cur_gap * cur_gap + (1 - alpha) * self._ewma_gap2[key]
+                )
             self._ewma_n[key] = n + 1
         self._last[key] = now
 
@@ -188,7 +192,11 @@ class BehavioralAnomalyDetector:
 
         # --- Absolute flood floor (true short-window rate) ---
         if live_rate >= self.cfg.flood_events_per_sec:
-            return Judgement(True, f"flood: {live_rate:.1f} events/s >= {self.cfg.flood_events_per_sec}", score=live_rate)
+            return Judgement(
+                True,
+                f"flood: {live_rate:.1f} events/s >= {self.cfg.flood_events_per_sec}",
+                score=live_rate,
+            )
 
         # --- Baseline anomaly: is the last gap a sharp speedup vs EWMA? ---
         if cur_gap > 0 and self._ewma_n[key] >= self.cfg.min_samples:
@@ -201,7 +209,9 @@ class BehavioralAnomalyDetector:
                 # No-variance baseline: flag only on a large speedup ratio.
                 z = (mean_gap / cur_gap) if mean_gap > 0 and mean_gap > cur_gap else 0.0
             if z >= self.cfg.z_threshold:
-                return Judgement(True, f"anomaly burst z={z:.2f} >= {self.cfg.z_threshold}", score=z)
+                return Judgement(
+                    True, f"anomaly burst z={z:.2f} >= {self.cfg.z_threshold}", score=z
+                )
         return Judgement(False, "within baseline")
 
     def _z_prune(self, key: str, now: float) -> None:
@@ -215,7 +225,7 @@ class BehavioralAnomalyDetector:
     def reset(self, key: str) -> None:
         self._events.pop(key, None)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {"active_keys": len(self._events)}
 
 
@@ -223,14 +233,15 @@ class BehavioralAnomalyDetector:
 # 2. BotTrafficClassifier
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class BotConfig:
     """Tunables for the bot/agent traffic classifier."""
 
-    pacing_sd_threshold: float = 0.05   # inter-arrival SD (as fraction of mean) below this = machine
-    min_intervals: int = 6              # intervals needed to classify pacing
+    pacing_sd_threshold: float = 0.05  # inter-arrival SD (as fraction of mean) below this = machine
+    min_intervals: int = 6  # intervals needed to classify pacing
     uniform_entropy_threshold: float = 0.2  # low entropy => scripted
-    automation_hits: int = 1            # automation markers seen => bot
+    automation_hits: int = 1  # automation markers seen => bot
 
 
 class BotTrafficClassifier:
@@ -241,21 +252,43 @@ class BotTrafficClassifier:
     Streaming: keep inter-arrival intervals per key; once enough are seen, judge.
     """
 
-    def __init__(self, config: Optional[BotConfig] = None, clock: Callable[[], float] = DEFAULT_CLOCK):
+    def __init__(
+        self, config: BotConfig | None = None, clock: Callable[[], float] = DEFAULT_CLOCK
+    ) -> None:
         self.cfg = config or BotConfig()
         self.clock = clock
-        self._last_seen: Dict[str, float] = {}
-        self._intervals: Dict[str, Deque[float]] = defaultdict(deque)
-        self._automation_hits: Dict[str, int] = defaultdict(int)
+        self._last_seen: dict[str, float] = {}
+        self._intervals: dict[str, deque[float]] = defaultdict(deque)
+        self._automation_hits: dict[str, int] = defaultdict(int)
 
     _AUTOMATION_MARKERS = (
-        "python-requests", "curl/", "go-http", "httpx", "aiohttp", "okhttp",
-        "headlesschrome", "phantomjs", "selenium", "playwright", "puppeteer",
-        "scrapy", "pyppeteer", "node-fetch", "googlebot", "bingbot", "petalbot",
-        "semrushbot", "ahrefsbot", "mj12bot", "dotbot", "axios",
+        "python-requests",
+        "curl/",
+        "go-http",
+        "httpx",
+        "aiohttp",
+        "okhttp",
+        "headlesschrome",
+        "phantomjs",
+        "selenium",
+        "playwright",
+        "puppeteer",
+        "scrapy",
+        "pyppeteer",
+        "node-fetch",
+        "googlebot",
+        "bingbot",
+        "petalbot",
+        "semrushbot",
+        "ahrefsbot",
+        "mj12bot",
+        "dotbot",
+        "axios",
     )
 
-    def observe_headers(self, key: str, user_agent: str = "", headers: Optional[Dict[str, str]] = None) -> Judgement:
+    def observe_headers(
+        self, key: str, user_agent: str = "", headers: dict[str, str] | None = None
+    ) -> Judgement:
         """Cheap first-line check on HTTP headers."""
         ua = (user_agent or "").lower()
         low_ua = ua
@@ -275,7 +308,7 @@ class BotTrafficClassifier:
             return Judgement(True, "automation user-agent/header marker", score=1.0)
         return Judgement(False, "no automation header")
 
-    def observe_pacing(self, key: str, at: Optional[float] = None) -> Judgement:
+    def observe_pacing(self, key: str, at: float | None = None) -> Judgement:
         """Feed a request timestamp; classify pacing when enough intervals exist."""
         now = at if at is not None else self.clock()
         prev = self._last_seen.get(key)
@@ -300,7 +333,7 @@ class BotTrafficClassifier:
         self._intervals.pop(key, None)
         self._automation_hits.pop(key, None)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {"keys": len(self._intervals)}
 
 
@@ -308,15 +341,16 @@ class BotTrafficClassifier:
 # 3. ModelExtractionShield
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ExtractionConfig:
     """Tunables for the model-extraction shield."""
 
-    max_queries_per_window: int = 200      # beyond this rate/volume => suspect
+    max_queries_per_window: int = 200  # beyond this rate/volume => suspect
     window: float = 60.0
-    high_uniqueness_ratio: float = 0.95    # fraction of distinct queries >= this => probing
-    min_queries: int = 50                  # need this many before uniqueness judgement
-    max_distinct_tokens: int = 3000        # cumulative distinct queries trigger hard flag
+    high_uniqueness_ratio: float = 0.95  # fraction of distinct queries >= this => probing
+    min_queries: int = 50  # need this many before uniqueness judgement
+    max_distinct_tokens: int = 3000  # cumulative distinct queries trigger hard flag
 
 
 class ModelExtractionShield:
@@ -328,14 +362,16 @@ class ModelExtractionShield:
     and query rate; flag volumetric high-uniqueness probing.
     """
 
-    def __init__(self, config: Optional[ExtractionConfig] = None, clock: Callable[[], float] = DEFAULT_CLOCK):
+    def __init__(
+        self, config: ExtractionConfig | None = None, clock: Callable[[], float] = DEFAULT_CLOCK
+    ) -> None:
         self.cfg = config or ExtractionConfig()
         self.clock = clock
-        self._seen: Dict[str, set] = defaultdict(set)
-        self._total: Dict[str, int] = defaultdict(int)
-        self._window_start: Dict[str, Deque[float]] = defaultdict(deque)
+        self._seen: dict[str, set] = defaultdict(set)
+        self._total: dict[str, int] = defaultdict(int)
+        self._window_start: dict[str, deque[float]] = defaultdict(deque)
 
-    def observe(self, key: str, query: str = "", at: Optional[float] = None) -> Judgement:
+    def observe(self, key: str, query: str = "", at: float | None = None) -> Judgement:
         now = at if at is not None else self.clock()
         cutoff = now - self.cfg.window
         deq = self._window_start[key]
@@ -353,11 +389,19 @@ class ModelExtractionShield:
 
         if total >= self.cfg.min_queries:
             uniqueness = distinct / total
-            if uniqueness >= self.cfg.high_uniqueness_ratio and rate >= (self.cfg.max_queries_per_window / self.cfg.window):
-                return Judgement(True, f"high-volume high-uniqueness probing (u={uniqueness:.2f}, r={rate:.1f}/s)", score=uniqueness)
+            if uniqueness >= self.cfg.high_uniqueness_ratio and rate >= (
+                self.cfg.max_queries_per_window / self.cfg.window
+            ):
+                return Judgement(
+                    True,
+                    f"high-volume high-uniqueness probing (u={uniqueness:.2f}, r={rate:.1f}/s)",
+                    score=uniqueness,
+                )
 
         if distinct >= self.cfg.max_distinct_tokens:
-            return Judgement(True, f"cumulative distinct-query threshold ({distinct}) exceeded", score=1.0)
+            return Judgement(
+                True, f"cumulative distinct-query threshold ({distinct}) exceeded", score=1.0
+            )
 
         return Judgement(False, "normal query pattern")
 
@@ -366,7 +410,7 @@ class ModelExtractionShield:
         self._total.pop(key, None)
         self._window_start.pop(key, None)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {"keys": len(self._seen)}
 
 
@@ -374,13 +418,14 @@ class ModelExtractionShield:
 # 4. CredentialStuffingGuard
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class StuffingConfig:
     """Tunables for the credential-stuffing guard."""
 
-    max_failures: int = 5                 # failures before lockout
-    lockout_seconds: float = 300.0        # how long the lockout lasts
-    per_ip_max_failures: int = 20         # IP-wide threshold
+    max_failures: int = 5  # failures before lockout
+    lockout_seconds: float = 300.0  # how long the lockout lasts
+    per_ip_max_failures: int = 20  # IP-wide threshold
 
 
 class CredentialStuffingGuard:
@@ -391,13 +436,15 @@ class CredentialStuffingGuard:
     refused until the lockout window elapses.
     """
 
-    def __init__(self, config: Optional[StuffingConfig] = None, clock: Callable[[], float] = DEFAULT_CLOCK):
+    def __init__(
+        self, config: StuffingConfig | None = None, clock: Callable[[], float] = DEFAULT_CLOCK
+    ) -> None:
         self.cfg = config or StuffingConfig()
         self.clock = clock
-        self._fail_count: Dict[str, int] = defaultdict(int)
-        self._first_fail: Dict[str, float] = {}
-        self._lock_until: Dict[str, float] = {}
-        self._ip_fail: Dict[str, int] = defaultdict(int)
+        self._fail_count: dict[str, int] = defaultdict(int)
+        self._first_fail: dict[str, float] = {}
+        self._lock_until: dict[str, float] = {}
+        self._ip_fail: dict[str, int] = defaultdict(int)
 
     def _locked(self, key: str, now: float) -> bool:
         until = self._lock_until.get(key, 0.0)
@@ -410,28 +457,33 @@ class CredentialStuffingGuard:
             self._first_fail.pop(key, None)
         return False
 
-    def check(self, account: str, ip: str = "", at: Optional[float] = None) -> Judgement:
+    def check(self, account: str, ip: str = "", at: float | None = None) -> Judgement:
         """True if the attempt must be blocked (account or IP currently locked)."""
         now = at if at is not None else self.clock()
         if self._locked(f"acct:{account}", now):
             return Judgement(True, "account lockout active", score=1.0)
-        if ip:
-            if self._locked(f"ip:{ip}", now):
-                return Judgement(True, "IP lockout active", score=1.0)
+        if ip and self._locked(f"ip:{ip}", now):
+            return Judgement(True, "IP lockout active", score=1.0)
         return Judgement(False, "allowed")
 
-    def record_failure(self, account: str, ip: str = "", at: Optional[float] = None) -> Judgement:
+    def record_failure(self, account: str, ip: str = "", at: float | None = None) -> Judgement:
         now = at if at is not None else self.clock()
-        assert_any: List[str] = []
 
         acct_key = f"acct:{account}"
         if now - self._first_fail.get(acct_key, now) > self.cfg.lockout_seconds:
             self._fail_count[acct_key] = 0
             self._first_fail[acct_key] = now
         self._fail_count[acct_key] += 1
-        if self._fail_count[acct_key] >= self.cfg.max_failures and now - self._first_fail.get(acct_key, now) < self.cfg.lockout_seconds:
+        if (
+            self._fail_count[acct_key] >= self.cfg.max_failures
+            and now - self._first_fail.get(acct_key, now) < self.cfg.lockout_seconds
+        ):
             self._lock_until[acct_key] = now + self.cfg.lockout_seconds
-            return Judgement(True, f"account {account} locked after {self._fail_count[acct_key]} failures", score=1.0)
+            return Judgement(
+                True,
+                f"account {account} locked after {self._fail_count[acct_key]} failures",
+                score=1.0,
+            )
 
         if ip:
             ip_key = f"ip:{ip}"
@@ -439,9 +491,14 @@ class CredentialStuffingGuard:
                 self._ip_fail[ip_key] = 0
                 self._first_fail[ip_key] = now
             self._ip_fail[ip_key] += 1
-            if self._ip_fail[ip_key] >= self.cfg.per_ip_max_failures and now - self._first_fail.get(ip_key, now) < self.cfg.lockout_seconds:
+            if (
+                self._ip_fail[ip_key] >= self.cfg.per_ip_max_failures
+                and now - self._first_fail.get(ip_key, now) < self.cfg.lockout_seconds
+            ):
                 self._lock_until[ip_key] = now + self.cfg.lockout_seconds
-                return Judgement(True, f"IP {ip} locked after {self._ip_fail[ip_key]} failures", score=1.0)
+                return Judgement(
+                    True, f"IP {ip} locked after {self._ip_fail[ip_key]} failures", score=1.0
+                )
 
         return Judgement(False, "failure recorded")
 
@@ -458,7 +515,7 @@ class CredentialStuffingGuard:
     def reset(self, account: str, ip: str = "") -> None:
         self.record_success(account, ip)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {"locked": len(self._lock_until)}
 
 
@@ -466,11 +523,12 @@ class CredentialStuffingGuard:
 # 5. IndirectPromptInjectionGuard
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class InjectionConfig:
     """Tunables for the indirect prompt-injection guard."""
 
-    instruction_markers: Tuple[str, ...] = (
+    instruction_markers: tuple[str, ...] = (
         "ignore all previous instructions",
         "ignore all prior instructions",
         "disregard previous instructions",
@@ -486,11 +544,21 @@ class InjectionConfig:
         "output only",
         "respond in the format",
     )
-    steal_verbs: Tuple[str, ...] = (
-        "secret", "api key", "password", "token", "credentials", "env",
-        "reveal", "exfiltrate", "send to", "post to", "paste", "leak",
+    steal_verbs: tuple[str, ...] = (
+        "secret",
+        "api key",
+        "password",
+        "token",
+        "credentials",
+        "env",
+        "reveal",
+        "exfiltrate",
+        "send to",
+        "post to",
+        "paste",
+        "leak",
     )
-    priority_flags: Tuple[str, ...] = ("important:", "urgent:", "top priority:", "before anything:")
+    priority_flags: tuple[str, ...] = ("important:", "urgent:", "top priority:", "before anything:")
 
 
 class IndirectPromptInjectionGuard:
@@ -502,7 +570,7 @@ class IndirectPromptInjectionGuard:
     per-document risk judgement so the caller can quarantine/refuse it.
     """
 
-    def __init__(self, config: Optional[InjectionConfig] = None):
+    def __init__(self, config: InjectionConfig | None = None) -> None:
         self.cfg = config or InjectionConfig()
 
     def judge(self, content: str) -> Judgement:
@@ -510,7 +578,7 @@ class IndirectPromptInjectionGuard:
         if not text:
             return Judgement(False, "empty")
         score = 0.0
-        reasons: List[str] = []
+        reasons: list[str] = []
         lowered = text
         for marker in self.cfg.instruction_markers:
             if marker in lowered:
@@ -530,13 +598,14 @@ class IndirectPromptInjectionGuard:
             return Judgement(True, ";".join(reasons), score=score)
         return Judgement(False, ";".join(reasons) or "clean", score=score)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {"rules": len(self.cfg.instruction_markers)}
 
 
 # ---------------------------------------------------------------------------
 # 6. Facade + Kernel Module
 # ---------------------------------------------------------------------------
+
 
 class AIDefenseFacade:
     """Composable facade over every AI-defense facet.
@@ -548,8 +617,8 @@ class AIDefenseFacade:
     def __init__(
         self,
         clock: Callable[[], float] = DEFAULT_CLOCK,
-        db_path: Optional[Any] = None,
-        throttle: Optional[ThrottleGate] = None,
+        db_path: Any | None = None,
+        throttle: ThrottleGate | None = None,
         throttle_on: bool = False,
     ) -> None:
         self.anomaly = BehavioralAnomalyDetector(clock=clock)
@@ -567,15 +636,15 @@ class AIDefenseFacade:
             if throttle_on or throttle is not None
             else None
         )
-        self._triggers: Deque[Dict[str, Any]] = deque(maxlen=500)
+        self._triggers: deque[dict[str, Any]] = deque(maxlen=500)
 
     @classmethod
     def with_throttle(
         cls,
         clock: Callable[[], float] = DEFAULT_CLOCK,
-        db_path: Optional[Any] = None,
+        db_path: Any | None = None,
         **throttle_kwargs: Any,
-    ) -> "AIDefenseFacade":
+    ) -> AIDefenseFacade:
         """Build a facade with an enabled :class:`ThrottleGate`.
 
         ``db_path`` defaults to ``None`` (in-memory store) unless the caller
@@ -585,9 +654,7 @@ class AIDefenseFacade:
         fac.throttle = ThrottleGate(db_path=db_path, clock=clock, **throttle_kwargs)
         return fac
 
-    def throttle_request(
-        self, key: str, cost: int = 1, now: Optional[float] = None
-    ) -> Allowance:
+    def throttle_request(self, key: str, cost: int = 1, now: float | None = None) -> Allowance:
         """Rate-limit one request from ``key``.
 
         Returns an :class:`Allowance`. When throttling is offline (default) this
@@ -598,7 +665,7 @@ class AIDefenseFacade:
             return Allowance(True, 0, 0.0, blocked=False, reason="offline")
         return self.throttle.allow(key, cost, now)
 
-    def attacker_state(self, key: str) -> Optional[Dict[str, Any]]:
+    def attacker_state(self, key: str) -> dict[str, Any] | None:
         """Durable attacker record for ``key`` (``None`` when offline/unknown)."""
         if self.throttle is None:
             return None
@@ -606,14 +673,24 @@ class AIDefenseFacade:
 
     def _record(self, facet: str, judgement: Judgement, context: str = "") -> None:
         if judgement.malicious:
-            self._triggers.append({
-                "facet": facet, "reason": judgement.reason, "score": judgement.score,
-                "ts": DEFAULT_CLOCK(), "context": context,
-            })
+            self._triggers.append(
+                {
+                    "facet": facet,
+                    "reason": judgement.reason,
+                    "score": judgement.score,
+                    "ts": DEFAULT_CLOCK(),
+                    "context": context,
+                }
+            )
 
     # -- request-level combined gate over an HTTP-ish request -- #
-    def gate_request(self, key: str, user_agent: str = "", headers: Optional[Dict[str, str]] = None,
-                     now: Optional[float] = None) -> Judgement:
+    def gate_request(
+        self,
+        key: str,
+        user_agent: str = "",
+        headers: dict[str, str] | None = None,
+        now: float | None = None,
+    ) -> Judgement:
         """Combined check for a single inbound request (anomaly + bot + extraction)."""
         a = self.anomaly.observe(key, at=now)
         if a.malicious:
@@ -629,10 +706,12 @@ class AIDefenseFacade:
             return b2
         return Judgement(False, "allowed")
 
-    def check_auth(self, account: str, ip: str = "", now: Optional[float] = None) -> Judgement:
+    def check_auth(self, account: str, ip: str = "", now: float | None = None) -> Judgement:
         return self.stuffing.check(account, ip, at=now)
 
-    def record_auth_failure(self, account: str, ip: str = "", now: Optional[float] = None) -> Judgement:
+    def record_auth_failure(
+        self, account: str, ip: str = "", now: float | None = None
+    ) -> Judgement:
         j = self.stuffing.record_failure(account, ip, at=now)
         self._record("stuffing", j, account)
         return j
@@ -640,7 +719,7 @@ class AIDefenseFacade:
     def record_auth_success(self, account: str, ip: str = "") -> None:
         self.stuffing.record_success(account, ip)
 
-    def guard_model_query(self, key: str, query: str = "", now: Optional[float] = None) -> Judgement:
+    def guard_model_query(self, key: str, query: str = "", now: float | None = None) -> Judgement:
         j = self.extraction.observe(key, query, at=now)
         self._record("extraction", j, key)
         return j
@@ -650,7 +729,7 @@ class AIDefenseFacade:
         self._record("injection", j)
         return j
 
-    def posture(self) -> Dict[str, Any]:
+    def posture(self) -> dict[str, Any]:
         """Quantified live posture: healthy if no facets are imminently breached."""
         out = {
             "triggers_in_buffer": len(self._triggers),
@@ -675,7 +754,7 @@ class AIDefenseFacade:
         # the expected outcome of defense, not a facade malfunction.
         return True
 
-    def recent_triggers(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def recent_triggers(self, limit: int = 20) -> list[dict[str, Any]]:
         return list(self._triggers)[-limit:]
 
 
@@ -683,7 +762,7 @@ class AIDefenseFacade:
 class AIDefenseModule(Module):
     """Kernel-registered module exposing the AI-defense facade to the platform."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._config = config or {}
         self.facade = self._build_facade()
@@ -728,11 +807,11 @@ class AIDefenseModule(Module):
     def guard_model_query(self, key: str, query: str = "", **kw: Any) -> Judgement:
         return self.facade.guard_model_query(key, query, **kw)
 
-    def posture(self) -> Dict[str, Any]:
+    def posture(self) -> dict[str, Any]:
         return self.facade.posture()
 
     def throttle_request(self, key: str, cost: int = 1, **kw: Any) -> Allowance:
         return self.facade.throttle_request(key, cost, **kw)
 
-    def attacker_state(self, key: str) -> Optional[Dict[str, Any]]:
+    def attacker_state(self, key: str) -> dict[str, Any] | None:
         return self.facade.attacker_state(key)

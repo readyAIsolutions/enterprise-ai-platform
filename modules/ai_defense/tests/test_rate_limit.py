@@ -12,21 +12,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-import pytest
 
+from enterprise.modules.ai_defense.ai_defense import AIDefenseFacade, AIDefenseModule
 from enterprise.modules.ai_defense.rate_limit import (
-    Allowance,
     AttackerStore,
     SlidingWindowRateLimiter,
     ThrottleGate,
 )
-from enterprise.modules.ai_defense.ai_defense import AIDefenseFacade, AIDefenseModule
 
 
 class Clock:
     """Injectable clock for deterministic time travel."""
 
-    def __init__(self, start: float = 1000.0):
+    def __init__(self, start: float = 1000.0) -> None:
         self.t = start
 
     def __call__(self) -> float:
@@ -39,7 +37,7 @@ class Clock:
 # ---------------------------------------------------------------------------
 # SlidingWindowRateLimiter
 # ---------------------------------------------------------------------------
-def test_limiter_allows_under_limit():
+def test_limiter_allows_under_limit() -> None:
     c = Clock()
     r = SlidingWindowRateLimiter(limit=5, window=60.0, clock=c)
     for i in range(5):
@@ -53,7 +51,7 @@ def test_limiter_allows_under_limit():
     assert reset_in > 0
 
 
-def test_limiter_blocks_over_limit():
+def test_limiter_blocks_over_limit() -> None:
     c = Clock()
     r = SlidingWindowRateLimiter(limit=3, window=60.0, clock=c)
     for _ in range(3):
@@ -62,7 +60,7 @@ def test_limiter_blocks_over_limit():
     assert r.allow("k")[0] is False
 
 
-def test_limiter_window_slides_old_calls_expire():
+def test_limiter_window_slides_old_calls_expire() -> None:
     c = Clock()
     r = SlidingWindowRateLimiter(limit=3, window=10.0, clock=c)
     for _ in range(3):
@@ -76,7 +74,7 @@ def test_limiter_window_slides_old_calls_expire():
     assert r.allow("k")[0] is False
 
 
-def test_limiter_reset_clears_key():
+def test_limiter_reset_clears_key() -> None:
     c = Clock()
     r = SlidingWindowRateLimiter(limit=2, window=60.0, clock=c)
     r.allow("a")
@@ -86,7 +84,7 @@ def test_limiter_reset_clears_key():
     assert r.allow("a")[0] is True
 
 
-def test_limiter_is_per_key_independent():
+def test_limiter_is_per_key_independent() -> None:
     c = Clock()
     r = SlidingWindowRateLimiter(limit=1, window=60.0, clock=c)
     assert r.allow("ip:1")[0] is True
@@ -95,7 +93,7 @@ def test_limiter_is_per_key_independent():
     assert r.allow("ip:2")[0] is True
 
 
-def test_limiter_snapshot_counts_live_hits():
+def test_limiter_snapshot_counts_live_hits() -> None:
     c = Clock()
     r = SlidingWindowRateLimiter(limit=5, window=10.0, clock=c)
     r.allow("a")
@@ -111,7 +109,7 @@ def test_limiter_snapshot_counts_live_hits():
 # ---------------------------------------------------------------------------
 # AttackerStore persistence
 # ---------------------------------------------------------------------------
-def test_store_records_attempts_and_survives_reopen(tmp_path):
+def test_store_records_attempts_and_survives_reopen(tmp_path) -> None:
     db = str(tmp_path / "attackers.db")
     c = Clock()
     s1 = AttackerStore(db)
@@ -133,7 +131,7 @@ def test_store_records_attempts_and_survives_reopen(tmp_path):
     s2.close()
 
 
-def test_store_bump_updates_last_seen_and_count():
+def test_store_bump_updates_last_seen_and_count() -> None:
     c = Clock()
     s = AttackerStore()
     s.add_attempt("k", now=c())  # first_seen == last_seen == 1000
@@ -145,7 +143,7 @@ def test_store_bump_updates_last_seen_and_count():
     assert rec["first_seen"] == 1000.0
 
 
-def test_store_block_lifecycle():
+def test_store_block_lifecycle() -> None:
     c = Clock()
     s = AttackerStore()
     s.block("ip:1", until=c() + 100.0, flag="auto_block")
@@ -157,7 +155,7 @@ def test_store_block_lifecycle():
     s.unblock("ip:2")  # no-op safe on missing key
 
 
-def test_store_list_ordering_and_flags(tmp_path):
+def test_store_list_ordering_and_flags(tmp_path) -> None:
     db = str(tmp_path / "a.db")
     c = Clock()
     s = AttackerStore(db)
@@ -174,7 +172,7 @@ def test_store_list_ordering_and_flags(tmp_path):
     s.close()
 
 
-def test_store_in_memory_is_isolated():
+def test_store_in_memory_is_isolated() -> None:
     s1 = AttackerStore()
     s1.add_attempt("ip:1")
     s2 = AttackerStore()
@@ -184,7 +182,7 @@ def test_store_in_memory_is_isolated():
 # ---------------------------------------------------------------------------
 # ThrottleGate (limiter + store combined)
 # ---------------------------------------------------------------------------
-def test_gate_cooperates_under_limit():
+def test_gate_cooperates_under_limit() -> None:
     c = Clock()
     g = ThrottleGate(limit=5, window=60.0, threshold=100, clock=c)
     for _ in range(5):
@@ -193,7 +191,7 @@ def test_gate_cooperates_under_limit():
         assert a.reason == "allowed"
 
 
-def test_gate_denies_over_limit_and_records_attempt():
+def test_gate_denies_over_limit_and_records_attempt() -> None:
     c = Clock()
     g = ThrottleGate(limit=2, window=60.0, threshold=100, clock=c)
     g.allow("ip:1", now=c())
@@ -206,7 +204,7 @@ def test_gate_denies_over_limit_and_records_attempt():
     assert "rate_limited" in rec["flags"]
 
 
-def test_gate_auto_blocks_after_threshold_then_expires():
+def test_gate_auto_blocks_after_threshold_then_expires() -> None:
     c = Clock()
     g = ThrottleGate(limit=100, window=60.0, threshold=3, block_seconds=50.0, clock=c)
     for _ in range(3):
@@ -226,7 +224,7 @@ def test_gate_auto_blocks_after_threshold_then_expires():
     assert a.blocked is False
 
 
-def test_gate_blocked_state_takes_priority_over_limiter():
+def test_gate_blocked_state_takes_priority_over_limiter() -> None:
     c = Clock()
     g = ThrottleGate(limit=100, window=60.0, threshold=1, block_seconds=30.0, clock=c)
     g.allow("ip:y", now=c())  # hits threshold=1, auto-blocks
@@ -237,7 +235,7 @@ def test_gate_blocked_state_takes_priority_over_limiter():
     assert a.reason == "blocked"
 
 
-def test_gate_clock_injection_is_deterministic():
+def test_gate_clock_injection_is_deterministic() -> None:
     c = Clock(start=42.0)
     g = ThrottleGate(limit=1, window=5.0, threshold=100, clock=c)
     a1 = g.allow("k", now=c())
@@ -249,7 +247,7 @@ def test_gate_clock_injection_is_deterministic():
     assert g.allow("k", now=c()).allowed is True
 
 
-def test_gate_manual_record_marks_attempt():
+def test_gate_manual_record_marks_attempt() -> None:
     c = Clock()
     g = ThrottleGate(threshold=2, clock=c)
     g.record("ip:z", flag="auth_failure", now=c())
@@ -261,7 +259,7 @@ def test_gate_manual_record_marks_attempt():
 # ---------------------------------------------------------------------------
 # Facade wiring (OFF by default; opt-in via with_throttle)
 # ---------------------------------------------------------------------------
-def test_facade_default_is_offline_noop_allow():
+def test_facade_default_is_offline_noop_allow() -> None:
     f = AIDefenseFacade()
     assert f.throttle is None
     a = f.throttle_request("ip:1")
@@ -272,7 +270,7 @@ def test_facade_default_is_offline_noop_allow():
     assert f.scan_content("normal text").malicious is False
 
 
-def test_facade_with_throttle_enforces_and_wires():
+def test_facade_with_throttle_enforces_and_wires() -> None:
     c = Clock()
     f = AIDefenseFacade.with_throttle(clock=c, limit=2, window=60.0, threshold=100)
     assert f.throttle is not None
@@ -286,7 +284,7 @@ def test_facade_with_throttle_enforces_and_wires():
     assert "throttle" in f.posture()
 
 
-def test_module_offline_by_default_and_opt_in_via_config():
+def test_module_offline_by_default_and_opt_in_via_config() -> None:
     m = AIDefenseModule()
     assert m.facade.throttle is None
     assert m.throttle_request("ip:1").allowed is True
@@ -298,7 +296,7 @@ def test_module_offline_by_default_and_opt_in_via_config():
     assert m2.throttle_request("ip:1").allowed is False
 
 
-def test_gate_lifecycle_close_is_idempotent():
+def test_gate_lifecycle_close_is_idempotent() -> None:
     s = AttackerStore()
     g = ThrottleGate(store=s)
     g.allow("k")

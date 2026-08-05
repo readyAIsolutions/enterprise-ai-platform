@@ -11,9 +11,9 @@ All components are stdlib-only with zero external dependencies.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
-from enterprise.platform_kernel import HealthStatus, Module, module
+from enterprise.platform_kernel import HealthStatus, Module, module  # noqa: F401
 
 from .prompt_guard import (
     AuditEntry,
@@ -44,7 +44,7 @@ __all__ = [
 ]
 
 
-def create_prompt_guard_module(config: Optional[Dict[str, Any]] = None) -> PromptGuardModule:
+def create_prompt_guard_module(config: dict[str, Any] | None = None) -> PromptGuardModule:
     """Create a :class:`PromptGuardModule` from an optional config dict.
 
     Args:

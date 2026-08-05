@@ -27,16 +27,20 @@ from __future__ import annotations
 import sqlite3
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import builtins
+    from collections.abc import Sequence
 
 # ---------------------------------------------------------------------------
 # Severity scoring
 # ---------------------------------------------------------------------------
 
 
-class SeverityBand(str, Enum):
+class SeverityBand(StrEnum):
     """Qualitative band derived from a 0–10 risk score (CVSS-style breaks)."""
 
     LOW = "LOW"
@@ -45,7 +49,7 @@ class SeverityBand(str, Enum):
     CRITICAL = "CRITICAL"
 
     @classmethod
-    def from_score(cls, score: float) -> "SeverityBand":
+    def from_score(cls, score: float) -> SeverityBand:
         """Map a 0–10 numeric score to a qualitative band."""
         if score >= 9.0:
             return cls.CRITICAL
@@ -83,7 +87,7 @@ class SeverityScore:
     The result is clamped to [0, 10] and rounded to two decimals.
     """
 
-    ATTACK_VECTOR: Dict[str, float] = {
+    ATTACK_VECTOR: dict[str, float] = {
         "network": 1.0,
         "adjacent": 0.75,
         "adjacent_network": 0.75,
@@ -92,7 +96,7 @@ class SeverityScore:
     }
 
     # privilege the attacker must already hold to exploit — lower is easier
-    PRIVILEGE: Dict[str, float] = {
+    PRIVILEGE: dict[str, float] = {
         "none": 1.0,
         "low": 0.7,
         "high": 0.45,
@@ -151,7 +155,7 @@ class SeverityScore:
         """Return the qualitative band for this score."""
         return SeverityBand.from_score(self.score())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a serializable summary of the scoring."""
         return {
             "impact": self.impact,
@@ -196,7 +200,7 @@ class Risk:
     noted_at: str = ""
     updated_at: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "title": self.title,
@@ -212,7 +216,7 @@ class Risk:
 
 def _now_iso() -> str:
     """Return an ISO-8601 UTC timestamp."""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 class RiskRegister:
@@ -223,7 +227,7 @@ class RiskRegister:
     Thread-safe for concurrent append/read access.
     """
 
-    def __init__(self, db_path: Optional[str] = None) -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         self.db_path = db_path or ":memory:"
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
@@ -233,7 +237,7 @@ class RiskRegister:
     # -- schema / helpers ---------------------------------------------------
 
     def _create_schema(self) -> None:
-        cur = self._conn.execute(
+        self._conn.execute(
             """
             CREATE TABLE IF NOT EXISTS risks (
                 id         TEXT PRIMARY KEY,
@@ -265,9 +269,8 @@ class RiskRegister:
 
     def _validate_status(self, status: str) -> None:
         if status not in STATUSES:
-            raise ValueError(
-                f"invalid status {status!r}; expected one of {STATUSES}"
-            )
+            msg = f"invalid status {status!r}; expected one of {STATUSES}"
+            raise ValueError(msg)
 
     # -- CRUD ---------------------------------------------------------------
 
@@ -285,11 +288,10 @@ class RiskRegister:
         self._validate_status(status)
         now = _now_iso()
         with self._lock:
-            exists = self._conn.execute(
-                "SELECT 1 FROM risks WHERE id = ?", (id,)
-            ).fetchone()
+            exists = self._conn.execute("SELECT 1 FROM risks WHERE id = ?", (id,)).fetchone()
             if exists:
-                raise ValueError(f"risk {id!r} already exists")
+                msg = f"risk {id!r} already exists"
+                raise ValueError(msg)
             self._conn.execute(
                 """
                 INSERT INTO risks
@@ -300,30 +302,36 @@ class RiskRegister:
             )
             self._conn.commit()
         return Risk(
-            id=id, title=title, category=category, severity=float(severity),
-            status=status, owner=owner, notes=notes, noted_at=now, updated_at=now,
+            id=id,
+            title=title,
+            category=category,
+            severity=float(severity),
+            status=status,
+            owner=owner,
+            notes=notes,
+            noted_at=now,
+            updated_at=now,
         )
 
-    def get(self, id: str) -> Optional[Risk]:
+    def get(self, id: str) -> Risk | None:
         """Return the risk with ``id`` or None if absent."""
-        row = self._conn.execute(
-            "SELECT * FROM risks WHERE id = ?", (id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM risks WHERE id = ?", (id,)).fetchone()
         return self._row_to_risk(row) if row else None
 
     def update(
         self,
         id: str,
-        title: Optional[str] = None,
-        category: Optional[str] = None,
-        severity: Optional[float] = None,
-        owner: Optional[str] = None,
-        notes: Optional[str] = None,
+        title: str | None = None,
+        category: str | None = None,
+        severity: float | None = None,
+        owner: str | None = None,
+        notes: str | None = None,
     ) -> Risk:
         """Update selectable fields of an existing risk. Raises KeyError if absent."""
         current = self.get(id)
         if current is None:
-            raise KeyError(f"no such risk: {id!r}")
+            msg = f"no such risk: {id!r}"
+            raise KeyError(msg)
         with self._lock:
             self._conn.execute(
                 """
@@ -337,8 +345,13 @@ class RiskRegister:
                 WHERE id = ?
                 """,
                 (
-                    title, category, float(severity) if severity is not None else None,
-                    owner, notes, _now_iso(), id,
+                    title,
+                    category,
+                    float(severity) if severity is not None else None,
+                    owner,
+                    notes,
+                    _now_iso(),
+                    id,
                 ),
             )
             self._conn.commit()
@@ -349,17 +362,17 @@ class RiskRegister:
         self._validate_status(status)
         current = self.get(id)
         if current is None:
-            raise KeyError(f"no such risk: {id!r}")
+            msg = f"no such risk: {id!r}"
+            raise KeyError(msg)
         with self._lock:
             self._conn.execute(
                 "UPDATE risks SET status = ?, updated_at = ? WHERE id = ?",
                 (status, _now_iso(), id),
             )
             self._conn.commit()
-        updated = self.get(id)
-        return updated  # type: ignore[return-value]
+        return self.get(id)
 
-    def close(self, id: str, owner: Optional[str] = None) -> Risk:
+    def close(self, id: str, owner: str | None = None) -> Risk:
         """Convenience: mark a risk closed (optionally setting the owner)."""
         if owner is not None:
             self.update(id, owner=owner)
@@ -374,23 +387,23 @@ class RiskRegister:
 
     # -- list / filter ------------------------------------------------------
 
-    def list(self, status: Optional[str] = None) -> List[Risk]:
+    def list(self, status: str | None = None) -> builtins.list[Risk]:
         """Return all risks, optionally filtered to a single status."""
         return self.filter(status=status)
 
     def filter(
         self,
-        status: Optional[str] = None,
-        category: Optional[str] = None,
-        severity_min: Optional[float] = None,
-        severity_max: Optional[float] = None,
-    ) -> List[Risk]:
+        status: str | None = None,
+        category: str | None = None,
+        severity_min: float | None = None,
+        severity_max: float | None = None,
+    ) -> builtins.list[Risk]:
         """Return risks matching the given criteria (all optional, ANDed).
 
         ``severity_min``/``severity_max`` are inclusive bounds on the 0–10 score.
         """
-        clauses: List[str] = []
-        params: List[Any] = []
+        clauses: list[str] = []
+        params: list[Any] = []
         if status is not None:
             clauses.append("status = ?")
             params.append(status)
@@ -436,7 +449,7 @@ class RiskRegister:
 
 # Minimum viable controls per STRIDE category. These are the *baseline*
 # mitigations every system should apply for the given threat category.
-STRIDE_MITIGATIONS: Dict[str, List[str]] = {
+STRIDE_MITIGATIONS: dict[str, list[str]] = {
     "spoofing": [
         "Mutual TLS / identity verification",
         "Strong authentication (MFA)",
@@ -471,7 +484,7 @@ STRIDE_MITIGATIONS: Dict[str, List[str]] = {
 }
 
 # honour the Pascal-Case STRIDE names used by STRIDEThreatMapper too
-_STRIDE_CANONICAL_ALIASES: Dict[str, str] = {
+_STRIDE_CANONICAL_ALIASES: dict[str, str] = {
     "Spoofing": "spoofing",
     "Tampering": "tampering",
     "Repudiation": "repudiation",
@@ -498,14 +511,12 @@ class MitigationPlanner:
     STATUS_APPLIED = "applied"
     STATUS_VERIFIED = "verified"
 
-    def __init__(self, mitigations: Optional[Dict[str, List[str]]] = None) -> None:
-        self.mitigations: Dict[str, List[str]] = dict(
-            mitigations or STRIDE_MITIGATIONS
-        )
+    def __init__(self, mitigations: dict[str, list[str]] | None = None) -> None:
+        self.mitigations: dict[str, list[str]] = dict(mitigations or STRIDE_MITIGATIONS)
         # risk_id -> {mitigation_name: status}
-        self._tracking: Dict[str, Dict[str, str]] = {}
+        self._tracking: dict[str, dict[str, str]] = {}
 
-    def suggest(self, category: str) -> List[str]:
+    def suggest(self, category: str) -> list[str]:
         """Return baseline mitigations for a STRIDE category.
 
         Unknown categories yield an empty list (no invented controls).
@@ -513,13 +524,13 @@ class MitigationPlanner:
         key = _normalise_category(category)
         return list(self.mitigations.get(key, []))
 
-    def categories(self) -> List[str]:
+    def categories(self) -> list[str]:
         """Return the STRIDE categories with defined mitigation baselines."""
         return list(self.mitigations.keys())
 
     # -- per-risk tracking --------------------------------------------------
 
-    def plan(self, risk_id: str, category: str) -> List[str]:
+    def plan(self, risk_id: str, category: str) -> list[str]:
         """Suggest baselines for a risk and register them as ``proposed``."""
         suggestions = self.suggest(category)
         tracking = self._tracking.setdefault(risk_id, {})
@@ -530,13 +541,18 @@ class MitigationPlanner:
     def mark(self, risk_id: str, mitigation: str, status: str) -> None:
         """Track the application status of a mitigation for a risk."""
         if risk_id not in self._tracking:
-            raise KeyError(f"no mitigation plan for risk {risk_id!r}; call plan() first")
+            msg = f"no mitigation plan for risk {risk_id!r}; call plan() first"
+            raise KeyError(msg)
         if mitigation not in self._tracking[risk_id]:
-            raise KeyError(f"mitigation {mitigation!r} not suggested for {risk_id!r}")
+            msg = f"mitigation {mitigation!r} not suggested for {risk_id!r}"
+            raise KeyError(msg)
         if status not in (
-            self.STATUS_PROPOSED, self.STATUS_APPLIED, self.STATUS_VERIFIED,
+            self.STATUS_PROPOSED,
+            self.STATUS_APPLIED,
+            self.STATUS_VERIFIED,
         ):
-            raise ValueError(f"invalid mitigation status {status!r}")
+            msg = f"invalid mitigation status {status!r}"
+            raise ValueError(msg)
         self._tracking[risk_id][mitigation] = status
 
     def apply(self, risk_id: str, mitigation: str) -> None:
@@ -547,7 +563,7 @@ class MitigationPlanner:
         """Mark a suggested mitigation as applied and verified."""
         self.mark(risk_id, mitigation, self.STATUS_VERIFIED)
 
-    def status(self, risk_id: str) -> Dict[str, str]:
+    def status(self, risk_id: str) -> dict[str, str]:
         """Return {mitigation: status} for a risk (empty if not planned)."""
         return dict(self._tracking.get(risk_id, {}))
 
@@ -556,9 +572,7 @@ class MitigationPlanner:
         tracking = self._tracking.get(risk_id, {})
         if not tracking:
             return 0.0
-        done = sum(
-            1 for s in tracking.values() if s in (self.STATUS_APPLIED, self.STATUS_VERIFIED)
-        )
+        done = sum(1 for s in tracking.values() if s in (self.STATUS_APPLIED, self.STATUS_VERIFIED))
         return round(done / len(tracking), 3)
 
     def clear(self, risk_id: str) -> None:
@@ -585,7 +599,7 @@ class ThreatEntry:
     owner: str = ""
     notes: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "category": self.category,
@@ -609,9 +623,9 @@ class ThreatAssessment:
 
     def __init__(
         self,
-        register: Optional[RiskRegister] = None,
-        planner: Optional[MitigationPlanner] = None,
-        scorer: Optional[SeverityScore] = None,
+        register: RiskRegister | None = None,
+        planner: MitigationPlanner | None = None,
+        scorer: SeverityScore | None = None,
     ) -> None:
         self.register = register or RiskRegister()
         self.planner = planner or MitigationPlanner()
@@ -630,7 +644,7 @@ class ThreatAssessment:
         base = "".join(ch for ch in base if ch.isalnum() or ch == "_") or "threat"
         return f"{base}_{threat.asset}"
 
-    def assess(self, threats: Sequence[ThreatEntry]) -> List[Dict[str, Any]]:
+    def assess(self, threats: Sequence[ThreatEntry]) -> list[dict[str, Any]]:
         """Score each threat, persist to the register and plan mitigations.
 
         Returns a list of risk dicts (sorted by severity desc) mirroring the
@@ -662,7 +676,7 @@ class ThreatAssessment:
             self.planner.plan(risk_id, threat.category)
         return self.prioritized()
 
-    def prioritized(self, top_n: Optional[int] = None) -> List[Dict[str, Any]]:
+    def prioritized(self, top_n: int | None = None) -> list[dict[str, Any]]:
         """Return register risks sorted by severity desc, enriched with mitigations.
 
         Each item carries the stored risk fields plus ``mitigations`` (the
@@ -672,18 +686,20 @@ class ThreatAssessment:
         enriched = []
         for risk in risks:
             status_map = self.planner.status(risk.id)
-            enriched.append({
-                **risk.to_dict(),
-                "mitigations": list(status_map.keys()),
-                "mitigation_status": status_map,
-                "coverage": self.planner.coverage(risk.id),
-            })
+            enriched.append(
+                {
+                    **risk.to_dict(),
+                    "mitigations": list(status_map.keys()),
+                    "mitigation_status": status_map,
+                    "coverage": self.planner.coverage(risk.id),
+                }
+            )
         enriched.sort(key=lambda r: (r["severity"], r["id"]), reverse=True)
         if top_n is not None and top_n > 0:
             enriched = enriched[:top_n]
         return enriched
 
-    def top_n(self, n: int) -> List[Dict[str, Any]]:
+    def top_n(self, n: int) -> list[dict[str, Any]]:
         """Return the ``n`` most severe risks with their mitigations."""
         return self.prioritized(top_n=n)
 

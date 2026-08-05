@@ -26,13 +26,13 @@ All components are stdlib-only, zero external dependencies.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
-    EventBus,
-    HealthStatus,
-    Module,
-    module,
+    EventBus,  # noqa: F401
+    HealthStatus,  # noqa: F401
+    Module,  # noqa: F401
+    module,  # noqa: F401
 )
 
 from .campaign import (
@@ -56,8 +56,8 @@ from .vuln_scanner import (
     PromptInjectionProbe,
     RefusalEchoProbe,
     Rescorer,
-    ScanReport,
     Scanner,
+    ScanReport,
     ToxicityProbe,
     VulnScannerFacade,
     VulnScannerModule,
@@ -105,7 +105,7 @@ _logger = logging.getLogger("enterprise.vuln_scanner")
 
 
 def create_scanner(
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> Scanner:
     """Create a :class:`Scanner` with the built-in probes and optional tuning.
 

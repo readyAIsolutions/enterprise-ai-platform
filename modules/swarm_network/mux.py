@@ -12,13 +12,17 @@ Provides:
 
 Stdlib only.
 """
+
 from __future__ import annotations
 
 import threading
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "Link",
@@ -36,6 +40,7 @@ MUX_NOT_AVAILABLE = None
 # ═══════════════════════════════════════════════════════════════════════════
 # Link
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class Link:
@@ -67,6 +72,7 @@ class Link:
 # ConnectionScorer
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class ConnectionScorer:
     """Score a link 0-100 from weighted signal/bandwidth/latency/reliability.
 
@@ -90,7 +96,7 @@ class ConnectionScorer:
 
     def __init__(
         self,
-        weights: Optional[Dict[str, float]] = None,
+        weights: dict[str, float] | None = None,
         latency_budget_ms: float = 150.0,
     ) -> None:
         self.weights = dict(weights or self.DEFAULT_WEIGHTS)
@@ -147,17 +153,18 @@ class ConnectionScorer:
 # LinkManager
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class LinkManager:
     """Register, update, and probe links; pick the best one by score."""
 
     def __init__(
         self,
-        scorer: Optional[ConnectionScorer] = None,
-        probe_fn: Optional[Callable[[Link], bool]] = None,
+        scorer: ConnectionScorer | None = None,
+        probe_fn: Callable[[Link], bool] | None = None,
     ) -> None:
         self.scorer = scorer or ConnectionScorer()
         self.probe_fn = probe_fn
-        self._links: Dict[str, Link] = {}
+        self._links: dict[str, Link] = {}
         self._lock = threading.RLock()
 
     # -- registration ------------------------------------------------------
@@ -177,19 +184,17 @@ class LinkManager:
         metric: int = 0,
         up: bool = True,
     ) -> Link:
-        return self.register(
-            Link(id=link_id, type=link_type, name=name, metric=metric, up=up)
-        )
+        return self.register(Link(id=link_id, type=link_type, name=name, metric=metric, up=up))
 
-    def unregister(self, link_id: str) -> Optional[Link]:
+    def unregister(self, link_id: str) -> Link | None:
         with self._lock:
             return self._links.pop(link_id, None)
 
-    def get(self, link_id: str) -> Optional[Link]:
+    def get(self, link_id: str) -> Link | None:
         with self._lock:
             return self._links.get(link_id)
 
-    def links(self) -> List[Link]:
+    def links(self) -> list[Link]:
         with self._lock:
             return list(self._links.values())
 
@@ -221,7 +226,7 @@ class LinkManager:
             link.last_test = time.monotonic()
         return ok
 
-    def test_all(self) -> Dict[str, bool]:
+    def test_all(self) -> dict[str, bool]:
         results = {}
         for link in self.links():
             results[link.id] = self.test(link.id)
@@ -241,8 +246,8 @@ class LinkManager:
 
     def best_link(
         self,
-        signals: Optional[Dict[str, Dict[str, float]]] = None,
-    ) -> Optional[Link]:
+        signals: dict[str, dict[str, float]] | None = None,
+    ) -> Link | None:
         """Return the best UP link by score (lower metric breaks ties).
 
         ``signals`` maps link_id -> {signal, bandwidth, latency_ms, reliability}
@@ -250,7 +255,7 @@ class LinkManager:
         default to perfect signals.
         """
         signals = signals or {}
-        best: Optional[Link] = None
+        best: Link | None = None
         best_score = -1.0
         for link in self.links():
             if not link.up:
@@ -268,6 +273,7 @@ class LinkManager:
 # Muxer
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class Muxer:
     """Route through the best UP link, auto-falling back on failure.
 
@@ -278,13 +284,13 @@ class Muxer:
 
     def __init__(
         self,
-        manager: Optional[LinkManager] = None,
-        send_fns: Optional[Dict[str, Callable[..., object]]] = None,
-        scorer: Optional[ConnectionScorer] = None,
+        manager: LinkManager | None = None,
+        send_fns: dict[str, Callable[..., object]] | None = None,
+        scorer: ConnectionScorer | None = None,
     ) -> None:
         self.manager = manager or LinkManager(scorer=scorer)
-        self.send_fns: Dict[str, Callable[..., object]] = dict(send_fns or {})
-        self._stats: Dict[str, Dict[str, int]] = defaultdict(
+        self.send_fns: dict[str, Callable[..., object]] = dict(send_fns or {})
+        self._stats: dict[str, dict[str, int]] = defaultdict(
             lambda: {"ok": 0, "fail": 0, "fallback": 0}
         )
         self.total_fallbacks = 0
@@ -298,13 +304,13 @@ class Muxer:
     def attach_send(self, link_id: str, fn: Callable[[object], object]) -> None:
         self.send_fns[link_id] = fn
 
-    def stats(self, link_id: Optional[str] = None) -> Dict:
+    def stats(self, link_id: str | None = None) -> dict:
         with self._lock:
             if link_id is not None:
                 return dict(self._stats[link_id])
             return {k: dict(v) for k, v in self._stats.items()}
 
-    def fallback_count(self, link_id: Optional[str] = None) -> int:
+    def fallback_count(self, link_id: str | None = None) -> int:
         """Number of times a link was used as a fallback target."""
         with self._lock:
             if link_id is not None:
@@ -313,7 +319,7 @@ class Muxer:
 
     # -- routing -----------------------------------------------------------
 
-    def resolve_order(self, prefer: Optional[str] = None, **signals) -> List[Link]:
+    def resolve_order(self, prefer: str | None = None, **signals) -> list[Link]:
         """Deterministic candidate order: preferred first, then by score, then metric."""
         scored = []
         for link in self.manager.links():
@@ -328,8 +334,8 @@ class Muxer:
     def route(
         self,
         data: object = b"",
-        prefer: Optional[str] = None,
-        task: Optional[str] = None,
+        prefer: str | None = None,
+        task: str | None = None,
         **signals,
     ) -> object:
         """Route ``data`` through the best UP link, auto-falling back on failure.
@@ -341,14 +347,12 @@ class Muxer:
             self.total_routes += 1
             order = self.resolve_order(prefer=prefer, **signals)
             if not order:
-                raise RuntimeError("No link available to route")
+                msg = "No link available to route"
+                raise RuntimeError(msg)
 
-            last_error: Optional[Exception] = None
+            last_error: Exception | None = None
             for index, link in enumerate(order):
                 fn = self.send_fns.get(link.id)
-                attempt_label = "preferred" if (index == 0 and link.id == prefer) else (
-                    "primary" if index == 0 else "fallback"
-                )
                 try:
                     if fn is None:
                         # No sender wired — treat a configured, UP link as routable
@@ -356,10 +360,7 @@ class Muxer:
                         self._stats[link.id]["ok"] += 1
                         self.total_success += 1
                         return data
-                    if task is not None:
-                        result = fn(data, task=task)
-                    else:
-                        result = fn(data)
+                    result = fn(data, task=task) if task is not None else fn(data)
                     self._stats[link.id]["ok"] += 1
                     self.total_success += 1
                     return result
@@ -374,16 +375,17 @@ class Muxer:
 
             # All links failed.
             if last_error is not None:
-                raise RuntimeError(f"All links failed, last error: {last_error}") from last_error
+                msg = f"All links failed, last error: {last_error}"
+                raise RuntimeError(msg) from last_error
             return MUX_NOT_AVAILABLE
 
 
 def select_route(
-    candidates: List[Link],
-    prefer: Optional[str] = None,
-    signals: Optional[Dict[str, Dict[str, float]]] = None,
-    scorer: Optional[ConnectionScorer] = None,
-) -> Optional[Link]:
+    candidates: list[Link],
+    prefer: str | None = None,
+    signals: dict[str, dict[str, float]] | None = None,
+    scorer: ConnectionScorer | None = None,
+) -> Link | None:
     """Deterministic, side-effect-free route selection over a list of links.
 
     Only UP links are considered. The preferred link (if UP) wins outright on
@@ -399,7 +401,7 @@ def select_route(
     if not up:
         return None
 
-    best: Optional[Link] = None
+    best: Link | None = None
     best_score = -1.0
     for link in up:
         sig = signals.get(link.id, {})

@@ -15,48 +15,48 @@ All components are stdlib-only with zero external dependencies.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
-    EventBus,
-    HealthStatus,
-    Module,
-    module,
+    EventBus,  # noqa: F401
+    HealthStatus,  # noqa: F401
+    Module,  # noqa: F401
+    module,  # noqa: F401
 )
 
 from .adversary_gate import (
-    AdversaryGate,
-    AgentForceHarness,
-    GateDecision,
-    GateProfile,
-    PROFILES,
+    PROFILES,  # noqa: F401
+    AdversaryGate,  # noqa: F401
+    AgentForceHarness,  # noqa: F401
+    GateDecision,  # noqa: F401
+    GateProfile,  # noqa: F401
 )
 from .ai_defense import (
     AIDefenseFacade,
     AIDefenseModule,
-    AnomalyConfig,
-    BehavioralAnomalyDetector,
-    BotConfig,
-    BotTrafficClassifier,
-    CredentialStuffingGuard,
-    ExtractionConfig,
-    IndirectPromptInjectionGuard,
-    InjectionConfig,
-    Judgement,
-    ModelExtractionShield,
-    StuffingConfig,
+    AnomalyConfig,  # noqa: F401
+    BehavioralAnomalyDetector,  # noqa: F401
+    BotConfig,  # noqa: F401
+    BotTrafficClassifier,  # noqa: F401
+    CredentialStuffingGuard,  # noqa: F401
+    ExtractionConfig,  # noqa: F401
+    IndirectPromptInjectionGuard,  # noqa: F401
+    InjectionConfig,  # noqa: F401
+    Judgement,  # noqa: F401
+    ModelExtractionShield,  # noqa: F401
+    StuffingConfig,  # noqa: F401
 )
 from .rate_limit import (
-    Allowance,
-    AttackerStore,
-    SlidingWindowRateLimiter,
-    ThrottleGate,
+    Allowance,  # noqa: F401
+    AttackerStore,  # noqa: F401
+    SlidingWindowRateLimiter,  # noqa: F401
+    ThrottleGate,  # noqa: F401
 )
 
 __version__ = "1.0.0"
 __module__ = "ai_defense"
 
-DEFAULT_CONFIG: Dict[str, Any] = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "priority": 15,
     "anomaly": {"window": 60.0, "z_threshold": 4.0, "flood_events_per_sec": 20.0},
     "bot": {"pacing_sd_threshold": 0.05, "min_intervals": 6},
@@ -66,7 +66,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 
-def create_facade(config: Optional[Dict[str, Any]] = None) -> AIDefenseFacade:
+def create_facade(config: dict[str, Any] | None = None) -> AIDefenseFacade:
     """Build an AIDefenseFacade from a config dict (defaults applied)."""
     return AIDefenseFacade()
 
@@ -74,7 +74,9 @@ def create_facade(config: Optional[Dict[str, Any]] = None) -> AIDefenseFacade:
 def register(context) -> Any:
     """Kernel plugin-style registration (optional; @module handles discovery)."""
     facade = AIDefenseFacade()
-    context.register_hook("model_query", lambda key, query="", **k: facade.guard_model_query(key, query, **k))
+    context.register_hook(
+        "model_query", lambda key, query="", **k: facade.guard_model_query(key, query, **k)
+    )
     return facade
 
 

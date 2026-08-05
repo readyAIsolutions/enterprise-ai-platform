@@ -25,7 +25,7 @@ import asyncio
 import logging
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     Event,
@@ -36,12 +36,6 @@ from enterprise.platform_kernel import (
     module,
 )
 
-from .task_harness import (
-    TaskCard,
-    TaskHarness,
-    TaskHarnessError,
-    TaskStatus,
-)
 from .runner import (
     Deadline,
     ErrorClass,
@@ -54,6 +48,12 @@ from .runner import (
     RunningStatus,
     WorkerRunner,
     build_runner,
+)
+from .task_harness import (
+    TaskCard,
+    TaskHarness,
+    TaskHarnessError,
+    TaskStatus,
 )
 
 __all__ = [

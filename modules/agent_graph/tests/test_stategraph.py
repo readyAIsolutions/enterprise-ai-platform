@@ -17,7 +17,6 @@ Run with:
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -39,11 +38,11 @@ from enterprise.modules.agent_graph import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 
-def test_digraph_builder_is_stategraph_alias():
+def test_digraph_builder_is_stategraph_alias() -> None:
     assert DiGraphBuilder is StateGraph
 
 
-def test_builder_linear_chain_topological_order():
+def test_builder_linear_chain_topological_order() -> None:
     g = StateGraph(db_path=None)
     g.add_node("a", lambda s: {"n": 1})
     g.add_node("b", lambda s: {"n": 2})
@@ -53,7 +52,7 @@ def test_builder_linear_chain_topological_order():
     assert g.topological_order() == ["a", "b", "c"]
 
 
-def test_builder_run_executes_in_topo_order_and_merges_state():
+def test_builder_run_executes_in_topo_order_and_merges_state() -> None:
     g = StateGraph(db_path=None)
     order: list[str] = []
     g.add_node("a", lambda s: order.append("a") or {"sum": s.get("sum", 0) + 2})
@@ -65,14 +64,14 @@ def test_builder_run_executes_in_topo_order_and_merges_state():
     assert isinstance(run, StateGraphRun)
 
 
-def test_builder_add_node_returns_self_for_chaining():
+def test_builder_add_node_returns_self_for_chaining() -> None:
     g = StateGraph(db_path=None)
     ret = g.add_node("a", lambda s: {}).add_node("b", lambda s: {}).add_edge("a", "b")
     assert ret is g
     assert g.nodes == ["a", "b"]
 
 
-def test_builder_diamond_topological_order():
+def test_builder_diamond_topological_order() -> None:
     g = StateGraph(db_path=None)
     g.add_node("a", lambda s: {})
     g.add_node("b", lambda s: {})
@@ -94,7 +93,7 @@ def test_builder_diamond_topological_order():
 # ---------------------------------------------------------------------------
 
 
-def test_conditional_edge_follows_router():
+def test_conditional_edge_follows_router() -> None:
     g = StateGraph(db_path=None)
     g.add_node(START, lambda s: {})
     g.add_node("decide", lambda s: {})
@@ -105,11 +104,12 @@ def test_conditional_edge_follows_router():
     g.add_edge("left", END)
     g.add_edge("right", END)
     run = g.run({"go": True})
-    assert "left" in run.path and "right" not in run.path
+    assert "left" in run.path
+    assert "right" not in run.path
     assert run.final_state["branch"] == "L"
 
 
-def test_conditional_edge_routes_to_other_branch():
+def test_conditional_edge_routes_to_other_branch() -> None:
     g = StateGraph(db_path=None)
     g.add_node("decide", lambda s: {})
     g.add_node("left", lambda s: {"branch": "L"})
@@ -122,7 +122,7 @@ def test_conditional_edge_routes_to_other_branch():
     assert run.final_state["branch"] == "R"
 
 
-def test_conditional_edge_routing_to_end_terminates():
+def test_conditional_edge_routing_to_end_terminates() -> None:
     g = StateGraph(db_path=None)
     g.add_node("a", lambda s: {"done": True})
     g.add_conditional_edge("a", lambda s: END)
@@ -131,7 +131,7 @@ def test_conditional_edge_routing_to_end_terminates():
     assert run.final_state["done"] is True
 
 
-def test_conditional_edge_router_undefined_target_raises():
+def test_conditional_edge_router_undefined_target_raises() -> None:
     g = StateGraph(db_path=None)
     g.add_node("a", lambda s: {})
     g.add_conditional_edge("a", lambda s: "missing")
@@ -144,7 +144,7 @@ def test_conditional_edge_router_undefined_target_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_cycle_guarded_by_max_steps():
+def test_cycle_guarded_by_max_steps() -> None:
     g = StateGraph(db_path=None, max_steps=6)
     g.add_node("loop", lambda s: {})
     g.add_conditional_edge("loop", lambda s: "loop")  # unconditional self-loop
@@ -152,7 +152,7 @@ def test_cycle_guarded_by_max_steps():
         g.run({})
 
 
-def test_bounded_loop_via_conditional_router_exits():
+def test_bounded_loop_via_conditional_router_exits() -> None:
     g = StateGraph(db_path=None)
     g.add_node("begin", lambda s: {"n": s.get("n", 0)})
     g.add_node("counter", lambda s: {"n": s.get("n", 0) + 1})
@@ -168,7 +168,7 @@ def test_bounded_loop_via_conditional_router_exits():
 # ---------------------------------------------------------------------------
 
 
-def test_checkpoint_snapshotted_after_each_node():
+def test_checkpoint_snapshotted_after_each_node() -> None:
     g = StateGraph(db_path=None)
     g.add_node("a", lambda s: {"step": 1})
     g.add_node("b", lambda s: {"step": 2})
@@ -183,7 +183,7 @@ def test_checkpoint_snapshotted_after_each_node():
     assert g.store.completed_nodes("seq") == ["a", "b"]
 
 
-def test_checkpoint_persists_across_store_reopen(tmp_path):
+def test_checkpoint_persists_across_store_reopen(tmp_path) -> None:
     db = tmp_path / "state.db"
     store1 = SqliteCheckpointStore(db_path=db)
     g = StateGraph(checkpoint_store=store1)
@@ -200,7 +200,7 @@ def test_checkpoint_persists_across_store_reopen(tmp_path):
     store2.close()
 
 
-def test_in_memory_store_isolation():
+def test_in_memory_store_isolation() -> None:
     s1 = SqliteCheckpointStore(db_path=None)
     s2 = SqliteCheckpointStore(db_path=None)
     s1.save_initial("r", {"x": 1})
@@ -213,7 +213,7 @@ def test_in_memory_store_isolation():
 # ---------------------------------------------------------------------------
 
 
-def test_resume_replays_from_last_checkpoint_skipping_completed():
+def test_resume_replays_from_last_checkpoint_skipping_completed() -> None:
     g = StateGraph(db_path=None)
     counts = {"a": 0, "b": 0}
 
@@ -224,7 +224,8 @@ def test_resume_replays_from_last_checkpoint_skipping_completed():
     def node_b(s):
         counts["b"] += 1
         if counts["b"] == 1:
-            raise RuntimeError("transient b failure")
+            msg = "transient b failure"
+            raise RuntimeError(msg)
         return {"b": "ok"}
 
     g.add_node("a", node_a)
@@ -250,7 +251,7 @@ def test_resume_replays_from_last_checkpoint_skipping_completed():
     assert run.status == "complete"
 
 
-def test_resume_completed_run_is_noop_and_skips_nodes():
+def test_resume_completed_run_is_noop_and_skips_nodes() -> None:
     g = StateGraph(db_path=None)
     runs = {"a": 0, "b": 0}
     g.add_node("a", lambda s: runs.__setitem__("a", runs["a"] + 1) or {})
@@ -267,13 +268,13 @@ def test_resume_completed_run_is_noop_and_skips_nodes():
     assert runs == {"a": 1, "b": 1}  # nothing re-executed
 
 
-def test_resume_missing_run_raises_keyerror():
+def test_resume_missing_run_raises_keyerror() -> None:
     g = StateGraph(db_path=None)
     with pytest.raises(KeyError, match="nope"):
         g.resume("nope")
 
 
-def test_resume_across_store_reopen(tmp_path):
+def test_resume_across_store_reopen(tmp_path) -> None:
     db = tmp_path / "dur.db"
     store1 = SqliteCheckpointStore(db_path=db)
     counts = {"b": 0}
@@ -281,7 +282,8 @@ def test_resume_across_store_reopen(tmp_path):
     def node_b(s):
         counts["b"] += 1
         if counts["b"] == 1:
-            raise RuntimeError("boom")
+            msg = "boom"
+            raise RuntimeError(msg)
         return {"b": "done"}
 
     g1 = StateGraph(checkpoint_store=store1)
@@ -317,7 +319,7 @@ def test_resume_across_store_reopen(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_supervisor_fans_out_to_subgraph():
+def test_supervisor_fans_out_to_subgraph() -> None:
     sub = StateGraph(name="math_sub", db_path=None)
     sub.add_node("subwork", lambda s: {"sub_result": s.get("val", 0) * 2})
     sub.add_edge("subwork", END)
@@ -333,7 +335,7 @@ def test_supervisor_fans_out_to_subgraph():
     assert run.final_state["sub_result"] == 42
 
 
-def test_supervisor_fans_out_to_callable_worker():
+def test_supervisor_fans_out_to_callable_worker() -> None:
     parent = StateGraph(db_path=None)
     parent.add_node("pre", lambda s: {"x": 1})
     parent.add_supervisor(
@@ -347,11 +349,9 @@ def test_supervisor_fans_out_to_callable_worker():
     assert run.final_state["out"] == 2
 
 
-def test_supervisor_missing_route_raises_keyerror():
+def test_supervisor_missing_route_raises_keyerror() -> None:
     parent = StateGraph(db_path=None)
-    parent.add_supervisor(
-        "supervisor", route_key="service", workers={"a": lambda s: {}}
-    )
+    parent.add_supervisor("supervisor", route_key="service", workers={"a": lambda s: {}})
     parent.add_edge("supervisor", END)
     with pytest.raises(KeyError, match="no worker"):
         parent.run({"service": "b"})
@@ -362,28 +362,28 @@ def test_supervisor_missing_route_raises_keyerror():
 # ---------------------------------------------------------------------------
 
 
-def test_add_duplicate_node_raises():
+def test_add_duplicate_node_raises() -> None:
     g = StateGraph(db_path=None)
     g.add_node("a", lambda s: {})
     with pytest.raises(ValueError, match="already exists"):
         g.add_node("a", lambda s: {})
 
 
-def test_add_edge_missing_source_raises():
+def test_add_edge_missing_source_raises() -> None:
     g = StateGraph(db_path=None)
     g.add_node("b", lambda s: {})
     with pytest.raises(ValueError, match="undefined node 'missing'"):
         g.add_edge("missing", "b")
 
 
-def test_add_edge_missing_target_raises():
+def test_add_edge_missing_target_raises() -> None:
     g = StateGraph(db_path=None)
     g.add_node("a", lambda s: {})
     with pytest.raises(ValueError, match="undefined node 'nope'"):
         g.add_edge("a", "nope")
 
 
-def test_add_conditional_edge_on_static_node_raises():
+def test_add_conditional_edge_on_static_node_raises() -> None:
     g = StateGraph(db_path=None)
     g.add_node("a", lambda s: {})
     g.add_node("b", lambda s: {})
@@ -392,14 +392,14 @@ def test_add_conditional_edge_on_static_node_raises():
         g.add_conditional_edge("a", lambda s: "b")
 
 
-def test_node_returning_non_dict_raises():
+def test_node_returning_non_dict_raises() -> None:
     g = StateGraph(db_path=None)
     g.add_node("bad", lambda s: 42)
     with pytest.raises(TypeError, match="expected dict"):
         g.run({})
 
 
-def test_multiple_entry_points_raise():
+def test_multiple_entry_points_raise() -> None:
     g = StateGraph(db_path=None)
     g.add_node("a", lambda s: {})
     g.add_node("b", lambda s: {})

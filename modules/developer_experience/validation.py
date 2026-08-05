@@ -26,13 +26,15 @@ Stdlib only.
 from __future__ import annotations
 
 import logging
-import os
 import statistics
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Letter grading (shared by validator and score facade)
 # ---------------------------------------------------------------------------
+
 
 def letter_grade(percentage: float) -> str:
     """Map a 0-100 score to an A-F letter grade."""
@@ -58,6 +61,7 @@ def letter_grade(percentage: float) -> str:
 # Golden Path — a checklist of DX standards
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class GoldenCheck:
     """A single golden-path standard.
@@ -75,12 +79,13 @@ class GoldenCheck:
             satisfy the check (used when ``matcher`` is ``None``).
         remediation: human advice shown when the check fails.
     """
+
     id: str
     description: str
     grade: str
     weight: float = 1.0
-    matcher: Optional[Any] = None
-    present_files: Tuple[str, ...] = ()
+    matcher: Any | None = None
+    present_files: tuple[str, ...] = ()
     remediation: str = ""
 
     def __post_init__(self) -> None:
@@ -98,34 +103,36 @@ class GoldenPath:
     ``id``/``description``/``grade`` and a strategy for verification.
     """
 
-    def __init__(self, name: str = "enterprise-dx", checks: Optional[Sequence[GoldenCheck]] = None) -> None:
+    def __init__(
+        self, name: str = "enterprise-dx", checks: Sequence[GoldenCheck] | None = None
+    ) -> None:
         self.name = name
-        self.checks: List[GoldenCheck] = list(checks) if checks is not None else []
+        self.checks: list[GoldenCheck] = list(checks) if checks is not None else []
 
     # -- registration -------------------------------------------------------
-    def add(self, check: GoldenCheck) -> "GoldenPath":
+    def add(self, check: GoldenCheck) -> GoldenPath:
         """Add a check to the path."""
         self.checks.append(check)
         return self
 
-    def get(self, check_id: str) -> Optional[GoldenCheck]:
+    def get(self, check_id: str) -> GoldenCheck | None:
         """Return a check by id or None."""
         for check in self.checks:
             if check.id == check_id:
                 return check
         return None
 
-    def ids(self) -> List[str]:
+    def ids(self) -> list[str]:
         """Return the ordered check ids."""
         return [c.id for c in self.checks]
 
-    def by_grade(self, grade: str) -> List[GoldenCheck]:
+    def by_grade(self, grade: str) -> list[GoldenCheck]:
         """Return checks belonging to a given grade tier."""
         return [c for c in self.checks if c.grade == grade]
 
     # -- canonical path -----------------------------------------------------
     @classmethod
-    def enterprise_dx(cls) -> "GoldenPath":
+    def enterprise_dx(cls) -> GoldenPath:
         """The canonical enterprise developer-experience golden path."""
         return cls(
             name="enterprise-dx",
@@ -151,7 +158,13 @@ class GoldenPath:
                     description="Project is wired to a continuous-integration pipeline.",
                     grade="essential",
                     weight=2.0,
-                    present_files=(".github/workflows", ".gitlab-ci.yml", ".circleci", "Jenkinsfile", ".azure-pipelines.yml"),
+                    present_files=(
+                        ".github/workflows",
+                        ".gitlab-ci.yml",
+                        ".circleci",
+                        "Jenkinsfile",
+                        ".azure-pipelines.yml",
+                    ),
                     remediation="Add a CI pipeline (e.g. .github/workflows/ci.yml) that runs tests on every push.",
                 ),
                 GoldenCheck(
@@ -159,7 +172,16 @@ class GoldenPath:
                     description="Project ships a lint/format configuration.",
                     grade="recommended",
                     weight=1.0,
-                    present_files=(".flake8", ".pylintrc", "pyproject.toml", "setup.cfg", ".eslintrc", ".eslintrc.json", ".rubocop.yml", ".golangci.yml"),
+                    present_files=(
+                        ".flake8",
+                        ".pylintrc",
+                        "pyproject.toml",
+                        "setup.cfg",
+                        ".eslintrc",
+                        ".eslintrc.json",
+                        ".rubocop.yml",
+                        ".golangci.yml",
+                    ),
                     remediation="Add a lint configuration (e.g. .flake8 or a ruff section in pyproject.toml).",
                 ),
                 GoldenCheck(
@@ -167,7 +189,13 @@ class GoldenPath:
                     description="Project enforces/declares type hints.",
                     grade="recommended",
                     weight=1.0,
-                    present_files=("mypy.ini", "py.typed", ".mypy.ini", "pyrightconfig.json", "tsconfig.json"),
+                    present_files=(
+                        "mypy.ini",
+                        "py.typed",
+                        ".mypy.ini",
+                        "pyrightconfig.json",
+                        "tsconfig.json",
+                    ),
                     remediation="Add mypy.ini (or py.typed for a library) and annotate public APIs.",
                 ),
                 GoldenCheck(
@@ -207,6 +235,7 @@ def _check_versioned(project_dir: Path) -> bool:
     if pkg.is_file():
         try:
             import json as _json
+
             data = _json.loads(pkg.read_text(encoding="utf-8", errors="ignore"))
             if data.get("version"):
                 return True
@@ -237,9 +266,11 @@ def _check_versioned(project_dir: Path) -> bool:
 # Validation result types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CheckResult:
     """Outcome of validating a single golden-path check."""
+
     check_id: str
     description: str
     grade: str
@@ -248,7 +279,7 @@ class CheckResult:
     evidence: str = ""
     remediation: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "check_id": self.check_id,
             "description": self.description,
@@ -263,14 +294,15 @@ class CheckResult:
 @dataclass
 class ValidationReport:
     """Full report of a golden-path validation run."""
+
     project_dir: str
     path_name: str
-    results: List[CheckResult] = field(default_factory=list)
+    results: list[CheckResult] = field(default_factory=list)
 
-    def passed(self) -> List[CheckResult]:
+    def passed(self) -> list[CheckResult]:
         return [r for r in self.results if r.passed]
 
-    def failures(self) -> List[CheckResult]:
+    def failures(self) -> list[CheckResult]:
         return [r for r in self.results if not r.passed]
 
     def compliance_percent(self) -> float:
@@ -284,10 +316,10 @@ class ValidationReport:
     def letter_grade(self) -> str:
         return letter_grade(self.compliance_percent())
 
-    def recommendations(self) -> List[str]:
+    def recommendations(self) -> list[str]:
         return [r.remediation for r in self.failures() if r.remediation]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "project_dir": self.project_dir,
             "path_name": self.path_name,
@@ -308,13 +340,13 @@ class GoldenPathValidator:
     when any of its ``present_files`` exist.
     """
 
-    def __init__(self, path: Optional[GoldenPath] = None) -> None:
+    def __init__(self, path: GoldenPath | None = None) -> None:
         self.path = path or GoldenPath.enterprise_dx()
 
     def validate(self, project_dir: Path) -> ValidationReport:
         """Run every check in the path against ``project_dir``."""
         project_dir = Path(project_dir)
-        results: List[CheckResult] = []
+        results: list[CheckResult] = []
         for check in self.path.checks:
             passed, evidence = self._run_check(check, project_dir)
             results.append(
@@ -334,7 +366,7 @@ class GoldenPathValidator:
             results=results,
         )
 
-    def _run_check(self, check: GoldenCheck, project_dir: Path) -> Tuple[bool, str]:
+    def _run_check(self, check: GoldenCheck, project_dir: Path) -> tuple[bool, str]:
         """Return (passed, evidence) for a single check."""
         if not project_dir.is_dir():
             return False, "project directory does not exist"
@@ -356,8 +388,10 @@ class GoldenPathValidator:
 # DORA delivery metrics
 # ---------------------------------------------------------------------------
 
+
 class DeliveryBand(Enum):
     """DORA performance bands."""
+
     ELITE = "elite"
     HIGH = "high"
     MEDIUM = "medium"
@@ -367,6 +401,7 @@ class DeliveryBand(Enum):
 @dataclass
 class DeployEvent:
     """A single deployment / change event used to derive delivery metrics."""
+
     timestamp: datetime = field(default_factory=datetime.utcnow)
     success: bool = True
     lead_time_hours: float = 0.0
@@ -391,7 +426,7 @@ class DeliveryMetrics:
     def __init__(self, team: str = "", lookback_days: int = 90) -> None:
         self.team = team
         self.lookback_days = lookback_days
-        self.events: List[DeployEvent] = []
+        self.events: list[DeployEvent] = []
 
     # -- recording ----------------------------------------------------------
     def record_deploy_event(
@@ -399,8 +434,8 @@ class DeliveryMetrics:
         success: bool = True,
         lead_time_hours: float = 0.0,
         recovery_minutes: float = 0.0,
-        timestamp: Optional[datetime] = None,
-    ) -> "DeliveryMetrics":
+        timestamp: datetime | None = None,
+    ) -> DeliveryMetrics:
         """Record a deployment/change event.
 
         Args:
@@ -422,15 +457,19 @@ class DeliveryMetrics:
         return self
 
     # convenient aliases ----------------------------------------------------
-    def record_success(self, lead_time_hours: float = 0.0, timestamp: Optional[datetime] = None) -> "DeliveryMetrics":
-        return self.record_deploy_event(success=True, lead_time_hours=lead_time_hours, timestamp=timestamp)
+    def record_success(
+        self, lead_time_hours: float = 0.0, timestamp: datetime | None = None
+    ) -> DeliveryMetrics:
+        return self.record_deploy_event(
+            success=True, lead_time_hours=lead_time_hours, timestamp=timestamp
+        )
 
     def record_failure(
         self,
         lead_time_hours: float = 0.0,
         recovery_minutes: float = 0.0,
-        timestamp: Optional[datetime] = None,
-    ) -> "DeliveryMetrics":
+        timestamp: datetime | None = None,
+    ) -> DeliveryMetrics:
         return self.record_deploy_event(
             success=False,
             lead_time_hours=lead_time_hours,
@@ -439,7 +478,7 @@ class DeliveryMetrics:
         )
 
     # -- aggregation --------------------------------------------------------
-    def _recent_events(self) -> List[DeployEvent]:
+    def _recent_events(self) -> list[DeployEvent]:
         cutoff = datetime.utcnow() - timedelta(days=self.lookback_days)
         return [e for e in self.events if e.timestamp >= cutoff]
 
@@ -449,12 +488,13 @@ class DeliveryMetrics:
         if not events:
             return 0.0
         span = max(
-            (max(e.timestamp for e in events) - min(e.timestamp for e in events)).total_seconds() / 86400.0,
+            (max(e.timestamp for e in events) - min(e.timestamp for e in events)).total_seconds()
+            / 86400.0,
             1e-9,
         )
         return round(len(events) / span, 3)
 
-    def lead_time_stats(self) -> Dict[str, float]:
+    def lead_time_stats(self) -> dict[str, float]:
         """Mean / p50 / p95 lead time (hours) across successful deployments."""
         events = self._recent_events()
         times = sorted(e.lead_time_hours for e in events)
@@ -498,22 +538,22 @@ class DeliveryMetrics:
     def band_deployment_frequency(deploys_per_day: float) -> str:
         """DORA band for deployment frequency (per day)."""
         if deploys_per_day >= 1.0:
-            return "elite"      # on-demand, multiple per day
+            return "elite"  # on-demand, multiple per day
         if deploys_per_day >= (1.0 / 7.0):
-            return "high"       # between once per day and once per week
+            return "high"  # between once per day and once per week
         if deploys_per_day >= (1.0 / 30.0):
-            return "medium"     # between once per week and once per month
+            return "medium"  # between once per week and once per month
         return "low"
 
     @staticmethod
     def band_lead_time(mean_hours: float) -> str:
         """DORA band for lead time for changes (mean hours)."""
         if mean_hours < 1.0:
-            return "elite"      # less than one hour
+            return "elite"  # less than one hour
         if mean_hours < 24.0:
-            return "high"       # less than one day
+            return "high"  # less than one day
         if mean_hours < 168.0:
-            return "medium"     # less than one week
+            return "medium"  # less than one week
         return "low"
 
     @staticmethod
@@ -531,14 +571,14 @@ class DeliveryMetrics:
     def band_mttr(recovery_minutes: float) -> str:
         """DORA band for mean time to recovery (minutes)."""
         if recovery_minutes < 60.0:
-            return "elite"      # less than one hour
+            return "elite"  # less than one hour
         if recovery_minutes < 1440.0:
-            return "high"       # less than one day
+            return "high"  # less than one day
         if recovery_minutes < 4320.0:
-            return "medium"     # less than three days
+            return "medium"  # less than three days
         return "low"
 
-    def bands(self) -> Dict[str, str]:
+    def bands(self) -> dict[str, str]:
         """Per-metric DORA bands."""
         if not self._recent_events():
             return {
@@ -548,9 +588,13 @@ class DeliveryMetrics:
                 "mttr": "low",
             }
         return {
-            "deployment_frequency": self.band_deployment_frequency(self.deployment_frequency_per_day()),
+            "deployment_frequency": self.band_deployment_frequency(
+                self.deployment_frequency_per_day()
+            ),
             "lead_time": self.band_lead_time(self.lead_time_stats()["mean_hours"]),
-            "change_failure_rate": self.band_change_failure_rate(self.change_failure_rate_percent()),
+            "change_failure_rate": self.band_change_failure_rate(
+                self.change_failure_rate_percent()
+            ),
             "mttr": self.band_mttr(self.mean_time_to_recovery_minutes()),
         }
 
@@ -570,7 +614,7 @@ class DeliveryMetrics:
             return "medium"
         return "low"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "team": self.team,
             "lookback_days": self.lookback_days,
@@ -587,6 +631,7 @@ class DeliveryMetrics:
 # ---------------------------------------------------------------------------
 # DXScore — combined facade
 # ---------------------------------------------------------------------------
+
 
 class DXScore:
     """Combine golden-path compliance and DORA delivery into one 0-100 score.
@@ -605,8 +650,8 @@ class DXScore:
 
     def __init__(
         self,
-        validator: Optional[GoldenPathValidator] = None,
-        metrics: Optional[DeliveryMetrics] = None,
+        validator: GoldenPathValidator | None = None,
+        metrics: DeliveryMetrics | None = None,
     ) -> None:
         self.validator = validator or GoldenPathValidator(GoldenPath.enterprise_dx())
         self.metrics = metrics or DeliveryMetrics()
@@ -623,7 +668,7 @@ class DXScore:
         return round(100.0 - (avg_index / 3.0) * 100.0, 1)
 
     # -- aggregate ----------------------------------------------------------
-    def score(self, project_dir: Path) -> Dict[str, Any]:
+    def score(self, project_dir: Path) -> dict[str, Any]:
         """Compute the combined DX score for ``project_dir``."""
         report = self.validator.validate(project_dir)
         compliance = report.compliance_percent()

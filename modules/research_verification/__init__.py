@@ -59,8 +59,8 @@ Architecture:
 
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 # Ensure enterprise path is available
 _ENTERPRISE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -70,74 +70,71 @@ if _PARENT not in sys.path:
 
 # Platform kernel imports
 try:
-    from enterprise.platform_kernel import Module, module, HealthStatus
+    from enterprise.platform_kernel import HealthStatus, Module, module
 except ImportError:
-    from platform_kernel import Module, module, HealthStatus
+    from platform_kernel import HealthStatus, Module, module
 
 # Core research engine
+from .claim_detector import (
+    ClaimDetector as StandaloneClaimDetector,  # noqa: F401
+    classify_claim,
+    extract_claims,
+)
+from .confidence import (
+    ConfidenceAssigner as StandaloneConfidenceAssigner,  # noqa: F401
+    aggregate_confidence,
+    compute_confidence,
+)
+from .evidence_synthesizer import (
+    EvidenceSynthesizer as StandaloneEvidenceSynthesizer,  # noqa: F401
+    generate_recommendations,
+    synthesize_evidence,
+)
 from .research_engine import (
+    ClaimDetector,
+    ClaimType,
+    ConfidenceAssessment,
+    ConfidenceAssigner,
+    ConfidenceLevel,
+    DetectedClaim,
+    EvidenceSynthesizer,
+    ProvenanceRecord,
+    ProvenanceTracker,
+    RankedSource,
+    ResearchDomain,
+    ResearchFindings,
+    ResearchPlan,
     ResearchPlanner,
     SourceRanker,
-    ClaimDetector,
-    ConfidenceAssigner,
-    EvidenceSynthesizer,
-    ProvenanceTracker,
-    ResearchPlan,
-    RankedSource,
-    DetectedClaim,
-    ConfidenceAssessment,
-    SynthesizedEvidence,
-    ProvenanceRecord,
-    ResearchDomain,
     SourceTier,
-    ClaimType,
-    ConfidenceLevel,
-    ResearchFindings,
+    SynthesizedEvidence,
 )
 
 # Standalone components
 from .source_ranker import (
-    SourceRanker as StandaloneSourceRanker,
-    SourcePriorities,
+    SourcePriorities,  # noqa: F401
+    SourceRanker as StandaloneSourceRanker,  # noqa: F401
     rank_source,
-)
-
-from .claim_detector import (
-    ClaimDetector as StandaloneClaimDetector,
-    classify_claim,
-    extract_claims,
-)
-
-from .confidence import (
-    ConfidenceAssigner as StandaloneConfidenceAssigner,
-    compute_confidence,
-    aggregate_confidence,
-)
-
-from .evidence_synthesizer import (
-    EvidenceSynthesizer as StandaloneEvidenceSynthesizer,
-    synthesize_evidence,
-    generate_recommendations,
 )
 
 # Hardened verifier + evidence-chain report layer
 from .verifier import (
+    ACADEMIC_TIER,
+    BANNED_TIER,
+    GOV_TIER,
+    NEWS_TIER,
+    PRIMARY_TIER,
+    TIER_BASE_CREDIBILITY,
+    UNKNOWN_TIER,
+    VALID_TIERS,
+    EvidenceChain,
     Source,
     SourceCredibility,
     Verdict,
-    EvidenceChain,
-    Verifier,
     VerificationReport,
-    verify_report,
+    Verifier,
     verify_claim,
-    VALID_TIERS,
-    TIER_BASE_CREDIBILITY,
-    PRIMARY_TIER,
-    GOV_TIER,
-    ACADEMIC_TIER,
-    NEWS_TIER,
-    UNKNOWN_TIER,
-    BANNED_TIER,
+    verify_report,
 )
 
 # ── Module class registered with the platform kernel ──────────────────────
@@ -248,15 +245,26 @@ class ResearchVerificationModule(Module):
 
     # ── Convenience: full pipeline execution ─────────────────────────────
 
-    async def execute_pipeline(self, objective: str, domain_hint: str | None = None) -> ResearchFindings:
+    async def execute_pipeline(
+        self, objective: str, domain_hint: str | None = None
+    ) -> ResearchFindings:
         """Run the full Research OS pipeline on a given objective.
 
         Returns a complete ResearchFindings object with plan, ranked sources,
         claims, confidence assessment, synthesized evidence, and provenance.
         """
-        if not all([self._planner, self._ranker, self._detector,
-                     self._conf_assigner, self._synthesizer, self._tracker]):
-            raise RuntimeError("ResearchVerificationModule not initialized")
+        if not all(
+            [
+                self._planner,
+                self._ranker,
+                self._detector,
+                self._conf_assigner,
+                self._synthesizer,
+                self._tracker,
+            ]
+        ):
+            msg = "ResearchVerificationModule not initialized"
+            raise RuntimeError(msg)
 
         plan = self._planner.create_plan(objective, domain_hint)
         sources = self._ranker.rank(plan.sources)

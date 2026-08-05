@@ -8,10 +8,9 @@ or temp-file SQLite for determinism and durability checks.
 
 from __future__ import annotations
 
-import json
+from typing import Never
 
 import pytest
-
 from enterprise.modules.agent_coordination.durable_scheduler import (
     DurableScheduler,
     LeaseError,
@@ -21,7 +20,6 @@ from enterprise.modules.agent_coordination.durable_scheduler import (
     TaskQueue,
     TaskStatus,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fake clock
@@ -62,7 +60,7 @@ def sched(clock):
 # ---------------------------------------------------------------------------
 
 
-def test_schedule_and_claim_lease(clock, sched):
+def test_schedule_and_claim_lease(clock, sched) -> None:
     sched.schedule("t1", {"op": "sum", "args": [1, 2]}, max_retries=2)
     claimed = sched.claim_next("worker-1", lease_seconds=30)
     assert claimed is not None
@@ -73,7 +71,7 @@ def test_schedule_and_claim_lease(clock, sched):
     assert claimed.payload == {"op": "sum", "args": [1, 2]}
 
 
-def test_claim_respects_eta(clock, sched):
+def test_claim_respects_eta(clock, sched) -> None:
     sched.schedule("future", "work", eta=clock.now() + 100)
     # ETA not yet reached -> nothing to claim.
     assert sched.claim_next("w1") is None
@@ -81,7 +79,7 @@ def test_claim_respects_eta(clock, sched):
     assert sched.claim_next("w1") is not None
 
 
-def test_claim_is_exclusive_until_lease_expires(clock, sched):
+def test_claim_is_exclusive_until_lease_expires(clock, sched) -> None:
     sched.schedule("t1", "work")
     first = sched.claim_next("worker-a", lease_seconds=30)
     assert first is not None
@@ -98,7 +96,7 @@ def test_claim_is_exclusive_until_lease_expires(clock, sched):
 # ---------------------------------------------------------------------------
 
 
-def test_expired_lease_reclaimed(clock, sched):
+def test_expired_lease_reclaimed(clock, sched) -> None:
     sched.schedule("t1", "work", max_retries=5)
     sched.claim_next("worker-a", lease_seconds=10)
     # Lease expires after 10s.
@@ -112,7 +110,7 @@ def test_expired_lease_reclaimed(clock, sched):
     assert claimed.worker_id == "worker-b"
 
 
-def test_claim_next_auto_reclaims_expired(clock, sched):
+def test_claim_next_auto_reclaims_expired(clock, sched) -> None:
     sched.schedule("t1", "work")
     sched.claim_next("worker-a", lease_seconds=10)
     clock.tick(11)
@@ -122,7 +120,7 @@ def test_claim_next_auto_reclaims_expired(clock, sched):
     assert claimed.worker_id == "worker-b"
 
 
-def test_active_lease_not_reclaimed(clock, sched):
+def test_active_lease_not_reclaimed(clock, sched) -> None:
     sched.schedule("t1", "work")
     sched.claim_next("worker-a", lease_seconds=60)
     clock.tick(10)  # still within lease
@@ -135,7 +133,7 @@ def test_active_lease_not_reclaimed(clock, sched):
 # ---------------------------------------------------------------------------
 
 
-def test_retry_increments_and_stays_pending(clock, sched):
+def test_retry_increments_and_stays_pending(clock, sched) -> None:
     sched.schedule("t1", "work", max_retries=3)
     sched.claim_next("w1")
     outcome = sched.retry("t1", "w1", error="boom")
@@ -146,7 +144,7 @@ def test_retry_increments_and_stays_pending(clock, sched):
     assert task.worker_id is None  # released back to pool
 
 
-def test_retry_exhausts_to_failed(clock, sched):
+def test_retry_exhausts_to_failed(clock, sched) -> None:
     sched.schedule("t1", "work", max_retries=2)
     for _ in range(3):  # attempt + 2 retries -> exhaust on 3rd
         claimed = sched.claim_next("w1")
@@ -162,7 +160,7 @@ def test_retry_exhausts_to_failed(clock, sched):
     assert sched.claim_next("w1") is None  # no longer schedulable
 
 
-def test_fail_respects_retry_budget(clock, sched):
+def test_fail_respects_retry_budget(clock, sched) -> None:
     sched.schedule("t1", "work", max_retries=1)
     sched.claim_next("w1")
     # Still has budget -> fail() retries instead of terminal-failing.
@@ -175,21 +173,21 @@ def test_fail_respects_retry_budget(clock, sched):
 # ---------------------------------------------------------------------------
 
 
-def test_lease_ownership_enforced_on_heartbeat(clock, sched):
+def test_lease_ownership_enforced_on_heartbeat(clock, sched) -> None:
     sched.schedule("t1", "work")
     sched.claim_next("worker-a")
     with pytest.raises(LeaseError):
         sched.heartbeat("t1", "intruder", 10)
 
 
-def test_lease_ownership_enforced_on_complete(clock, sched):
+def test_lease_ownership_enforced_on_complete(clock, sched) -> None:
     sched.schedule("t1", "work")
     sched.claim_next("worker-a")
     with pytest.raises(LeaseError):
         sched.complete("t1", "intruder")
 
 
-def test_heartbeat_extends_lease(clock, sched):
+def test_heartbeat_extends_lease(clock, sched) -> None:
     sched.schedule("t1", "work")
     sched.claim_next("worker-a", lease_seconds=10)
     clock.tick(5)
@@ -202,7 +200,7 @@ def test_heartbeat_extends_lease(clock, sched):
 # ---------------------------------------------------------------------------
 
 
-def test_dedupe_key_is_idempotent(clock, sched):
+def test_dedupe_key_is_idempotent(clock, sched) -> None:
     first = sched.schedule("t1", "work", dedupe_key="unique-key")
     second = sched.schedule("t2", "work", dedupe_key="unique-key")
     assert first == "t1"
@@ -210,7 +208,7 @@ def test_dedupe_key_is_idempotent(clock, sched):
     assert sched.stats()[TaskStatus.PENDING.value] == 1
 
 
-def test_no_dedupe_when_key_absent(clock, sched):
+def test_no_dedupe_when_key_absent(clock, sched) -> None:
     sched.schedule("t1", "work")
     sched.schedule("t2", "work")
     assert sched.stats()[TaskStatus.PENDING.value] == 2
@@ -221,7 +219,7 @@ def test_no_dedupe_when_key_absent(clock, sched):
 # ---------------------------------------------------------------------------
 
 
-def test_priority_order(clock, sched):
+def test_priority_order(clock, sched) -> None:
     sched.schedule("low", "work", priority=1)
     sched.schedule("high", "work", priority=10)
     sched.schedule("mid", "work", priority=5)
@@ -231,7 +229,7 @@ def test_priority_order(clock, sched):
     assert order == ["high", "mid", "low"]
 
 
-def test_eta_tiebreak_within_priority(clock, sched):
+def test_eta_tiebreak_within_priority(clock, sched) -> None:
     sched.schedule("b", "work", priority=1, eta=clock.now() + 5)
     sched.schedule("a", "work", priority=1, eta=clock.now())
     clock.tick(6)
@@ -244,14 +242,14 @@ def test_eta_tiebreak_within_priority(clock, sched):
 # ---------------------------------------------------------------------------
 
 
-def test_cancel_pending_task(clock, sched):
+def test_cancel_pending_task(clock, sched) -> None:
     sched.schedule("t1", "work")
     assert sched.cancel("t1") is True
     assert sched.get_task("t1").status == TaskStatus.CANCELLED.value
     assert sched.claim_next("w") is None
 
 
-def test_cancel_only_pending(clock, sched):
+def test_cancel_only_pending(clock, sched) -> None:
     sched.schedule("t1", "work")
     sched.claim_next("w")
     assert sched.cancel("t1") is False  # claimed, not pending
@@ -262,12 +260,13 @@ def test_cancel_only_pending(clock, sched):
 # ---------------------------------------------------------------------------
 
 
-def test_stats_counts_by_status(clock, sched):
+def test_stats_counts_by_status(clock, sched) -> None:
     sched.schedule("t1", "work", max_retries=1)
     sched.schedule("t2", "work")
     sched.claim_next("w")  # claims highest priority; ties -> t1 first
     t2 = sched.claim_next("w")
-    assert t2 is not None and t2.task_id == "t2"
+    assert t2 is not None
+    assert t2.task_id == "t2"
     sched.complete("t2", "w")
     st = sched.stats()
     assert st[TaskStatus.PENDING.value] == 0
@@ -280,7 +279,7 @@ def test_stats_counts_by_status(clock, sched):
 # ---------------------------------------------------------------------------
 
 
-def test_task_queue_enqueue_dequeue_peek(clock):
+def test_task_queue_enqueue_dequeue_peek(clock) -> None:
     q = TaskQueue(db_path=None, clock=clock)
     q.enqueue("a", "A", priority=1)
     q.enqueue("b", "B", priority=10)
@@ -291,7 +290,7 @@ def test_task_queue_enqueue_dequeue_peek(clock):
     q.close()
 
 
-def test_task_queue_deadline(clock):
+def test_task_queue_deadline(clock) -> None:
     q = TaskQueue(db_path=None, clock=clock)
     q.enqueue("due", "work", deadline=clock.now() + 100)
     q.enqueue("late", "work", deadline=clock.now())
@@ -302,7 +301,7 @@ def test_task_queue_deadline(clock):
     q.close()
 
 
-def test_task_queue_stats(clock):
+def test_task_queue_stats(clock) -> None:
     q = TaskQueue(db_path=None, clock=clock)
     q.enqueue("a", "A")
     q.enqueue("b", "B")
@@ -317,7 +316,7 @@ def test_task_queue_stats(clock):
     q.close()
 
 
-def test_task_queue_duplicate_id_rejected(clock):
+def test_task_queue_duplicate_id_rejected(clock) -> None:
     q = TaskQueue(db_path=None, clock=clock)
     q.enqueue("a", "A")
     with pytest.raises(SchedulerError):
@@ -330,7 +329,7 @@ def test_task_queue_duplicate_id_rejected(clock):
 # ---------------------------------------------------------------------------
 
 
-def test_bus_dispatch_success(clock, sched):
+def test_bus_dispatch_success(clock, sched) -> None:
     bus = SchedulerBus(db_path=None, clock=clock, scheduler=sched)
     seen = []
     bus.register_handler("sum", lambda msg: seen.append(msg))
@@ -342,13 +341,14 @@ def test_bus_dispatch_success(clock, sched):
     bus.close()
 
 
-def test_bus_retries_then_dead_letters(clock, sched):
+def test_bus_retries_then_dead_letters(clock, sched) -> None:
     bus = SchedulerBus(db_path=None, clock=clock, scheduler=sched)
     calls = {"n": 0}
 
-    def flaky(msg):
+    def flaky(msg) -> Never:
         calls["n"] += 1
-        raise RuntimeError("transient")
+        msg_0 = "transient"
+        raise RuntimeError(msg_0)
 
     bus.register_handler("flaky", flaky)
     bus.publish("flaky", "x", max_retries=2)
@@ -364,7 +364,7 @@ def test_bus_retries_then_dead_letters(clock, sched):
     bus.close()
 
 
-def test_bus_publish_dedupe(clock, sched):
+def test_bus_publish_dedupe(clock, sched) -> None:
     bus = SchedulerBus(db_path=None, clock=clock, scheduler=sched)
     bus.publish("t", "x", dedupe_key="dk")
     bus.publish("t", "x", dedupe_key="dk")
@@ -372,7 +372,7 @@ def test_bus_publish_dedupe(clock, sched):
     bus.close()
 
 
-def test_bus_unregistered_topic_completed(clock, sched):
+def test_bus_unregistered_topic_completed(clock, sched) -> None:
     bus = SchedulerBus(db_path=None, clock=clock, scheduler=sched)
     bus.publish("ghost", "x")
     assert bus.process("w", lease_seconds=30) == 1
@@ -386,7 +386,7 @@ def test_bus_unregistered_topic_completed(clock, sched):
 # ---------------------------------------------------------------------------
 
 
-def test_persistence_round_trip(tmp_path, clock):
+def test_persistence_round_trip(tmp_path, clock) -> None:
     db = tmp_path / "tasks.sqlite"
     s1 = DurableScheduler(db_path=db, clock=clock)
     s1.schedule("t1", {"k": "v"}, max_retries=3)
@@ -403,7 +403,7 @@ def test_persistence_round_trip(tmp_path, clock):
     s2.close()
 
 
-def test_restart_reload_and_recovery(tmp_path, clock):
+def test_restart_reload_and_recovery(tmp_path, clock) -> None:
     db = tmp_path / "tasks.sqlite"
     s1 = DurableScheduler(db_path=db, clock=clock)
     s1.schedule("crash", "work", max_retries=5)
@@ -424,7 +424,7 @@ def test_restart_reload_and_recovery(tmp_path, clock):
     s2.close()
 
 
-def test_bus_survives_restart(tmp_path, clock):
+def test_bus_survives_restart(tmp_path, clock) -> None:
     db = tmp_path / "tasks.sqlite"
     bus1 = SchedulerBus(db_path=db, clock=clock)
     bus1.publish("job", {"step": 1}, dedupe_key="restart-key")
@@ -444,12 +444,12 @@ def test_bus_survives_restart(tmp_path, clock):
 # ---------------------------------------------------------------------------
 
 
-def test_unknown_task_raises(clock, sched):
+def test_unknown_task_raises(clock, sched) -> None:
     with pytest.raises(TaskNotFoundError):
         sched.heartbeat("missing", "w", 10)
 
 
-def test_duplicate_task_id_rejected(clock, sched):
+def test_duplicate_task_id_rejected(clock, sched) -> None:
     sched.schedule("t1", "work")
     with pytest.raises(SchedulerError):
         sched.schedule("t1", "work")

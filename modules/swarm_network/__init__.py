@@ -14,61 +14,71 @@ Capabilities:
   - Real-time metrics and health monitoring
   - Graceful degradation on WiFi drops
 """
+
 from __future__ import annotations
 
-import asyncio
+import asyncio  # noqa: F401
 import json
 import logging
 import os
-import socket
+import socket  # noqa: F401
 import subprocess
 import sys
 import threading
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum  # noqa: F401
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple  # noqa: F401
 
 # Platform kernel import (handles both import contexts)
 try:
-    from enterprise.platform_kernel import Module, module, HealthStatus, EventBus
+    from enterprise.platform_kernel import EventBus, HealthStatus, Module, module
 except ImportError:
     import sys
+
     _parent = str(Path(__file__).resolve().parents[3])
     if _parent not in sys.path:
         sys.path.insert(0, _parent)
-    from enterprise.platform_kernel import Module, module, HealthStatus, EventBus
+    from enterprise.platform_kernel import EventBus, HealthStatus, Module, module
 
 logger = logging.getLogger("enterprise.swarm_network")
 
 from .mux import (  # noqa: E402
-    Link,
+    MUX_NOT_AVAILABLE,
     ConnectionScorer,
+    Link,
     LinkManager,
     Muxer,
     select_route,
-    MUX_NOT_AVAILABLE,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Aggressive Concurrency Tiers
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def get_aggressive_concurrency(signal_dbm: int, turbo_mode: bool = False) -> int:
     """Return max concurrent agents based on WiFi signal strength.
-    
+
     TURBO MODE: Pushes 25% beyond conservative limits.
     """
-    if signal_dbm > -48:      base = 80
-    elif signal_dbm > -52:    base = 70
-    elif signal_dbm > -56:    base = 60
-    elif signal_dbm > -60:    base = 50
-    elif signal_dbm > -65:    base = 40
-    elif signal_dbm > -70:    base = 25
-    elif signal_dbm > -75:    base = 15
-    else:                     base = 8
+    if signal_dbm > -48:
+        base = 80
+    elif signal_dbm > -52:
+        base = 70
+    elif signal_dbm > -56:
+        base = 60
+    elif signal_dbm > -60:
+        base = 50
+    elif signal_dbm > -65:
+        base = 40
+    elif signal_dbm > -70:
+        base = 25
+    elif signal_dbm > -75:
+        base = 15
+    else:
+        base = 8
 
     if turbo_mode:
         base = int(base * 1.25)
@@ -77,7 +87,7 @@ def get_aggressive_concurrency(signal_dbm: int, turbo_mode: bool = False) -> int
 
 def get_sustained_rate(concurrency: int) -> float:
     """Sustained requests per second based on concurrency.
-    
+
     Formula: 0.6 req/sec per slot (was 0.5, pushed to 0.6)
     """
     return concurrency * 0.6
@@ -92,10 +102,11 @@ def get_burst_capacity(concurrency: int) -> int:
 # WiFi Reader (shared with turbocharger)
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class WiFiReader:
     """Read WiFi signal and stats without blocking."""
 
-    def __init__(self, interface: str = "wlp4s0"):
+    def __init__(self, interface: str = "wlp4s0") -> None:
         self.interface = interface
         self.signal_dbm: int = -60
         self.concurrency: int = 40
@@ -106,10 +117,10 @@ class WiFiReader:
     def read_signal(self) -> int:
         try:
             out = subprocess.check_output(
-                ["iw", "dev", self.interface, "link"], timeout=2,
-                stderr=subprocess.DEVNULL
+                ["iw", "dev", self.interface, "link"], timeout=2, stderr=subprocess.DEVNULL
             ).decode(errors="replace")
             import re
+
             m = re.search(r"signal:\s*(-?\d+)\s*dBm", out)
             if m:
                 with self._lock:
@@ -123,9 +134,8 @@ class WiFiReader:
         """Check if the turbocharger proxy is running."""
         try:
             import urllib.request
-            r = urllib.request.urlopen(
-                f"http://127.0.0.1:{self.turbo_port}/health", timeout=2
-            )
+
+            r = urllib.request.urlopen(f"http://127.0.0.1:{self.turbo_port}/health", timeout=2)
             data = json.loads(r.read())
             with self._lock:
                 self.turbo_available = True
@@ -159,6 +169,7 @@ class WiFiReader:
 # Swarm Network Bridge
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @dataclass
 class NetworkHealth:
     healthy: bool
@@ -168,7 +179,7 @@ class NetworkHealth:
     burst_capacity: int
     turbocharger_running: bool
     turbo_mode: bool = False
-    recommendations: List[str] = field(default_factory=list)
+    recommendations: list[str] = field(default_factory=list)
 
 
 class SwarmNetworkBridge:
@@ -184,17 +195,15 @@ class SwarmNetworkBridge:
 
     TURBOCHARGER_SCRIPT = os.path.expanduser("~/.hermes/scripts/swarm_turbocharger.py")
 
-    def __init__(self, config: dict | None = None):
+    def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
-        self._wifi = WiFiReader(
-            interface=self.config.get("wifi_interface", "wlp4s0")
-        )
+        self._wifi = WiFiReader(interface=self.config.get("wifi_interface", "wlp4s0"))
         self._wifi.turbo_port = self.config.get("turbocharger_port", 8922)
         self._turbo_mode = self.config.get("turbo_mode", False)
         self._started = False
-        self._process: Optional[subprocess.Popen] = None
+        self._process: subprocess.Popen | None = None
         self._auto_recovery = self.config.get("auto_recovery", True)
-        self._monitor_thread: Optional[threading.Thread] = None
+        self._monitor_thread: threading.Thread | None = None
 
     async def initialize(self) -> None:
         """Initialize — start turbocharger if not running, read signal."""
@@ -209,11 +218,14 @@ class SwarmNetworkBridge:
 
         try:
             bus = EventBus()
-            bus.publish("swarm.network.initialized", {
-                "signal": self._wifi.signal_dbm,
-                "concurrency": self._wifi.get_concurrency(self._turbo_mode),
-                "turbocharger": self._wifi.turbo_available,
-            })
+            bus.publish(
+                "swarm.network.initialized",
+                {
+                    "signal": self._wifi.signal_dbm,
+                    "concurrency": self._wifi.get_concurrency(self._turbo_mode),
+                    "turbocharger": self._wifi.turbo_available,
+                },
+            )
         except Exception:
             pass
 
@@ -224,8 +236,7 @@ class SwarmNetworkBridge:
             return False
         try:
             self._process = subprocess.Popen(
-                [sys.executable, self.TURBOCHARGER_SCRIPT,
-                 "--port", str(self._wifi.turbo_port)],
+                [sys.executable, self.TURBOCHARGER_SCRIPT, "--port", str(self._wifi.turbo_port)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -243,8 +254,9 @@ class SwarmNetworkBridge:
                 self._process.wait(timeout=5)
                 self._process = None
             # Also kill by port
-            subprocess.run(["fuser", "-k", f"{self._wifi.turbo_port}/tcp"],
-                          capture_output=True, timeout=5)
+            subprocess.run(
+                ["fuser", "-k", f"{self._wifi.turbo_port}/tcp"], capture_output=True, timeout=5
+            )
             time.sleep(1)
             return not self._wifi.check_turbocharger()
         except Exception:
@@ -256,9 +268,10 @@ class SwarmNetworkBridge:
         time.sleep(1)
         return self.start_turbocharger()
 
-    def _start_monitor(self):
+    def _start_monitor(self) -> None:
         """Background thread that restarts turbocharger if it crashes."""
-        def monitor():
+
+        def monitor() -> None:
             while self._started:
                 time.sleep(10)
                 if not self._started:
@@ -266,6 +279,7 @@ class SwarmNetworkBridge:
                 if not self._wifi.check_turbocharger():
                     logger.warning("Turbocharger down — restarting...")
                     self.start_turbocharger()
+
         self._monitor_thread = threading.Thread(target=monitor, daemon=True)
         self._monitor_thread.start()
 
@@ -280,7 +294,9 @@ class SwarmNetworkBridge:
         if signal < -75:
             recs.append("Signal critically weak — move closer to AP or use Ethernet")
         if not turbo:
-            recs.append("Turbocharger not running — start: python3 ~/.hermes/scripts/swarm_turbocharger.py")
+            recs.append(
+                "Turbocharger not running — start: python3 ~/.hermes/scripts/swarm_turbocharger.py"
+            )
         if concurrency < 30:
             recs.append(f"Only {concurrency} concurrent — improve signal for more agents")
         if self._turbo_mode:
@@ -325,6 +341,7 @@ class SwarmNetworkBridge:
 # Module Registration
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @module(name="swarm_network", version="2.0.0")
 class SwarmNetworkModule(Module):
     """Enterprise Swarm Network Optimization Module.
@@ -337,7 +354,7 @@ class SwarmNetworkModule(Module):
 
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
-        self._bridge: Optional[SwarmNetworkBridge] = None
+        self._bridge: SwarmNetworkBridge | None = None
 
     async def initialize(self) -> None:
         self._bridge = SwarmNetworkBridge(config=self._config)
@@ -360,7 +377,7 @@ class SwarmNetworkModule(Module):
         self._status = HealthStatus.UNHEALTHY
 
     @property
-    def bridge(self) -> Optional[SwarmNetworkBridge]:
+    def bridge(self) -> SwarmNetworkBridge | None:
         return self._bridge
 
 
@@ -383,8 +400,8 @@ __all__ = [
 
 
 def create_swarm_network_module(
-    config: Optional[Dict[str, Any]] = None,
-) -> "SwarmNetworkModule":
+    config: dict[str, Any] | None = None,
+) -> SwarmNetworkModule:
     """Factory: create a swarm_network module instance (not yet initialized).
 
     Supported config keys (all optional):
@@ -394,4 +411,6 @@ def create_swarm_network_module(
         - auto_recovery: bool, restart turbocharger if it drops (default True).
     """
     return SwarmNetworkModule(config=config or {})
+
+
 __version__ = "2.0.0"

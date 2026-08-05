@@ -30,9 +30,12 @@ import sqlite3
 import threading
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 logger = logging.getLogger("enterprise.customer_experience")
 
@@ -40,6 +43,7 @@ logger = logging.getLogger("enterprise.customer_experience")
 # ---------------------------------------------------------------------------
 # Funnel
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class StageConversion:
@@ -87,15 +91,17 @@ class FunnelAnalyst:
         name: str = "customer_funnel",
     ) -> None:
         if not stages:
-            raise ValueError("FunnelAnalyst requires at least one stage")
+            msg = "FunnelAnalyst requires at least one stage"
+            raise ValueError(msg)
         self.name = name
-        self._stages: List[str] = list(stages)
+        self._stages: list[str] = list(stages)
         # Preserve declared order and reject duplicates for unambiguous metrics.
         if len(set(self._stages)) != len(self._stages):
-            raise ValueError("Funnel stages must be unique")
-        self._events: List[Dict[str, Any]] = []
+            msg = "Funnel stages must be unique"
+            raise ValueError(msg)
+        self._events: list[dict[str, Any]] = []
         self._stage_counts: Counter = Counter()
-        self._customer_stages: Dict[str, set] = {s: set() for s in self._stages}
+        self._customer_stages: dict[str, set] = {s: set() for s in self._stages}
         self._lock = threading.RLock()
         logger.info("FunnelAnalyst '%s' initialized with %d stages", name, len(stages))
 
@@ -106,11 +112,11 @@ class FunnelAnalyst:
     def feed(
         self,
         stage: str,
-        event: Optional[str] = None,
+        event: str | None = None,
         *,
-        customer_id: Optional[str] = None,
-        timestamp: Optional[datetime] = None,
-    ) -> "FunnelAnalyst":
+        customer_id: str | None = None,
+        timestamp: datetime | None = None,
+    ) -> FunnelAnalyst:
         """Record a single funnel event at ``stage``.
 
         ``event`` is an optional free-form label describing what happened at
@@ -118,11 +124,12 @@ class FunnelAnalyst:
         chaining.
         """
         if stage not in self._stages:
-            raise ValueError(f"Unknown funnel stage: {stage!r}")
-        record: Dict[str, Any] = {
+            msg = f"Unknown funnel stage: {stage!r}"
+            raise ValueError(msg)
+        record: dict[str, Any] = {
             "stage": stage,
             "event": event,
-            "ts": timestamp or datetime.now(timezone.utc),
+            "ts": timestamp or datetime.now(UTC),
         }
         with self._lock:
             if customer_id is not None:
@@ -139,9 +146,9 @@ class FunnelAnalyst:
     def track(
         self,
         stage: str,
-        customer_id: Optional[str] = None,
-        event: Optional[str] = None,
-    ) -> "FunnelAnalyst":
+        customer_id: str | None = None,
+        event: str | None = None,
+    ) -> FunnelAnalyst:
         """Alias for :meth:`feed` oriented toward per-customer tracking."""
         return self.feed(stage, event, customer_id=customer_id)
 
@@ -149,7 +156,7 @@ class FunnelAnalyst:
     # Metrics
     # ------------------------------------------------------------------
 
-    def stages(self) -> List[str]:
+    def stages(self) -> list[str]:
         """Return the ordered funnel stage labels."""
         return list(self._stages)
 
@@ -157,7 +164,7 @@ class FunnelAnalyst:
         """Total number of raw events recorded."""
         return len(self._events)
 
-    def reach(self) -> Dict[str, int]:
+    def reach(self) -> dict[str, int]:
         """Distinct-customer (or raw event) reach per stage in declared order."""
         has_customers = any("customer_id" in e for e in self._events)
         with self._lock:
@@ -165,10 +172,10 @@ class FunnelAnalyst:
                 return {s: len(self._customer_stages[s]) for s in self._stages}
             return {s: int(self._stage_counts[s]) for s in self._stages}
 
-    def conversions(self) -> List[StageConversion]:
+    def conversions(self) -> list[StageConversion]:
         """Conversion + drop-off metrics for each adjacent stage pair."""
         reach = self.reach()
-        out: List[StageConversion] = []
+        out: list[StageConversion] = []
         for i in range(len(self._stages) - 1):
             out.append(
                 StageConversion(
@@ -189,14 +196,14 @@ class FunnelAnalyst:
             return 0.0
         return last / first
 
-    def dropoffs(self) -> Dict[str, int]:
+    def dropoffs(self) -> dict[str, int]:
         """Absolute drop-off attributable to each stage transition key.
 
         Keys are ``"<from> -> <to>"``.
         """
         return {f"{c.from_stage} -> {c.to_stage}": c.dropoff for c in self.conversions()}
 
-    def funnel_report(self) -> Dict[str, Any]:
+    def funnel_report(self) -> dict[str, Any]:
         """A structured, human-reviewable funnel dashboard."""
         reach = self.reach()
         convs = self.conversions()
@@ -224,9 +231,9 @@ class FunnelAnalyst:
     # Persistence
     # ------------------------------------------------------------------
 
-    def to_records(self) -> List[Dict[str, Any]]:
+    def to_records(self) -> list[dict[str, Any]]:
         """Serialize raw events to JSON-friendly dicts (SQLite persistence)."""
-        rows: List[Dict[str, Any]] = []
+        rows: list[dict[str, Any]] = []
         for e in self._events:
             rows.append(
                 {
@@ -249,7 +256,7 @@ class FunnelAnalyst:
                 "  customer_id TEXT,"
                 "  ts TEXT NOT NULL)"
             )
-            cur = conn.executemany(
+            conn.executemany(
                 "INSERT INTO funnel_events (stage, event, customer_id, ts) "
                 "VALUES (:stage, :event, :customer_id, :ts)",
                 self.to_records(),
@@ -259,7 +266,9 @@ class FunnelAnalyst:
         return len(self._events)
 
     @classmethod
-    def load_sqlite(cls, path: str, stages: Sequence[str], *, name: str = "customer_funnel") -> "FunnelAnalyst":
+    def load_sqlite(
+        cls, path: str, stages: Sequence[str], *, name: str = "customer_funnel"
+    ) -> FunnelAnalyst:
         """Rebuild a FunnelAnalyst from a previously saved SQLite file."""
         fa = cls(stages, name=name)
         with sqlite3.connect(path) as conn:
@@ -281,12 +290,13 @@ class FunnelAnalyst:
 # NPS
 # ---------------------------------------------------------------------------
 
+
 class NPSBand(Enum):
     """Standard Net Promoter Score segmentation bands (0-10 scale)."""
 
-    DETRACTOR = "detractor"   # 0-6
-    PASSIVE = "passive"       # 7-8
-    PROMOTER = "promoter"     # 9-10
+    DETRACTOR = "detractor"  # 0-6
+    PASSIVE = "passive"  # 7-8
+    PROMOTER = "promoter"  # 9-10
 
 
 class NPS:
@@ -301,7 +311,7 @@ class NPS:
     PASSIVE_MAX = 8
 
     def __init__(self) -> None:
-        self._responses: List[Dict[str, Any]] = []
+        self._responses: list[dict[str, Any]] = []
         self._lock = threading.RLock()
 
     # ------------------------------------------------------------------
@@ -313,25 +323,28 @@ class NPS:
         """Classify a single 0-10 score into its NPS band."""
         score = int(score)
         if score < 0 or score > 10:
-            raise ValueError(f"NPS score must be 0-10, got {score!r}")
+            msg = f"NPS score must be 0-10, got {score!r}"
+            raise ValueError(msg)
         if score <= NPS.DETRACTOR_MAX:
             return NPSBand.DETRACTOR
         if score <= NPS.PASSIVE_MAX:
             return NPSBand.PASSIVE
         return NPSBand.PROMOTER
 
-    def record(self, score: int, *, customer_id: Optional[str] = None,
-               timestamp: Optional[datetime] = None) -> "NPS":
+    def record(
+        self, score: int, *, customer_id: str | None = None, timestamp: datetime | None = None
+    ) -> NPS:
         """Record one 0-10 NPS response; returns self for chaining."""
         score = int(score)
         if not 0 <= score <= 10:
-            raise ValueError(f"NPS score must be 0-10, got {score!r}")
+            msg = f"NPS score must be 0-10, got {score!r}"
+            raise ValueError(msg)
         with self._lock:
             self._responses.append(
                 {
                     "score": score,
                     "customer_id": customer_id,
-                    "ts": timestamp or datetime.now(timezone.utc),
+                    "ts": timestamp or datetime.now(UTC),
                 }
             )
         return self
@@ -343,19 +356,19 @@ class NPS:
     def sample_count(self) -> int:
         return len(self._responses)
 
-    def counts(self) -> Dict[NPSBand, int]:
+    def counts(self) -> dict[NPSBand, int]:
         """Absolute counts per band."""
-        c: Dict[NPSBand, int] = {b: 0 for b in NPSBand}
+        c: dict[NPSBand, int] = dict.fromkeys(NPSBand, 0)
         with self._lock:
             for r in self._responses:
                 c[self.band(r["score"])] += 1
         return c
 
-    def percentages(self) -> Dict[NPSBand, float]:
+    def percentages(self) -> dict[NPSBand, float]:
         """Share (0.0-100.0) of respondents in each band."""
         total = self.sample_count()
         if total == 0:
-            return {b: 0.0 for b in NPSBand}
+            return dict.fromkeys(NPSBand, 0.0)
         counts = self.counts()
         return {b: (counts[b] / total) * 100.0 for b in NPSBand}
 
@@ -376,7 +389,7 @@ class NPS:
         pct = self.percentages()
         return pct[NPSBand.PROMOTER] - pct[NPSBand.DETRACTOR]
 
-    def report(self) -> Dict[str, Any]:
+    def report(self) -> dict[str, Any]:
         """Structured NPS summary including bands and raw distribution."""
         pct = self.percentages()
         scores = [r["score"] for r in self._responses]
@@ -393,7 +406,7 @@ class NPS:
             "distribution": Counter(scores),
         }
 
-    def reset(self) -> "NPS":
+    def reset(self) -> NPS:
         """Clear all recorded responses."""
         with self._lock:
             self._responses.clear()
@@ -412,7 +425,7 @@ class NPS:
                 "  customer_id TEXT,"
                 "  ts TEXT NOT NULL)"
             )
-            cur = conn.executemany(
+            conn.executemany(
                 "INSERT INTO nps_responses (score, customer_id, ts) "
                 "VALUES (:score, :customer_id, :ts)",
                 [
@@ -428,15 +441,14 @@ class NPS:
         return len(self._responses)
 
     @classmethod
-    def load_sqlite(cls, path: str) -> "NPS":
+    def load_sqlite(cls, path: str) -> NPS:
         nps = cls()
         with sqlite3.connect(path) as conn:
             rows = conn.execute(
                 "SELECT score, customer_id, ts FROM nps_responses ORDER BY id"
             ).fetchall()
         for score, customer_id, ts in rows:
-            nps.record(score, customer_id=customer_id or None,
-                       timestamp=datetime.fromisoformat(ts))
+            nps.record(score, customer_id=customer_id or None, timestamp=datetime.fromisoformat(ts))
         return nps
 
 
@@ -444,12 +456,13 @@ class NPS:
 # Churn Risk
 # ---------------------------------------------------------------------------
 
+
 class ChurnRiskLevel(Enum):
     """Risk bands for an inferred churn score."""
 
-    LOW = "low"          # 0-29
-    MEDIUM = "medium"    # 30-59
-    HIGH = "high"        # 60-100
+    LOW = "low"  # 0-29
+    MEDIUM = "medium"  # 30-59
+    HIGH = "high"  # 60-100
 
 
 @dataclass
@@ -457,10 +470,10 @@ class CustomerSignals:
     """Engagement signals feeding the churn-risk model for one customer."""
 
     customer_id: str
-    support_tickets: int = 0       # recent support ticket count
-    negative_feedback: int = 0     # recent negative feedback events
-    inactivity_days: int = 0       # days since last meaningful activity
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    support_tickets: int = 0  # recent support ticket count
+    negative_feedback: int = 0  # recent negative feedback events
+    inactivity_days: int = 0  # days since last meaningful activity
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ChurnRisk:
@@ -485,24 +498,25 @@ class ChurnRisk:
     FEEDBACK_CAP = 3.0
     INACTIVITY_CAP = 90.0
 
-    DEFAULT_WEIGHTS: Dict[str, float] = {
+    DEFAULT_WEIGHTS: dict[str, float] = {
         "tickets": 0.30,
         "feedback": 0.30,
         "inactivity": 0.40,
     }
 
-    def __init__(self, weights: Optional[Dict[str, float]] = None) -> None:
+    def __init__(self, weights: dict[str, float] | None = None) -> None:
         w = dict(self.DEFAULT_WEIGHTS)
         if weights:
             w.update(weights)
         total = sum(w.values())
         if total <= 0:
-            raise ValueError("ChurnRisk weights must sum to a positive value")
+            msg = "ChurnRisk weights must sum to a positive value"
+            raise ValueError(msg)
         self._weights = {k: v / total for k, v in w.items()}
-        self._signals: Dict[str, CustomerSignals] = {}
+        self._signals: dict[str, CustomerSignals] = {}
         self._lock = threading.RLock()
 
-    def weights(self) -> Dict[str, float]:
+    def weights(self) -> dict[str, float]:
         """Effective (normalized) model weights."""
         return dict(self._weights)
 
@@ -519,9 +533,7 @@ class ChurnRisk:
         inactivity_days: int = 0,
     ) -> float:
         """Record engagement signals for a customer and return their risk score."""
-        sig = self._signals.get(
-            customer_id, CustomerSignals(customer_id=customer_id)
-        )
+        sig = self._signals.get(customer_id, CustomerSignals(customer_id=customer_id))
         sig.support_tickets = max(int(support_tickets), 0)
         sig.negative_feedback = max(int(negative_feedback), 0)
         sig.inactivity_days = max(int(inactivity_days), 0)
@@ -529,14 +541,14 @@ class ChurnRisk:
             self._signals[customer_id] = sig
         return self.score(customer_id)
 
-    def customers(self) -> List[str]:
+    def customers(self) -> list[str]:
         return list(self._signals.keys())
 
     # ------------------------------------------------------------------
     # Scoring
     # ------------------------------------------------------------------
 
-    def _normalized(self, sig: CustomerSignals) -> Dict[str, float]:
+    def _normalized(self, sig: CustomerSignals) -> dict[str, float]:
         return {
             "tickets": min(sig.support_tickets / self.TICKETS_CAP, 1.0),
             "feedback": min(sig.negative_feedback / self.FEEDBACK_CAP, 1.0),
@@ -565,7 +577,7 @@ class ChurnRisk:
             return ChurnRiskLevel.MEDIUM
         return ChurnRiskLevel.LOW
 
-    def signal_breakdown(self, customer_id: str) -> Optional[Dict[str, Any]]:
+    def signal_breakdown(self, customer_id: str) -> dict[str, Any] | None:
         """Return the per-signal decomposition of a customer's risk score."""
         sig = self._signals.get(customer_id)
         if sig is None:
@@ -585,7 +597,7 @@ class ChurnRisk:
             "risk_level": self.risk_level(self.score(customer_id)).value,
         }
 
-    def report(self) -> Dict[str, Any]:
+    def report(self) -> dict[str, Any]:
         """Aggregate churn-risk dashboard across all tracked customers."""
         scores = {cid: self.score(cid) for cid in self.customers()}
         n = len(scores)
@@ -637,7 +649,7 @@ class ChurnRisk:
         return len(rows)
 
     @classmethod
-    def load_sqlite(cls, path: str, weights: Optional[Dict[str, float]] = None) -> "ChurnRisk":
+    def load_sqlite(cls, path: str, weights: dict[str, float] | None = None) -> ChurnRisk:
         cr = cls(weights=weights)
         with sqlite3.connect(path) as conn:
             rows = conn.execute(
@@ -645,14 +657,16 @@ class ChurnRisk:
                 "FROM churn_signals"
             ).fetchall()
         for cid, tickets, feedback, inactivity in rows:
-            cr.update(cid, support_tickets=tickets,
-                      negative_feedback=feedback, inactivity_days=inactivity)
+            cr.update(
+                cid, support_tickets=tickets, negative_feedback=feedback, inactivity_days=inactivity
+            )
         return cr
 
 
 # ---------------------------------------------------------------------------
 # Journey Analytics facade
 # ---------------------------------------------------------------------------
+
 
 class JourneyAnalytics:
     """Facade that coordinates funnel, NPS and churn-risk into one dashboard.
@@ -665,40 +679,46 @@ class JourneyAnalytics:
     def __init__(
         self,
         funnel_stages: Sequence[str] = (
-            "awareness", "evaluation", "purchase", "setup",
-            "first_value", "regular_use", "renewal",
+            "awareness",
+            "evaluation",
+            "purchase",
+            "setup",
+            "first_value",
+            "regular_use",
+            "renewal",
         ),
         *,
-        churn_weights: Optional[Dict[str, float]] = None,
+        churn_weights: dict[str, float] | None = None,
     ) -> None:
         self.funnel = FunnelAnalyst(funnel_stages)
         self.nps = NPS()
         self.churn = ChurnRisk(weights=churn_weights)
-        self._started_at = datetime.now(timezone.utc)
+        self._started_at = datetime.now(UTC)
         logger.info("JourneyAnalytics initialized with %d funnel stages", len(funnel_stages))
 
     # A single high-level ingestion point mirroring the task's (stage, event)
     # vocabulary.
-    def record_event(self, stage: str, event: Optional[str] = None,
-                     *, customer_id: Optional[str] = None) -> "JourneyAnalytics":
+    def record_event(
+        self, stage: str, event: str | None = None, *, customer_id: str | None = None
+    ) -> JourneyAnalytics:
         """Record a funnel event; returns self for chaining."""
         self.funnel.feed(stage, event, customer_id=customer_id)
         return self
 
-    def record_nps(self, score: int, *, customer_id: Optional[str] = None) -> "JourneyAnalytics":
+    def record_nps(self, score: int, *, customer_id: str | None = None) -> JourneyAnalytics:
         """Record an NPS response; returns self for chaining."""
         self.nps.record(score, customer_id=customer_id)
         return self
 
-    def update_churn(self, customer_id: str, **signals) -> "JourneyAnalytics":
+    def update_churn(self, customer_id: str, **signals) -> JourneyAnalytics:
         """Record churn-risk signals; returns self for chaining."""
         self.churn.update(customer_id, **signals)
         return self
 
-    def report(self) -> Dict[str, Any]:
+    def report(self) -> dict[str, Any]:
         """Aggregate full journey-analytics dashboard."""
         return {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "session_started_at": self._started_at.isoformat(),
             "funnel": self.funnel.funnel_report(),
             "nps": self.nps.report(),
@@ -710,7 +730,7 @@ class JourneyAnalytics:
             },
         }
 
-    def save_sqlite(self, path: str) -> Dict[str, int]:
+    def save_sqlite(self, path: str) -> dict[str, int]:
         """Persist all three components to one SQLite DB; returns rows written."""
         return {
             "funnel": self.funnel.save_sqlite(path),
@@ -724,8 +744,8 @@ class JourneyAnalytics:
         path: str,
         funnel_stages: Sequence[str],
         *,
-        churn_weights: Optional[Dict[str, float]] = None,
-    ) -> "JourneyAnalytics":
+        churn_weights: dict[str, float] | None = None,
+    ) -> JourneyAnalytics:
         """Rebuild a full JourneyAnalytics from one SQLite DB."""
         ja = cls(funnel_stages, churn_weights=churn_weights)
         ja.funnel = FunnelAnalyst.load_sqlite(path, funnel_stages)

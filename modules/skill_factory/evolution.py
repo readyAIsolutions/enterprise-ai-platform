@@ -26,6 +26,7 @@ Stdlib only (sqlite3 / math / datetime / pathlib).
 
 from __future__ import annotations
 
+import contextlib
 import math
 import sqlite3
 from datetime import UTC, datetime
@@ -61,8 +62,8 @@ PRIOR_STRENGTH = 4.0
 CONFIDENCE_PRIOR = 5.0
 
 #: Normalisation constants for the efficiency term (lower is better).
-LATENCY_NORM = 5.0      # seconds at which latency_score = 0.5
-ITER_NORM = 5.0         # iterations at which iter_score = 0.5
+LATENCY_NORM = 5.0  # seconds at which latency_score = 0.5
+ITER_NORM = 5.0  # iterations at which iter_score = 0.5
 
 #: Recency half-life in seconds; freshness ``exp(-age / half_life)``.
 RECENCY_HALF_LIFE = 7 * 86400.0
@@ -82,6 +83,7 @@ DEFAULT_PROMOTE_THRESHOLD = 35.0
 # Time helpers (determinism friendly)
 # ---------------------------------------------------------------------------
 
+
 def _iso_now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -95,6 +97,7 @@ def _epoch(ts: str) -> float:
 # ---------------------------------------------------------------------------
 # SkillFeedbackStore
 # ---------------------------------------------------------------------------
+
 
 class SkillFeedbackStore:
     """SQLite-backed durable store of per-skill usage/feedback outcomes.
@@ -132,14 +135,10 @@ class SkillFeedbackStore:
                 )
                 """
             )
-            self._conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_outcomes_skill ON outcomes(skill)"
-            )
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_skill ON outcomes(skill)")
 
     def _refresh_skills(self) -> None:
-        rows = self._conn.execute(
-            "SELECT DISTINCT skill FROM outcomes"
-        ).fetchall()
+        rows = self._conn.execute("SELECT DISTINCT skill FROM outcomes").fetchall()
         self._skills = {str(r["skill"]) for r in rows}
 
     # -- writes -------------------------------------------------------------
@@ -176,8 +175,7 @@ class SkillFeedbackStore:
                   (skill, result, score, latency, iterations, feedback, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (skill, norm_result, float(score), float(latency),
-                 int(iterations), feedback, ts),
+                (skill, norm_result, float(score), float(latency), int(iterations), feedback, ts),
             )
         self._skills.add(skill)
         return int(cur.lastrowid)
@@ -225,15 +223,14 @@ class SkillFeedbackStore:
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
-        try:
+        with contextlib.suppress(sqlite3.Error):
             self._conn.close()
-        except sqlite3.Error:
-            pass
 
 
 # ---------------------------------------------------------------------------
 # SkillScore
 # ---------------------------------------------------------------------------
+
 
 class SkillScore:
     """Deterministic evolution scoring of a skill from its real outcomes.
@@ -261,7 +258,8 @@ class SkillScore:
     ) -> None:
         total = w_success + w_feedback + w_efficiency + w_recency
         if total <= 0:
-            raise ValueError("score weights must sum to a positive value")
+            msg = "score weights must sum to a positive value"
+            raise ValueError(msg)
         self.w_success = w_success / total
         self.w_feedback = w_feedback / total
         self.w_efficiency = w_efficiency / total
@@ -285,9 +283,7 @@ class SkillScore:
 
     @staticmethod
     def _avg_feedback(outcomes: list[dict[str, Any]]) -> float:
-        values = [
-            float(o["feedback"]) for o in outcomes if o.get("feedback") is not None
-        ]
+        values = [float(o["feedback"]) for o in outcomes if o.get("feedback") is not None]
         # Neutral 5/10 when no explicit feedback was captured.
         return (sum(values) / len(values) / 10.0) if values else 0.5
 
@@ -345,8 +341,7 @@ class SkillScore:
         successes = sum(
             1
             for o in outcomes
-            if str(o.get("result", "")).lower()
-            in ("success", "true", "1", "pass", "succeeded")
+            if str(o.get("result", "")).lower() in ("success", "true", "1", "pass", "succeeded")
         )
         success_rate = self._success_rate(outcomes)
         confidence = self._confidence(n)
@@ -389,6 +384,7 @@ def compute_evolution_score(
 # ---------------------------------------------------------------------------
 # EvolutionEngine
 # ---------------------------------------------------------------------------
+
 
 class EvolutionEngine:
     """Outcome-driven evolution orchestration.
@@ -441,7 +437,7 @@ class EvolutionEngine:
             feedback=feedback,
             timestamp=timestamp,
         )
-        row = {
+        return {
             "id": row_id,
             "skill": skill,
             "result": RESULT_SUCCESS
@@ -450,12 +446,9 @@ class EvolutionEngine:
             "score": float(score),
             "latency": float(latency),
             "iterations": int(iterations),
-            "feedback": None
-            if feedback is None
-            else int(max(0, min(10, round(float(feedback))))),
+            "feedback": None if feedback is None else int(max(0, min(10, round(float(feedback))))),
             "timestamp": timestamp or _iso_now(),
         }
-        return row
 
     # -- scoring / ranking --------------------------------------------------
 
@@ -488,7 +481,7 @@ class EvolutionEngine:
         candidates across refresh cycles.
         """
         rows = self.rank_skills(now=now)
-        return rows[-max(0, int(n)):] if rows else []
+        return rows[-max(0, int(n)) :] if rows else []
 
     # -- promotion ----------------------------------------------------------
 

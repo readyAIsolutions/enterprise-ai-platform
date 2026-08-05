@@ -7,20 +7,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 import pytest
-
+from enterprise.modules.secret_rotation.secret_rotation import hash_secret
 from enterprise.modules.secret_rotation.vault import (
-    DEFAULT_PBKDF2_ITERATIONS,
-    AccessAudit,
     RotationScheduler,
     SecretNotFoundError,
     SecretVault,
     VaultFacade,
     VaultIntegrityError,
     decrypt_blob,
-    encrypt_blob,
     derive_keys,
+    encrypt_blob,
 )
-from enterprise.modules.secret_rotation.secret_rotation import hash_secret
 
 # Low PBKDF2 cost keeps the suite fast while still exercising the real path.
 FAST = 2000
@@ -38,14 +35,17 @@ def make_facade(tmp_path, master=MASTER):
 # ── low-level crypto ─────────────────────────────────────────────────────
 
 
-def test_derive_keys_deterministic_and_split():
+def test_derive_keys_deterministic_and_split() -> None:
     e1, m1 = derive_keys(MASTER, b"saltbytes1234567", FAST)
     e2, m2 = derive_keys(MASTER, b"saltbytes1234567", FAST)
-    assert e1 == e2 and m1 == m2
-    assert len(e1) == 32 and len(m1) == 32 and e1 != m1
+    assert e1 == e2
+    assert m1 == m2
+    assert len(e1) == 32
+    assert len(m1) == 32
+    assert e1 != m1
 
 
-def test_encrypt_decrypt_roundtrip_and_secrets():
+def test_encrypt_decrypt_roundtrip_and_secrets() -> None:
     blob = encrypt_blob(b"top secret", MASTER, FAST)
     assert decrypt_blob(blob, MASTER, FAST) == b"top secret"
     # The plaintext must never appear inside the blob/ciphertext.
@@ -54,7 +54,7 @@ def test_encrypt_decrypt_roundtrip_and_secrets():
     assert blob != encrypt_blob(b"top secret", MASTER, FAST)
 
 
-def test_encrypt_decrypt_wrong_master_key_raises():
+def test_encrypt_decrypt_wrong_master_key_raises() -> None:
     blob = encrypt_blob(b"secret", MASTER, FAST)
     with pytest.raises(VaultIntegrityError):
         decrypt_blob(blob, "wrong-master", FAST)
@@ -63,7 +63,7 @@ def test_encrypt_decrypt_wrong_master_key_raises():
 # ── SecretVault: put/get round-trip, encrypted-at-rest ─────────────────
 
 
-def test_put_get_roundtrip(tmp_path):
+def test_put_get_roundtrip(tmp_path) -> None:
     v = make_vault(tmp_path)
     v.put("db_pass", "S3cret!")
     assert v.get("db_pass") == "S3cret!"
@@ -71,7 +71,7 @@ def test_put_get_roundtrip(tmp_path):
     v.close()
 
 
-def test_raw_db_has_no_plaintext(tmp_path):
+def test_raw_db_has_no_plaintext(tmp_path) -> None:
     db = tmp_path / "vault.db"
     v = SecretVault(db, MASTER, iterations=FAST)
     v.put("api_key", "SUPERSECRETPLAINTEXT123456")
@@ -85,7 +85,7 @@ def test_raw_db_has_no_plaintext(tmp_path):
     assert b"SUPERSECRETPLAINTEXT123456" not in bytes(blob)
 
 
-def test_get_wrong_master_key_fails(tmp_path):
+def test_get_wrong_master_key_fails(tmp_path) -> None:
     v = make_vault(tmp_path)
     v.put("k", "v")
     with pytest.raises(VaultIntegrityError):
@@ -93,14 +93,13 @@ def test_get_wrong_master_key_fails(tmp_path):
     v.close()
 
 
-def test_get_detects_tampered_blob(tmp_path):
+def test_get_detects_tampered_blob(tmp_path) -> None:
     db = tmp_path / "vault.db"
     v = SecretVault(db, MASTER, iterations=FAST)
     v.put("k", "v")
     v.close()
     conn = sqlite3.connect(db)
-    blob = bytearray(conn.execute(
-        "SELECT blob FROM secrets WHERE name='k'").fetchone()[0])
+    blob = bytearray(conn.execute("SELECT blob FROM secrets WHERE name='k'").fetchone()[0])
     blob[40] ^= 0xFF  # flip one ciphertext byte
     conn.execute("UPDATE secrets SET blob=? WHERE name='k'", (bytes(blob),))
     conn.commit()
@@ -111,14 +110,14 @@ def test_get_detects_tampered_blob(tmp_path):
     v2.close()
 
 
-def test_get_missing_raises(tmp_path):
+def test_get_missing_raises(tmp_path) -> None:
     v = make_vault(tmp_path)
     with pytest.raises(SecretNotFoundError):
         v.get("nope")
     v.close()
 
 
-def test_put_overwrite_updates(tmp_path):
+def test_put_overwrite_updates(tmp_path) -> None:
     v = make_vault(tmp_path)
     v.put("k", "old-value")
     v.put("k", "new-value")
@@ -127,7 +126,7 @@ def test_put_overwrite_updates(tmp_path):
     v.close()
 
 
-def test_list_and_delete(tmp_path):
+def test_list_and_delete(tmp_path) -> None:
     v = make_vault(tmp_path)
     v.put("a", "1")
     v.put("b", "2")
@@ -141,7 +140,7 @@ def test_list_and_delete(tmp_path):
     v.close()
 
 
-def test_vault_rotate_generates_new_secret(tmp_path):
+def test_vault_rotate_generates_new_secret(tmp_path) -> None:
     v = make_vault(tmp_path)
     v.put("k", "old-secret")
     old = v.get("k")
@@ -152,30 +151,30 @@ def test_vault_rotate_generates_new_secret(tmp_path):
     v.close()
 
 
-def test_vault_rotate_hash_kind_stores_hash_only(tmp_path):
+def test_vault_rotate_hash_kind_stores_hash_only(tmp_path) -> None:
     v = make_vault(tmp_path)
     v.put("k", "old", kind="hash")
     assert v.get("k") == hash_secret("old")
     db = tmp_path / "vault.db"
-    blob = sqlite3.connect(db).execute(
-        "SELECT blob FROM secrets WHERE name='k'").fetchone()[0]
+    blob = sqlite3.connect(db).execute("SELECT blob FROM secrets WHERE name='k'").fetchone()[0]
     assert b"old" not in bytes(blob)
     before = v.get("k")
     v.rotate("k")
     after = v.get("k")
     # hash-only mode: stored payload is a 64-char hex SHA-256, changed by rotation
-    assert len(after) == 64 and all(c in "0123456789abcdef" for c in after)
+    assert len(after) == 64
+    assert all(c in "0123456789abcdef" for c in after)
     assert after != before
     assert b"old" not in bytes(
-        sqlite3.connect(db).execute(
-            "SELECT blob FROM secrets WHERE name='k'").fetchone()[0])
+        sqlite3.connect(db).execute("SELECT blob FROM secrets WHERE name='k'").fetchone()[0]
+    )
     v.close()
 
 
 # ── RotationScheduler ───────────────────────────────────────────────────
 
 
-def test_due_for_rotation(tmp_path):
+def test_due_for_rotation(tmp_path) -> None:
     f = make_facade(tmp_path)
     f.put("k", "v")
     f.set_policy("k", interval_secs=100.0, last_rotated=0.0)
@@ -185,7 +184,7 @@ def test_due_for_rotation(tmp_path):
     f.close()
 
 
-def test_rotation_generates_new_and_updates_due(tmp_path):
+def test_rotation_generates_new_and_updates_due(tmp_path) -> None:
     f = make_facade(tmp_path)
     f.put("k", "old")
     f.scheduler.set_policy("k", interval_secs=100.0, last_rotated=0.0)
@@ -199,7 +198,7 @@ def test_rotation_generates_new_and_updates_due(tmp_path):
     f.close()
 
 
-def test_rotation_scheduler_rotate(tmp_path):
+def test_rotation_scheduler_rotate(tmp_path) -> None:
     v = make_vault(tmp_path)
     sch = RotationScheduler(v)
     v.put("k", "old")
@@ -213,7 +212,7 @@ def test_rotation_scheduler_rotate(tmp_path):
 # ── AccessAudit + integrity ─────────────────────────────────────────────
 
 
-def test_audit_logs_put_get_rotate(tmp_path):
+def test_audit_logs_put_get_rotate(tmp_path) -> None:
     f = make_facade(tmp_path, master=MASTER)
     f.put("k", "v", actor="alice")
     f.get("k", actor="bob")
@@ -226,7 +225,7 @@ def test_audit_logs_put_get_rotate(tmp_path):
     f.close()
 
 
-def test_audit_hash_chain_integrity(tmp_path):
+def test_audit_hash_chain_integrity(tmp_path) -> None:
     f = make_facade(tmp_path)
     f.put("a", "1")
     f.put("b", "2")
@@ -236,7 +235,7 @@ def test_audit_hash_chain_integrity(tmp_path):
     f.close()
 
 
-def test_audit_detects_tampering(tmp_path):
+def test_audit_detects_tampering(tmp_path) -> None:
     db = tmp_path / "vault.db"
     f = VaultFacade(db, MASTER, iterations=FAST)
     f.put("a", "1")
@@ -244,8 +243,10 @@ def test_audit_detects_tampering(tmp_path):
     f.close()
     # Tamper with an existing audit row (rewrite an action in place).
     conn = sqlite3.connect(db)
-    conn.execute("UPDATE audit_log SET entry_hash='deadbeef' "
-                 "WHERE action='put' AND id=(SELECT MIN(id) FROM audit_log)")
+    conn.execute(
+        "UPDATE audit_log SET entry_hash='deadbeef' "
+        "WHERE action='put' AND id=(SELECT MIN(id) FROM audit_log)"
+    )
     conn.commit()
     conn.close()
     f2 = VaultFacade(db, MASTER, iterations=FAST)
@@ -255,7 +256,7 @@ def test_audit_detects_tampering(tmp_path):
     f2.close()
 
 
-def test_audit_append_only(tmp_path):
+def test_audit_append_only(tmp_path) -> None:
     f = make_facade(tmp_path)
     f.put("a", "1")
     n1 = f.audit.count()
@@ -265,7 +266,7 @@ def test_audit_append_only(tmp_path):
     f.close()
 
 
-def test_delete_is_audited(tmp_path):
+def test_delete_is_audited(tmp_path) -> None:
     f = make_facade(tmp_path)
     f.put("k", "v")
     assert f.delete("k") is True
@@ -278,7 +279,7 @@ def test_delete_is_audited(tmp_path):
 # ── VaultFacade lifecycle / persistence ────────────────────────────────
 
 
-def test_facade_persists_across_reopen(tmp_path):
+def test_facade_persists_across_reopen(tmp_path) -> None:
     db = tmp_path / "vault.db"
     f = VaultFacade(db, MASTER, iterations=FAST)
     f.put("k", "durable-secret")
@@ -290,7 +291,7 @@ def test_facade_persists_across_reopen(tmp_path):
     f2.close()
 
 
-def test_facade_wrong_master_on_reopen_fails(tmp_path):
+def test_facade_wrong_master_on_reopen_fails(tmp_path) -> None:
     db = tmp_path / "vault.db"
     f = VaultFacade(db, MASTER, iterations=FAST)
     f.put("k", "v")
@@ -301,12 +302,14 @@ def test_facade_wrong_master_on_reopen_fails(tmp_path):
     f2.close()
 
 
-def test_create_vault_facade_factory():
-    import tempfile, os
+def test_create_vault_facade_factory() -> None:
+    import os
+    import tempfile
+
     from enterprise.modules.secret_rotation import create_vault_facade
+
     with tempfile.TemporaryDirectory() as d:
-        f = create_vault_facade(os.path.join(d, "v.db"), MASTER,
-                                {"iterations": FAST})
+        f = create_vault_facade(os.path.join(d, "v.db"), MASTER, {"iterations": FAST})
         f.put("k", "v")
         assert f.get("k") == "v"
         assert f.audit_verify()["valid"] is True

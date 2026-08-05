@@ -18,50 +18,57 @@ Key features:
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import inspect
+import contextlib
 import logging
 import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum, auto
-from pathlib import Path
+from datetime import UTC, datetime
+from enum import Enum, StrEnum
 from typing import (
-    Any, AsyncIterator, Awaitable, Callable, ClassVar, Dict,
-    Generic, List, Optional, Set, Tuple, Type, TypeVar, Union,
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Generic,
+    TypeVar,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ValidationError
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 # ── Master-class tool gate + audit ─────────────────────────────────────────
 try:
-    from .gate import ToolGate, ToolPolicy, ToolAudit, Decision, GateResult
+    from .gate import Decision, GateResult, ToolAudit, ToolGate, ToolPolicy  # noqa: F401
 except ImportError:  # pragma: no cover - fallback for loose-import environments
-    from agent_tools.gate import ToolGate, ToolPolicy, ToolAudit, Decision, GateResult
+    from agent_tools.gate import Decision, GateResult, ToolAudit, ToolGate
 
 # ── Platform imports ───────────────────────────────────────────────────────
 try:
-    from enterprise.platform_kernel import EventBus, Event, EventPriority, HealthStatus
+    from enterprise.platform_kernel import Event, EventBus, EventPriority, HealthStatus  # noqa: F401
 except ImportError:
-    import sys as _sys, os as _os
+    import os as _os
+    import sys as _sys
+
     _enterprise_dir = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
     _parent = _os.path.dirname(_enterprise_dir)
     if _parent not in _sys.path:
         _sys.path.insert(0, _parent)
-    from enterprise.platform_kernel import EventBus, Event, EventPriority, HealthStatus
+    from enterprise.platform_kernel import Event, EventBus
 
 # ── ENI Compression bridge (auto-compress all outputs) ─────────────────────
 try:
     from enterprise.modules.compression_bridge.compression_bridge import CompressionBridge
+
     _COMPRESSION_AVAILABLE = True
 except ImportError:
     try:
         from compression_bridge.compression_bridge import CompressionBridge
+
         _COMPRESSION_AVAILABLE = True
     except ImportError:
         _COMPRESSION_AVAILABLE = False
@@ -73,8 +80,9 @@ _log = logging.getLogger("enterprise.agent_tools.registry")
 # ============================================================================
 
 
-class ProgressStatus(str, Enum):
+class ProgressStatus(StrEnum):
     """Progress status for streaming tool execution."""
+
     QUEUED = "queued"
     STARTING = "starting"
     RUNNING = "running"
@@ -99,13 +107,14 @@ class ProgressEvent:
         timestamp: UTC timestamp of this event.
         execution_id: Unique ID for this execution.
     """
+
     tool_name: str
     status: ProgressStatus
     message: str
-    percent: Optional[float] = None
-    bytes_processed: Optional[int] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    percent: float | None = None
+    bytes_processed: int | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     execution_id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
@@ -116,6 +125,7 @@ class ProgressEvent:
 
 class PermissionLevel(Enum):
     """Permission levels for tool access."""
+
     ALLOW = "allow"
     DENY = "deny"
     ASK = "ask"  # Prompt user for confirmation
@@ -131,18 +141,17 @@ class ToolPermission:
         level: Permission level for matching tools.
         pattern: Optional glob pattern for resource-level permissions.
     """
-    tool_name: str = "*"
-    category: Optional[str] = None
-    level: PermissionLevel = PermissionLevel.ALLOW
-    pattern: Optional[str] = None
 
-    def matches(self, tool_name: str, category: Optional[str] = None) -> bool:
+    tool_name: str = "*"
+    category: str | None = None
+    level: PermissionLevel = PermissionLevel.ALLOW
+    pattern: str | None = None
+
+    def matches(self, tool_name: str, category: str | None = None) -> bool:
         """Check if this permission rule matches a tool invocation."""
         if self.tool_name != "*" and self.tool_name != tool_name:
             return False
-        if self.category is not None and category != self.category:
-            return False
-        return True
+        return not (self.category is not None and category != self.category)
 
 
 class PermissionGate:
@@ -161,10 +170,10 @@ class PermissionGate:
     def __init__(
         self,
         default_level: PermissionLevel = PermissionLevel.ALLOW,
-        rules: Optional[List[ToolPermission]] = None,
+        rules: list[ToolPermission] | None = None,
     ) -> None:
         self._default_level = default_level
-        self._rules: List[ToolPermission] = rules or []
+        self._rules: list[ToolPermission] = rules or []
         self._lock = threading.RLock()
 
     def add_rule(self, rule: ToolPermission) -> None:
@@ -175,32 +184,36 @@ class PermissionGate:
     def allow(
         self,
         tool_name: str = "*",
-        category: Optional[str] = None,
-        pattern: Optional[str] = None,
+        category: str | None = None,
+        pattern: str | None = None,
     ) -> None:
         """Add an allow rule."""
-        self.add_rule(ToolPermission(
-            tool_name=tool_name,
-            category=category,
-            level=PermissionLevel.ALLOW,
-            pattern=pattern,
-        ))
+        self.add_rule(
+            ToolPermission(
+                tool_name=tool_name,
+                category=category,
+                level=PermissionLevel.ALLOW,
+                pattern=pattern,
+            )
+        )
 
     def deny(
         self,
         tool_name: str = "*",
-        category: Optional[str] = None,
-        pattern: Optional[str] = None,
+        category: str | None = None,
+        pattern: str | None = None,
     ) -> None:
         """Add a deny rule."""
-        self.add_rule(ToolPermission(
-            tool_name=tool_name,
-            category=category,
-            level=PermissionLevel.DENY,
-            pattern=pattern,
-        ))
+        self.add_rule(
+            ToolPermission(
+                tool_name=tool_name,
+                category=category,
+                level=PermissionLevel.DENY,
+                pattern=pattern,
+            )
+        )
 
-    def check(self, tool_name: str, category: Optional[str] = None) -> PermissionLevel:
+    def check(self, tool_name: str, category: str | None = None) -> PermissionLevel:
         """Evaluate permission for a tool invocation. Deny wins over allow."""
         with self._lock:
             result = self._default_level
@@ -211,7 +224,7 @@ class PermissionGate:
                     result = rule.level
             return result
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "default": self._default_level.value,
@@ -249,6 +262,7 @@ class ToolMetrics:
         last_invoked_at: Timestamp of last invocation.
         last_error: Last error message if any.
     """
+
     tool_name: str
     invocations: int = 0
     successes: int = 0
@@ -258,8 +272,8 @@ class ToolMetrics:
     total_bytes_input: int = 0
     total_bytes_output: int = 0
     total_bytes_compressed: int = 0
-    last_invoked_at: Optional[datetime] = None
-    last_error: Optional[str] = None
+    last_invoked_at: datetime | None = None
+    last_error: str | None = None
 
     @property
     def success_rate(self) -> float:
@@ -279,28 +293,29 @@ class ToolMetrics:
             return 0.0
         return 1.0 - (self.total_bytes_compressed / self.total_bytes_output)
 
-    def record_success(self, duration_ms: float, bytes_in: int = 0,
-                       bytes_out: int = 0, bytes_compressed: int = 0) -> None:
+    def record_success(
+        self, duration_ms: float, bytes_in: int = 0, bytes_out: int = 0, bytes_compressed: int = 0
+    ) -> None:
         self.invocations += 1
         self.successes += 1
         self.total_duration_ms += duration_ms
         self.total_bytes_input += bytes_in
         self.total_bytes_output += bytes_out
         self.total_bytes_compressed += bytes_compressed
-        self.last_invoked_at = datetime.now(timezone.utc)
+        self.last_invoked_at = datetime.now(UTC)
 
     def record_failure(self, duration_ms: float, error: str = "") -> None:
         self.invocations += 1
         self.failures += 1
         self.total_duration_ms += duration_ms
-        self.last_invoked_at = datetime.now(timezone.utc)
+        self.last_invoked_at = datetime.now(UTC)
         self.last_error = error
 
     def record_cancellation(self) -> None:
         self.invocations += 1
         self.cancellations += 1
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "tool_name": self.tool_name,
             "invocations": self.invocations,
@@ -313,9 +328,7 @@ class ToolMetrics:
             "total_bytes_output": self.total_bytes_output,
             "total_bytes_compressed": self.total_bytes_compressed,
             "compression_ratio": round(self.compression_ratio, 4),
-            "last_invoked_at": (
-                self.last_invoked_at.isoformat() if self.last_invoked_at else None
-            ),
+            "last_invoked_at": (self.last_invoked_at.isoformat() if self.last_invoked_at else None),
             "last_error": self.last_error,
         }
 
@@ -356,13 +369,13 @@ class BaseTool(ABC, Generic[TParams, TResult]):
     description: ClassVar[str] = ""
     category: ClassVar[str] = "misc"
     version: ClassVar[str] = "1.0.0"
-    parameters_schema: ClassVar[Type[BaseModel]]
-    result_schema: ClassVar[Type[BaseModel]]
+    parameters_schema: ClassVar[type[BaseModel]]
+    result_schema: ClassVar[type[BaseModel]]
 
     def __init__(self) -> None:
         self._metrics = ToolMetrics(tool_name=self.name)
         self._cancelled = False
-        self._event_bus: Optional[EventBus] = None
+        self._event_bus: EventBus | None = None
 
         # Initialize ENI Compression bridge
         self._compression: Any = None
@@ -390,13 +403,14 @@ class BaseTool(ABC, Generic[TParams, TResult]):
     def check_cancelled(self) -> None:
         """Raise if execution has been cancelled."""
         if self._cancelled:
-            raise asyncio.CancelledError(f"Tool {self.name} execution cancelled")
+            msg = f"Tool {self.name} execution cancelled"
+            raise asyncio.CancelledError(msg)
 
     @abstractmethod
     async def execute(
         self,
         params: TParams,
-        context: Optional[ToolExecutionContext] = None,
+        context: ToolExecutionContext | None = None,
     ) -> TResult:
         """Execute the tool with the given parameters.
 
@@ -414,8 +428,8 @@ class BaseTool(ABC, Generic[TParams, TResult]):
     async def execute_streaming(
         self,
         params: TParams,
-        context: Optional[ToolExecutionContext] = None,
-    ) -> AsyncIterator[Union[ProgressEvent, TResult]]:
+        context: ToolExecutionContext | None = None,
+    ) -> AsyncIterator[ProgressEvent | TResult]:
         """Execute with streaming progress updates.
 
         Default implementation wraps execute() with start/complete progress events.
@@ -459,11 +473,11 @@ class BaseTool(ABC, Generic[TParams, TResult]):
             )
             raise
 
-    def validate_params(self, raw_params: Dict[str, Any]) -> TParams:
+    def validate_params(self, raw_params: dict[str, Any]) -> TParams:
         """Validate raw parameters against the tool's schema."""
         return self.parameters_schema(**raw_params)
 
-    async def compress_output(self, data: bytes) -> Tuple[bytes, float]:
+    async def compress_output(self, data: bytes) -> tuple[bytes, float]:
         """Auto-compress output using ENI Compression bridge.
 
         Returns:
@@ -473,12 +487,16 @@ class BaseTool(ABC, Generic[TParams, TResult]):
             return data, 0.0
         try:
             result = self._compression.compress(data)
-            ratio = 1.0 - (result.compressed_size / result.original_size) if result.original_size > 0 else 0.0
+            ratio = (
+                1.0 - (result.compressed_size / result.original_size)
+                if result.original_size > 0
+                else 0.0
+            )
             return result.data, ratio
         except Exception:
             return data, 0.0
 
-    def _emit_event(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _emit_event(self, topic: str, payload: dict[str, Any]) -> None:
         """Emit an event on the EventBus if wired."""
         if self._event_bus is not None:
             try:
@@ -510,13 +528,14 @@ class ToolExecutionContext:
         compress_output: Whether to auto-compress outputs via ENI.
         metadata: Arbitrary additional context.
     """
+
     user_id: str = "anonymous"
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    permissions: Optional[PermissionGate] = None
+    permissions: PermissionGate | None = None
     timeout_seconds: float = 300.0
     max_output_bytes: int = 10 * 1024 * 1024  # 10 MB
     compress_output: bool = True
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # ============================================================================
@@ -541,15 +560,15 @@ class ToolRegistry:
 
     def __init__(
         self,
-        config: Optional[Dict[str, Any]] = None,
-        event_bus: Optional[EventBus] = None,
+        config: dict[str, Any] | None = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         cfg = config or {}
         self._config = cfg
         self._event_bus = event_bus
         self._lock = threading.RLock()
-        self._tools: Dict[str, BaseTool] = {}
-        self._tool_categories: Dict[str, str] = {}  # name -> category
+        self._tools: dict[str, BaseTool] = {}
+        self._tool_categories: dict[str, str] = {}  # name -> category
         self._permission_gate = PermissionGate(
             default_level=PermissionLevel(cfg.get("default_permission", "allow"))
         )
@@ -569,9 +588,9 @@ class ToolRegistry:
         except Exception:
             _log.debug("Tool gate disabled; defaulting to permissive gate", exc_info=True)
             self._tool_gate = ToolGate(audit=self._tool_audit)
-        self._active_executions: Dict[str, asyncio.Task] = {}
+        self._active_executions: dict[str, asyncio.Task] = {}
         self._total_invocations: int = 0
-        self._started_at: datetime = datetime.now(timezone.utc)
+        self._started_at: datetime = datetime.now(UTC)
 
         # Initialize compression bridge for registry-level compression
         self._compression: Any = None
@@ -594,7 +613,7 @@ class ToolRegistry:
                 tool.set_event_bus(self._event_bus)
             _log.info("Registered tool: %s (category: %s)", tool.name, tool.category)
 
-    async def register_all(self, tools: List[BaseTool]) -> None:
+    async def register_all(self, tools: list[BaseTool]) -> None:
         """Register multiple tools."""
         for tool in tools:
             self.register(tool)
@@ -606,11 +625,11 @@ class ToolRegistry:
             self._tools.pop(tool_name, None)
             self._tool_categories.pop(tool_name, None)
 
-    def get(self, tool_name: str) -> Optional[BaseTool]:
+    def get(self, tool_name: str) -> BaseTool | None:
         """Get a registered tool by name."""
         return self._tools.get(tool_name)
 
-    def list_tools(self) -> List[Dict[str, Any]]:
+    def list_tools(self) -> list[dict[str, Any]]:
         """List all registered tools with metadata."""
         with self._lock:
             return [
@@ -625,9 +644,9 @@ class ToolRegistry:
                 for name, tool in sorted(self._tools.items())
             ]
 
-    def list_categories(self) -> Dict[str, List[str]]:
+    def list_categories(self) -> dict[str, list[str]]:
         """List tools grouped by category."""
-        grouped: Dict[str, List[str]] = defaultdict(list)
+        grouped: dict[str, list[str]] = defaultdict(list)
         for name, cat in self._tool_categories.items():
             grouped[cat].append(name)
         return dict(grouped)
@@ -667,7 +686,7 @@ class ToolRegistry:
         """Access the append-only tool audit log."""
         return self._tool_audit
 
-    def tool_gate_decision(self, tool_name: str, params: Dict[str, Any]) -> GateResult:
+    def tool_gate_decision(self, tool_name: str, params: dict[str, Any]) -> GateResult:
         """Evaluate the tool gate policy for a call without executing it."""
         return self._tool_gate.evaluate(tool_name, params)
 
@@ -676,8 +695,8 @@ class ToolRegistry:
     async def invoke(
         self,
         tool_name: str,
-        params: Dict[str, Any],
-        context: Optional[ToolExecutionContext] = None,
+        params: dict[str, Any],
+        context: ToolExecutionContext | None = None,
     ) -> Any:
         """Invoke a tool by name with parameters.
 
@@ -701,56 +720,75 @@ class ToolRegistry:
         # 1. Lookup
         tool = self.get(tool_name)
         if tool is None:
-            raise ValueError(f"Tool not found: {tool_name}")
+            msg = f"Tool not found: {tool_name}"
+            raise ValueError(msg)
 
         # 2. Permission check
         perm = self.check_permission(tool_name)
         if perm == PermissionLevel.DENY:
-            tool._emit_event("tool.permission.denied", {
-                "tool_name": tool_name,
-                "user_id": ctx.user_id,
-            })
-            raise PermissionError(f"Tool {tool_name} is denied by permission gate")
+            tool._emit_event(
+                "tool.permission.denied",
+                {
+                    "tool_name": tool_name,
+                    "user_id": ctx.user_id,
+                },
+            )
+            msg = f"Tool {tool_name} is denied by permission gate"
+            raise PermissionError(msg)
 
         # 2b. Master-class tool gate (policy sandbox) + audit
         g_res = self._tool_gate.evaluate(tool_name, params)
         if g_res.decision == Decision.DENY:
             self._tool_audit.record(
-                tool_name, params, allowed=False, decision=Decision.DENY,
-                outcome="blocked", caller=ctx.user_id, reason=g_res.reason,
+                tool_name,
+                params,
+                allowed=False,
+                decision=Decision.DENY,
+                outcome="blocked",
+                caller=ctx.user_id,
+                reason=g_res.reason,
             )
-            raise PermissionError(
-                f"Tool {tool_name} blocked by policy: {g_res.reason}"
-            )
+            msg = f"Tool {tool_name} blocked by policy: {g_res.reason}"
+            raise PermissionError(msg)
         if g_res.decision == Decision.ASK:
             self._tool_audit.record(
-                tool_name, params, allowed=False, decision=Decision.ASK,
-                outcome="pending", caller=ctx.user_id, reason=g_res.reason,
+                tool_name,
+                params,
+                allowed=False,
+                decision=Decision.ASK,
+                outcome="pending",
+                caller=ctx.user_id,
+                reason=g_res.reason,
             )
-            raise PermissionError(
-                f"Tool {tool_name} requires human approval: {g_res.reason}"
-            )
+            msg = f"Tool {tool_name} requires human approval: {g_res.reason}"
+            raise PermissionError(msg)
 
         # 3. Validate parameters
         try:
             validated = tool.validate_params(params)
         except ValidationError as e:
-            tool._emit_event("tool.execution.failed", {
-                "tool_name": tool_name,
-                "error": "validation_error",
-                "details": str(e),
-            })
+            tool._emit_event(
+                "tool.execution.failed",
+                {
+                    "tool_name": tool_name,
+                    "error": "validation_error",
+                    "details": str(e),
+                },
+            )
             raise
 
         # 4. Reset cancellation, wire event bus
         tool.reset_cancellation()
 
         # 5. Execute with timeout
-        tool._emit_event("tool.execution.started", {
-            "tool_name": tool_name,
-            "user_id": ctx.user_id,
-            "session_id": ctx.session_id,
-        })
+        tool._emit_event(
+            "tool.execution.started",
+            {
+                "tool_name": tool_name,
+                "user_id": ctx.user_id,
+                "session_id": ctx.session_id,
+            },
+        )
 
         start = time.perf_counter()
         exec_id = str(uuid.uuid4())
@@ -762,54 +800,60 @@ class ToolRegistry:
 
             try:
                 result = await asyncio.wait_for(task, timeout=ctx.timeout_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await task
-                except asyncio.CancelledError:
-                    pass
                 tool.metrics.record_failure(
                     (time.perf_counter() - start) * 1000,
                     error="timeout",
                 )
-                tool._emit_event("tool.execution.failed", {
-                    "tool_name": tool_name,
-                    "error": "timeout",
-                    "duration_ms": (time.perf_counter() - start) * 1000,
-                })
-                raise asyncio.TimeoutError(
-                    f"Tool {tool_name} exceeded timeout of {ctx.timeout_seconds}s"
+                tool._emit_event(
+                    "tool.execution.failed",
+                    {
+                        "tool_name": tool_name,
+                        "error": "timeout",
+                        "duration_ms": (time.perf_counter() - start) * 1000,
+                    },
                 )
+                msg = f"Tool {tool_name} exceeded timeout of {ctx.timeout_seconds}s"
+                raise TimeoutError(msg)
 
             # 6. Auto-compress output if applicable
             elapsed_ms = (time.perf_counter() - start) * 1000
             bytes_out = 0
             bytes_compressed = 0
 
-            if ctx.compress_output and hasattr(result, 'model_dump_json'):
+            if ctx.compress_output and hasattr(result, "model_dump_json"):
                 raw_json = result.model_dump_json().encode()
                 bytes_out = len(raw_json)
                 compressed, ratio = await tool.compress_output(raw_json)
                 bytes_compressed = len(compressed)
 
             tool.metrics.record_success(
-                elapsed_ms,
-                bytes_out=bytes_out,
-                bytes_compressed=bytes_compressed
+                elapsed_ms, bytes_out=bytes_out, bytes_compressed=bytes_compressed
             )
 
-            tool._emit_event("tool.execution.completed", {
-                "tool_name": tool_name,
-                "duration_ms": elapsed_ms,
-                "bytes_out": bytes_out,
-                "bytes_compressed": bytes_compressed,
-            })
+            tool._emit_event(
+                "tool.execution.completed",
+                {
+                    "tool_name": tool_name,
+                    "duration_ms": elapsed_ms,
+                    "bytes_out": bytes_out,
+                    "bytes_compressed": bytes_compressed,
+                },
+            )
 
             # Master-class audit: record successful execution
             self._tool_audit.record(
-                tool_name, params, allowed=True, decision=Decision.ALLOW,
-                outcome="success", duration_ms=elapsed_ms,
-                caller=ctx.user_id, reason="allowed",
+                tool_name,
+                params,
+                allowed=True,
+                decision=Decision.ALLOW,
+                outcome="success",
+                duration_ms=elapsed_ms,
+                caller=ctx.user_id,
+                reason="allowed",
             )
 
             self._total_invocations += 1
@@ -817,10 +861,13 @@ class ToolRegistry:
 
         except asyncio.CancelledError:
             tool.metrics.record_cancellation()
-            tool._emit_event("tool.execution.failed", {
-                "tool_name": tool_name,
-                "error": "cancelled",
-            })
+            tool._emit_event(
+                "tool.execution.failed",
+                {
+                    "tool_name": tool_name,
+                    "error": "cancelled",
+                },
+            )
             raise
 
         except (ValidationError, PermissionError):
@@ -829,16 +876,25 @@ class ToolRegistry:
         except Exception as exc:
             elapsed_ms = (time.perf_counter() - start) * 1000
             tool.metrics.record_failure(elapsed_ms, error=str(exc))
-            tool._emit_event("tool.execution.failed", {
-                "tool_name": tool_name,
-                "error": str(exc),
-                "duration_ms": elapsed_ms,
-            })
+            tool._emit_event(
+                "tool.execution.failed",
+                {
+                    "tool_name": tool_name,
+                    "error": str(exc),
+                    "duration_ms": elapsed_ms,
+                },
+            )
             # Master-class audit: record execution error
             self._tool_audit.record(
-                tool_name, params, allowed=True, decision=Decision.ALLOW,
-                outcome="error", duration_ms=elapsed_ms,
-                caller=ctx.user_id, reason="allowed", error=str(exc),
+                tool_name,
+                params,
+                allowed=True,
+                decision=Decision.ALLOW,
+                outcome="error",
+                duration_ms=elapsed_ms,
+                caller=ctx.user_id,
+                reason="allowed",
+                error=str(exc),
             )
             self._total_invocations += 1
             raise
@@ -849,9 +905,9 @@ class ToolRegistry:
     async def invoke_streaming(
         self,
         tool_name: str,
-        params: Dict[str, Any],
-        context: Optional[ToolExecutionContext] = None,
-    ) -> AsyncIterator[Union[ProgressEvent, Any]]:
+        params: dict[str, Any],
+        context: ToolExecutionContext | None = None,
+    ) -> AsyncIterator[ProgressEvent | Any]:
         """Invoke a tool with streaming progress updates.
 
         Yields ProgressEvent updates, then the final result.
@@ -859,19 +915,19 @@ class ToolRegistry:
         ctx = context or ToolExecutionContext()
         tool = self.get(tool_name)
         if tool is None:
-            raise ValueError(f"Tool not found: {tool_name}")
+            msg = f"Tool not found: {tool_name}"
+            raise ValueError(msg)
 
         perm = self.check_permission(tool_name)
         if perm == PermissionLevel.DENY:
-            raise PermissionError(f"Tool {tool_name} is denied by permission gate")
+            msg = f"Tool {tool_name} is denied by permission gate"
+            raise PermissionError(msg)
 
         validated = tool.validate_params(params)
         tool.reset_cancellation()
 
         exec_id = str(uuid.uuid4())
-        task = asyncio.ensure_future(
-            self._consume_stream(tool, validated, ctx, exec_id)
-        )
+        task = asyncio.ensure_future(self._consume_stream(tool, validated, ctx, exec_id))
         self._active_executions[exec_id] = task
 
         try:
@@ -913,7 +969,7 @@ class ToolRegistry:
 
     # ── Health & Stats ──────────────────────────────────────────────────
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """Perform a health check on all registered tools."""
         with self._lock:
             tool_count = len(self._tools)
@@ -923,28 +979,21 @@ class ToolRegistry:
                 "total_tools": tool_count,
                 "categories": len(self._tool_categories),
                 "tools": sorted(self._tools.keys()),
-                "uptime_seconds": (
-                    datetime.now(timezone.utc) - self._started_at
-                ).total_seconds(),
+                "uptime_seconds": (datetime.now(UTC) - self._started_at).total_seconds(),
                 "total_invocations": self._total_invocations,
             }
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get aggregated metrics for all tools."""
         with self._lock:
-            tool_metrics = {
-                name: tool.metrics.to_dict()
-                for name, tool in self._tools.items()
-            }
+            tool_metrics = {name: tool.metrics.to_dict() for name, tool in self._tools.items()}
             return {
                 "total_tools": len(self._tools),
                 "total_invocations": self._total_invocations,
                 "tools": tool_metrics,
                 "permissions": self._permission_gate.to_dict(),
                 "active_executions": len(self._active_executions),
-                "uptime_seconds": (
-                    datetime.now(timezone.utc) - self._started_at
-                ).total_seconds(),
+                "uptime_seconds": (datetime.now(UTC) - self._started_at).total_seconds(),
             }
 
     async def shutdown(self) -> None:

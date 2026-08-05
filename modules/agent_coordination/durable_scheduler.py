@@ -42,14 +42,18 @@ file path ending in ``.db``/``.sqlite`` to use that exact file.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 import threading
 import time
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "DurableScheduler",
@@ -68,7 +72,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     PENDING = "pending"
     CLAIMED = "claimed"
     COMPLETED = "completed"
@@ -108,16 +112,17 @@ class _RealClock:
         return self.now()
 
 
-def _normalize_clock(clock: Optional[Callable[[], float]]) -> Callable[[], float]:
+def _normalize_clock(clock: Callable[[], float] | None) -> Callable[[], float]:
     """Accept a zero-arg callable OR an object with a ``now()`` method."""
     if clock is None:
         return _RealClock()
-    if hasattr(clock, "now") and callable(getattr(clock, "now")):
-        now = getattr(clock, "now")
+    if hasattr(clock, "now") and callable(clock.now):
+        now = clock.now
         return lambda: now()
     if callable(clock):
         return clock
-    raise TypeError("clock must be a zero-arg callable or have a now() method")
+    msg = "clock must be a zero-arg callable or have a now() method"
+    raise TypeError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +130,7 @@ def _normalize_clock(clock: Optional[Callable[[], float]]) -> Callable[[], float
 # ---------------------------------------------------------------------------
 
 
-def _resolve_db_path(db_path: Optional[Union[str, Path]]) -> str:
+def _resolve_db_path(db_path: str | Path | None) -> str:
     """Return a sqlite3 connect string for the requested db_path.
 
     * None            -> ':memory:' (in-memory, for tests).
@@ -207,12 +212,12 @@ class TaskRecord:
     max_retries: int
     retry_count: int
     status: str
-    worker_id: Optional[str] = None
-    lease_until: Optional[float] = None
-    dedupe_key: Optional[str] = None
+    worker_id: str | None = None
+    lease_until: float | None = None
+    dedupe_key: str | None = None
     created_at: float = 0.0
     updated_at: float = 0.0
-    last_error: Optional[str] = None
+    last_error: str | None = None
 
     @property
     def payload(self) -> Any:
@@ -239,17 +244,15 @@ class DurableScheduler:
 
     def __init__(
         self,
-        db_path: Optional[Union[str, Path]] = None,
-        clock: Optional[Callable[[], float]] = None,
+        db_path: str | Path | None = None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         self._conn_str = _resolve_db_path(db_path)
         self._clock = _normalize_clock(clock)
         self._lock = threading.RLock()
         # check_same_thread=False + our own lock lets workers on other threads
         # share one scheduler safely; sqlite serialises internally.
-        self._conn = sqlite3.connect(
-            self._conn_str, check_same_thread=False
-        )
+        self._conn = sqlite3.connect(self._conn_str, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         with self._conn:
             self._conn.executescript(_SCHEMA)
@@ -261,7 +264,7 @@ class DurableScheduler:
 
     # -- low-level helpers --------------------------------------------------
 
-    def _exec(self, sql: str, params: Tuple[Any, ...] = ()) -> sqlite3.Cursor:
+    def _exec(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:
         with self._lock:
             cur = self._conn.execute(sql, params)
             self._conn.commit()
@@ -290,10 +293,10 @@ class DurableScheduler:
         self,
         task_id: str,
         fn_payload: Any,
-        eta: Optional[float] = None,
+        eta: float | None = None,
         priority: int = 0,
         max_retries: int = 0,
-        dedupe_key: Optional[str] = None,
+        dedupe_key: str | None = None,
     ) -> str:
         """Register a durable task. Returns ``task_id``.
 
@@ -307,7 +310,8 @@ class DurableScheduler:
         if eta is None:
             eta = now
         if max_retries < 0:
-            raise ValueError("max_retries must be >= 0")
+            msg = "max_retries must be >= 0"
+            raise ValueError(msg)
         with self._lock:
             if dedupe_key is not None:
                 row = self._conn.execute(
@@ -349,20 +353,19 @@ class DurableScheduler:
                     if row is not None:
                         self._conn.commit()
                         return row["task_id"]
-                raise SchedulerError(f"task_id {task_id!r} already exists")
+                msg = f"task_id {task_id!r} already exists"
+                raise SchedulerError(msg)
             return task_id
 
-    def get_task(self, task_id: str) -> Optional[TaskRecord]:
+    def get_task(self, task_id: str) -> TaskRecord | None:
         with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
-            ).fetchone()
+            row = self._conn.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
             self._conn.commit()
             return self._row_to_task(row) if row is not None else None
 
     # -- leasing ----------------------------------------------------------
 
-    def recover_expired_leases(self, now: Optional[float] = None) -> int:
+    def recover_expired_leases(self, now: float | None = None) -> int:
         """Reclaim tasks whose lease has expired.
 
         Any ``claimed`` task with ``lease_until <= now`` is put back to
@@ -386,9 +389,7 @@ class DurableScheduler:
             self._conn.commit()
             return cur.rowcount
 
-    def claim_next(
-        self, worker_id: str, lease_seconds: float = 30.0
-    ) -> Optional[TaskRecord]:
+    def claim_next(self, worker_id: str, lease_seconds: float = 30.0) -> TaskRecord | None:
         """Claim the highest-priority due task for ``worker_id``.
 
         Runs inside a transaction so two workers cannot claim the same task.
@@ -396,7 +397,8 @@ class DurableScheduler:
         to earliest ``eta``, then insertion order.
         """
         if lease_seconds < 0:
-            raise ValueError("lease_seconds must be >= 0")
+            msg = "lease_seconds must be >= 0"
+            raise ValueError(msg)
         now = self.now()
         with self._lock:
             self.recover_expired_leases(now)  # reclaim stale work first
@@ -429,24 +431,18 @@ class DurableScheduler:
             task.updated_at = now
             return task
 
-    def heartbeat(
-        self, task_id: str, worker_id: str, lease_seconds: float = 30.0
-    ) -> bool:
+    def heartbeat(self, task_id: str, worker_id: str, lease_seconds: float = 30.0) -> bool:
         """Extend a task's lease, verifying the caller still owns it."""
         now = self.now()
         with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
-            ).fetchone()
+            row = self._conn.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
             if row is None:
                 self._conn.commit()
                 raise TaskNotFoundError(task_id)
             if row["worker_id"] != worker_id:
                 self._conn.commit()
-                raise LeaseError(
-                    f"task {task_id!r} is leased to {row['worker_id']!r}, "
-                    f"not {worker_id!r}"
-                )
+                msg = f"task {task_id!r} is leased to {row['worker_id']!r}, not {worker_id!r}"
+                raise LeaseError(msg)
             cur = self._conn.execute(
                 """
                 UPDATE tasks
@@ -460,24 +456,18 @@ class DurableScheduler:
 
     # -- completion / failure -------------------------------------------------
 
-    def _require_owner(self, task_id: str, worker_id: Optional[str]) -> sqlite3.Row:
-        row = self._conn.execute(
-            "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
-        ).fetchone()
+    def _require_owner(self, task_id: str, worker_id: str | None) -> sqlite3.Row:
+        row = self._conn.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
         if row is None:
             self._conn.commit()
             raise TaskNotFoundError(task_id)
         if worker_id is not None and row["worker_id"] != worker_id:
             self._conn.commit()
-            raise LeaseError(
-                f"task {task_id!r} is leased to {row['worker_id']!r}, "
-                f"not {worker_id!r}"
-            )
+            msg = f"task {task_id!r} is leased to {row['worker_id']!r}, not {worker_id!r}"
+            raise LeaseError(msg)
         return row
 
-    def complete(
-        self, task_id: str, worker_id: Optional[str] = None, result: Any = None
-    ) -> bool:
+    def complete(self, task_id: str, worker_id: str | None = None, result: Any = None) -> bool:
         """Mark a task completed (optionally verifying lease ownership)."""
         with self._lock:
             self._require_owner(task_id, worker_id)
@@ -496,9 +486,9 @@ class DurableScheduler:
     def retry(
         self,
         task_id: str,
-        worker_id: Optional[str] = None,
-        error: Optional[str] = None,
-        eta: Optional[float] = None,
+        worker_id: str | None = None,
+        error: str | None = None,
+        eta: float | None = None,
     ) -> str:
         """Increment the retry budget.
 
@@ -539,9 +529,9 @@ class DurableScheduler:
     def fail(
         self,
         task_id: str,
-        worker_id: Optional[str] = None,
-        error: Optional[str] = None,
-        max_retries: Optional[int] = None,
+        worker_id: str | None = None,
+        error: str | None = None,
+        max_retries: int | None = None,
     ) -> str:
         """Force-fail a task immediately (no further retries).
 
@@ -585,27 +575,25 @@ class DurableScheduler:
 
     # -- stats / inspection ------------------------------------------------
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT status, COUNT(*) AS n FROM tasks GROUP BY status"
             ).fetchall()
             self._conn.commit()
-            counts: Dict[str, int] = {s.value: 0 for s in TaskStatus}
+            counts: dict[str, int] = {s.value: 0 for s in TaskStatus}
             for r in rows:
                 counts[r["status"]] = r["n"]
             return counts
 
-    def tasks_in_status(self, status: Union[TaskStatus, str]) -> List[TaskRecord]:
+    def tasks_in_status(self, status: TaskStatus | str) -> list[TaskRecord]:
         st = status.value if isinstance(status, TaskStatus) else status
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT * FROM tasks WHERE status = ?", (st,)
-            ).fetchall()
+            rows = self._conn.execute("SELECT * FROM tasks WHERE status = ?", (st,)).fetchall()
             self._conn.commit()
             return [self._row_to_task(r) for r in rows]
 
-    def all_tasks(self) -> List[TaskRecord]:
+    def all_tasks(self) -> list[TaskRecord]:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT * FROM tasks ORDER BY priority DESC, eta ASC"
@@ -616,13 +604,10 @@ class DurableScheduler:
     # -- lifecycle ---------------------------------------------------------
 
     def close(self) -> None:
-        with self._lock:
-            try:
-                self._conn.close()
-            except sqlite3.Error:
-                pass
+        with self._lock, contextlib.suppress(sqlite3.Error):
+            self._conn.close()
 
-    def __enter__(self) -> "DurableScheduler":
+    def __enter__(self) -> DurableScheduler:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -644,8 +629,8 @@ class TaskQueue:
 
     def __init__(
         self,
-        db_path: Optional[Union[str, Path]] = None,
-        clock: Optional[Callable[[], float]] = None,
+        db_path: str | Path | None = None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         self._conn_str = _resolve_db_path(db_path)
         self._clock = _normalize_clock(clock)
@@ -663,7 +648,7 @@ class TaskQueue:
         item_id: str,
         payload: Any,
         priority: int = 0,
-        deadline: Optional[float] = None,
+        deadline: float | None = None,
     ) -> str:
         if not isinstance(payload, str):
             payload = json.dumps(payload)
@@ -682,10 +667,11 @@ class TaskQueue:
                 self._conn.commit()
             except sqlite3.IntegrityError:
                 self._conn.rollback()
-                raise SchedulerError(f"item_id {item_id!r} already exists")
+                msg = f"item_id {item_id!r} already exists"
+                raise SchedulerError(msg)
             return item_id
 
-    def peek(self) -> Optional[Tuple[str, Any]]:
+    def peek(self) -> tuple[str, Any] | None:
         """Return the next dispatchable item without removing it."""
         now = self.now()
         with self._lock:
@@ -708,9 +694,7 @@ class TaskQueue:
                 payload = row["payload"]
             return (row["item_id"], payload)
 
-    def dequeue(
-        self, worker_id: str, lease_seconds: float = 30.0
-    ) -> Optional[Tuple[str, Any]]:
+    def dequeue(self, worker_id: str, lease_seconds: float = 30.0) -> tuple[str, Any] | None:
         """Atomically remove and lease the next item. Returns ``None`` if empty."""
         now = self.now()
         with self._lock:
@@ -743,7 +727,7 @@ class TaskQueue:
                 payload = row["payload"]
             return (row["item_id"], payload)
 
-    def release(self, item_id: str, worker_id: Optional[str] = None) -> bool:
+    def release(self, item_id: str, worker_id: str | None = None) -> bool:
         """Return a leased item to ``pending`` (e.g. worker died, retry)."""
         now = self.now()
         with self._lock:
@@ -759,7 +743,7 @@ class TaskQueue:
             self._conn.commit()
             return cur.rowcount == 1
 
-    def ack(self, item_id: str, worker_id: Optional[str] = None) -> bool:
+    def ack(self, item_id: str, worker_id: str | None = None) -> bool:
         """Mark an item as completed and remove it from the active queue."""
         now = self.now()
         with self._lock:
@@ -775,7 +759,7 @@ class TaskQueue:
             self._conn.commit()
             return cur.rowcount == 1
 
-    def expire_overdue(self, now: Optional[float] = None) -> int:
+    def expire_overdue(self, now: float | None = None) -> int:
         """Mark items past their deadline as timed-out. Returns count."""
         if now is None:
             now = self.now()
@@ -792,13 +776,13 @@ class TaskQueue:
             self._conn.commit()
             return cur.rowcount
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT status, COUNT(*) AS n FROM queue_items GROUP BY status"
             ).fetchall()
             self._conn.commit()
-            counts: Dict[str, int] = {
+            counts: dict[str, int] = {
                 "pending": 0,
                 "leased": 0,
                 "completed": 0,
@@ -809,11 +793,8 @@ class TaskQueue:
             return counts
 
     def close(self) -> None:
-        with self._lock:
-            try:
-                self._conn.close()
-            except sqlite3.Error:
-                pass
+        with self._lock, contextlib.suppress(sqlite3.Error):
+            self._conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -844,12 +825,12 @@ class SchedulerBus:
 
     def __init__(
         self,
-        db_path: Optional[Union[str, Path]] = None,
-        clock: Optional[Callable[[], float]] = None,
-        scheduler: Optional[DurableScheduler] = None,
+        db_path: str | Path | None = None,
+        clock: Callable[[], float] | None = None,
+        scheduler: DurableScheduler | None = None,
     ) -> None:
         self._scheduler = scheduler or DurableScheduler(db_path=db_path, clock=clock)
-        self._handlers: Dict[str, Callable[[Any], Any]] = {}
+        self._handlers: dict[str, Callable[[Any], Any]] = {}
         self._lock = threading.RLock()
 
     @property
@@ -864,10 +845,10 @@ class SchedulerBus:
         self,
         topic: str,
         payload: Any,
-        eta: Optional[float] = None,
+        eta: float | None = None,
         priority: int = 0,
         max_retries: int = 2,
-        dedupe_key: Optional[str] = None,
+        dedupe_key: str | None = None,
     ) -> str:
         """Schedule a durable dispatch for ``topic``. Returns the task_id."""
         msg = {self._TOPIC_FIELD: topic, self._MSG_FIELD: payload}
@@ -915,7 +896,7 @@ class SchedulerBus:
         self,
         worker_id: str,
         lease_seconds: float = 30.0,
-        max_dispatch: Optional[int] = None,
+        max_dispatch: int | None = None,
     ) -> int:
         """Dispatch due messages until none remain (or ``max_dispatch`` hit).
 
@@ -946,15 +927,13 @@ class SchedulerBus:
                 error = f"{type(exc).__name__}: {exc}"
                 if topic is None:
                     topic = "<unparsed>"
-                outcome = self._scheduler.retry(
-                    task.task_id, worker_id, error=error
-                )
+                outcome = self._scheduler.retry(task.task_id, worker_id, error=error)
                 if outcome == TaskStatus.FAILED.value:
                     self._dead_letter(task, topic, error, task.retry_count + 1)
             dispatched += 1
         return dispatched
 
-    def dead_letters(self) -> List[Dict[str, Any]]:
+    def dead_letters(self) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._scheduler._conn.execute(
                 "SELECT * FROM dead_letters ORDER BY created_at DESC"
@@ -962,7 +941,7 @@ class SchedulerBus:
             self._scheduler._conn.commit()
             return [dict(r) for r in rows]
 
-    def outstanding(self) -> List[TaskRecord]:
+    def outstanding(self) -> list[TaskRecord]:
         """Pending + claimed (in-flight) dispatch tasks."""
         return [
             t
@@ -980,8 +959,8 @@ class SchedulerBus:
 
 
 def create_durable_scheduler(
-    db_path: Optional[Union[str, Path]] = None,
-    clock: Optional[Callable[[], float]] = None,
+    db_path: str | Path | None = None,
+    clock: Callable[[], float] | None = None,
 ) -> DurableScheduler:
     """Factory returning a ``DurableScheduler`` (db_path None => in-memory)."""
     return DurableScheduler(db_path=db_path, clock=clock)

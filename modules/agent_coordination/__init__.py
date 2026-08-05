@@ -4,98 +4,227 @@ shared knowledge, conflict resolution, verification, and fault tolerance.
 
 Version: 1.0.0
 """
+
 __version__ = "1.0.0"
 
 # ── Core agents ─────────────────────────────────────────────────────────────
 from .agents import (  # noqa: F401
-    Agent, AgentRegistry, AgentFactory, AgentStatus, AgentType, AuthorityLevel,
-    ExecutiveOrchestrator, ProductManager, ResearchAgent, Architect,
-    BackendEngineer, FrontendEngineer, UIDesigner, AIEngineer, DataEngineer,
-    SecurityEngineer, DevSecOps, QAEngineer, PerformanceEngineer,
-    ComplianceOfficer, DocumentationWriter, BusinessAnalyst, CXSpecialist,
-    AGENT_TYPE_TO_ID, AGENT_ID_TO_TYPE,
+    AGENT_ID_TO_TYPE,
+    AGENT_TYPE_TO_ID,
+    Agent,
+    AgentFactory,
+    AgentRegistry,
+    AgentStatus,
+    AgentType,
+    AIEngineer,
+    Architect,
+    AuthorityLevel,
+    BackendEngineer,
+    BusinessAnalyst,
+    ComplianceOfficer,
+    CXSpecialist,
+    DataEngineer,
+    DevSecOps,
+    DocumentationWriter,
+    ExecutiveOrchestrator,
+    FrontendEngineer,
+    PerformanceEngineer,
+    ProductManager,
+    QAEngineer,
+    ResearchAgent,
+    SecurityEngineer,
+    UIDesigner,
 )
 
 # ── Communication ───────────────────────────────────────────────────────────
 from .communication import (  # noqa: F401
-    Message, MessageBus, MessageVersionTracker, AuditTrail, AuditEntry,
-    CompletionStatus, Priority, MessageValidation, PriorityMessageQueue,
-)
-
-# ── Scheduler ───────────────────────────────────────────────────────────────
-from .scheduler import (  # noqa: F401
-    Task, Scheduler, TaskStatus, SchedulingFactor, AgentCapacity,
-)
-
-# ── Durable Scheduler / Message Bus ──────────────────────────────────────────
-from .durable_scheduler import (  # noqa: F401
-    DurableScheduler, TaskQueue, SchedulerBus,
-    TaskStatus as DurableTaskStatus, TaskRecord,
-    SchedulerError, LeaseError, TaskNotFoundError, DeadLetterError,
-    create_durable_scheduler,
-)
-
-# ── Shared Knowledge ────────────────────────────────────────────────────────
-from .shared_knowledge import (  # noqa: F401
-    KnowledgeEntry, SharedKnowledgeBase, KnowledgeDomain, AccessLevel,
+    AuditEntry,
+    AuditTrail,
+    CompletionStatus,
+    Message,
+    MessageBus,
+    MessageValidation,
+    MessageVersionTracker,
+    Priority,
+    PriorityMessageQueue,
 )
 
 # ── Conflict Resolution ─────────────────────────────────────────────────────
 from .conflict import (  # noqa: F401
-    Conflict, ConflictResolver, ConflictStatus, ResolutionStrategy,
-    Evidence as ConflictEvidence, AgentPosition,
-    TradeOffDimension, EvidenceSourceType, TradeOffMatrix, EvidenceComparisonEngine,
+    AgentPosition,
+    Conflict,
+    ConflictResolver,
+    ConflictStatus,
+    Evidence as ConflictEvidence,
+    EvidenceComparisonEngine,
+    EvidenceSourceType,
+    ResolutionStrategy,
+    TradeOffDimension,
+    TradeOffMatrix,
 )
 
-# ── Verification ────────────────────────────────────────────────────────────
-from .verification import (  # noqa: F401
-    Verifier, VerificationDomain, VerificationStatus, Severity,
-    VerificationCheck, VerificationGate, VerificationResult,
-    GateAction, VerificationError, IndependenceViolation,
+# ── Durable Scheduler / Message Bus ──────────────────────────────────────────
+from .durable_scheduler import (  # noqa: F401
+    DeadLetterError,
+    DurableScheduler,
+    LeaseError,
+    SchedulerBus,
+    SchedulerError,
+    TaskNotFoundError,
+    TaskQueue,
+    TaskRecord,
+    TaskStatus as DurableTaskStatus,
+    create_durable_scheduler,
 )
 
 # ── Fault Tolerance ─────────────────────────────────────────────────────────
 from .fault_tolerance import (  # noqa: F401
-    FaultToleranceManager, CircuitBreaker, RetryPolicy,
-    AgentHealth, Incident, IncidentSeverity, CircuitState,
-    RecoveryPhase, RedundancyMode, Checkpoint, SystemHealthReport,
-    FaultToleranceError, AgentNotFoundError, NoAvailableAgentsError,
-    CircuitOpenError, RetryExhaustedError,
+    AgentHealth,
+    AgentNotFoundError,
+    Checkpoint,
+    CircuitBreaker,
+    CircuitOpenError,
+    CircuitState,
+    FaultToleranceError,
+    FaultToleranceManager,
+    Incident,
+    IncidentSeverity,
+    NoAvailableAgentsError,
+    RecoveryPhase,
+    RedundancyMode,
+    RetryExhaustedError,
+    RetryPolicy,
+    SystemHealthReport,
+)
+
+# ── Scheduler ───────────────────────────────────────────────────────────────
+from .scheduler import (  # noqa: F401
+    AgentCapacity,
+    Scheduler,
+    SchedulingFactor,
+    Task,
+    TaskStatus,
+)
+
+# ── Shared Knowledge ────────────────────────────────────────────────────────
+from .shared_knowledge import (  # noqa: F401
+    AccessLevel,
+    KnowledgeDomain,
+    KnowledgeEntry,
+    SharedKnowledgeBase,
+)
+
+# ── Verification ────────────────────────────────────────────────────────────
+from .verification import (  # noqa: F401
+    GateAction,
+    IndependenceViolation,
+    Severity,
+    VerificationCheck,
+    VerificationDomain,
+    VerificationError,
+    VerificationGate,
+    VerificationResult,
+    VerificationStatus,
+    Verifier,
 )
 
 __all__ = [
     # Agents
-    "Agent", "AgentRegistry", "AgentFactory", "AgentStatus", "AgentType", "AuthorityLevel",
-    "ExecutiveOrchestrator", "ProductManager", "ResearchAgent", "Architect",
-    "BackendEngineer", "FrontendEngineer", "UIDesigner", "AIEngineer", "DataEngineer",
-    "SecurityEngineer", "DevSecOps", "QAEngineer", "PerformanceEngineer",
-    "ComplianceOfficer", "DocumentationWriter", "BusinessAnalyst", "CXSpecialist",
-    "AGENT_TYPE_TO_ID", "AGENT_ID_TO_TYPE",
+    "Agent",
+    "AgentRegistry",
+    "AgentFactory",
+    "AgentStatus",
+    "AgentType",
+    "AuthorityLevel",
+    "ExecutiveOrchestrator",
+    "ProductManager",
+    "ResearchAgent",
+    "Architect",
+    "BackendEngineer",
+    "FrontendEngineer",
+    "UIDesigner",
+    "AIEngineer",
+    "DataEngineer",
+    "SecurityEngineer",
+    "DevSecOps",
+    "QAEngineer",
+    "PerformanceEngineer",
+    "ComplianceOfficer",
+    "DocumentationWriter",
+    "BusinessAnalyst",
+    "CXSpecialist",
+    "AGENT_TYPE_TO_ID",
+    "AGENT_ID_TO_TYPE",
     # Communication
-    "Message", "MessageBus", "MessageVersionTracker", "AuditTrail", "AuditEntry",
-    "CompletionStatus", "Priority", "MessageValidation", "PriorityMessageQueue",
+    "Message",
+    "MessageBus",
+    "MessageVersionTracker",
+    "AuditTrail",
+    "AuditEntry",
+    "CompletionStatus",
+    "Priority",
+    "MessageValidation",
+    "PriorityMessageQueue",
     # Scheduler
-    "Task", "Scheduler", "TaskStatus", "SchedulingFactor", "AgentCapacity",
+    "Task",
+    "Scheduler",
+    "TaskStatus",
+    "SchedulingFactor",
+    "AgentCapacity",
     # Shared Knowledge
-    "KnowledgeEntry", "SharedKnowledgeBase", "KnowledgeDomain", "AccessLevel",
+    "KnowledgeEntry",
+    "SharedKnowledgeBase",
+    "KnowledgeDomain",
+    "AccessLevel",
     # Conflict
-    "Conflict", "ConflictResolver", "ConflictStatus", "ResolutionStrategy",
-    "ConflictEvidence", "AgentPosition",
-    "TradeOffDimension", "EvidenceSourceType", "TradeOffMatrix", "EvidenceComparisonEngine",
+    "Conflict",
+    "ConflictResolver",
+    "ConflictStatus",
+    "ResolutionStrategy",
+    "ConflictEvidence",
+    "AgentPosition",
+    "TradeOffDimension",
+    "EvidenceSourceType",
+    "TradeOffMatrix",
+    "EvidenceComparisonEngine",
     # Verification
-    "Verifier", "VerificationDomain", "VerificationStatus", "Severity",
-    "VerificationCheck", "VerificationGate", "VerificationResult",
-    "GateAction", "VerificationError", "IndependenceViolation",
+    "Verifier",
+    "VerificationDomain",
+    "VerificationStatus",
+    "Severity",
+    "VerificationCheck",
+    "VerificationGate",
+    "VerificationResult",
+    "GateAction",
+    "VerificationError",
+    "IndependenceViolation",
     # Fault Tolerance
-    "FaultToleranceManager", "CircuitBreaker", "RetryPolicy",
-    "AgentHealth", "Incident", "IncidentSeverity", "CircuitState",
-    "RecoveryPhase", "RedundancyMode", "Checkpoint", "SystemHealthReport",
-    "FaultToleranceError", "AgentNotFoundError", "NoAvailableAgentsError",
-    "CircuitOpenError", "RetryExhaustedError",
+    "FaultToleranceManager",
+    "CircuitBreaker",
+    "RetryPolicy",
+    "AgentHealth",
+    "Incident",
+    "IncidentSeverity",
+    "CircuitState",
+    "RecoveryPhase",
+    "RedundancyMode",
+    "Checkpoint",
+    "SystemHealthReport",
+    "FaultToleranceError",
+    "AgentNotFoundError",
+    "NoAvailableAgentsError",
+    "CircuitOpenError",
+    "RetryExhaustedError",
     # Durable Scheduler / Message Bus
-    "DurableScheduler", "TaskQueue", "SchedulerBus",
-    "DurableTaskStatus", "TaskRecord",
-    "SchedulerError", "LeaseError", "TaskNotFoundError", "DeadLetterError",
+    "DurableScheduler",
+    "TaskQueue",
+    "SchedulerBus",
+    "DurableTaskStatus",
+    "TaskRecord",
+    "SchedulerError",
+    "LeaseError",
+    "TaskNotFoundError",
+    "DeadLetterError",
     "create_durable_scheduler",
 ]
 
@@ -109,16 +238,15 @@ __all__ = [
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio
+import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 
-from .agents import AgentRegistry
 
 _logger = logging.getLogger("enterprise.agent_coordination")
 
@@ -133,7 +261,7 @@ class AgentCoordinationModule(Module):
     UNHEALTHY rather than crashing the platform.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._lock = threading.RLock()
         self._component = None
@@ -156,7 +284,10 @@ class AgentCoordinationModule(Module):
             if self._component is None:
                 return HealthStatus.UNHEALTHY if self._init_error else HealthStatus.DEGRADED
             try:
-                if not getattr(self._component, "_agent_classes", None) or len(self._component._agent_classes) == 0:
+                if (
+                    not getattr(self._component, "_agent_classes", None)
+                    or len(self._component._agent_classes) == 0
+                ):
                     return HealthStatus.DEGRADED
                 return HealthStatus.HEALTHY
             except Exception as e:  # pragma: no cover
@@ -170,6 +301,8 @@ class AgentCoordinationModule(Module):
             self._init_error = None
 
 
-def create_agent_coordination_module(config: Optional[Dict[str, Any]] = None) -> AgentCoordinationModule:
+def create_agent_coordination_module(
+    config: dict[str, Any] | None = None,
+) -> AgentCoordinationModule:
     """Factory: create a agent_coordination module instance."""
     return AgentCoordinationModule(config)

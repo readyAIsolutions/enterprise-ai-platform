@@ -34,9 +34,9 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger("enterprise.innovation_rd.integrity_ledger")
 
@@ -90,7 +90,7 @@ def _canonical(value: Any) -> Any:
     return str(value)
 
 
-def _serialize(canonical_payload: Dict[str, Any]) -> bytes:
+def _serialize(canonical_payload: dict[str, Any]) -> bytes:
     """Serialize a canonical payload to deterministic bytes."""
     return json.dumps(
         canonical_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
@@ -120,13 +120,13 @@ class RunFingerprint:
         digest: The computed sha256 hex digest (derived lazily via .compute()).
     """
 
-    inputs: Dict[str, Any] = field(default_factory=dict)
+    inputs: dict[str, Any] = field(default_factory=dict)
     code_version: str = ""
-    params: Dict[str, Any] = field(default_factory=dict)
-    seed: Optional[Any] = None
-    env: Dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
+    seed: Any | None = None
+    env: dict[str, Any] = field(default_factory=dict)
 
-    def payload(self) -> Dict[str, Any]:
+    def payload(self) -> dict[str, Any]:
         """Return the canonical payload that is hashed."""
         return {
             "inputs": _canonical(self.inputs),
@@ -144,12 +144,12 @@ class RunFingerprint:
     def compute_hash(
         cls,
         *,
-        inputs: Optional[Dict[str, Any]] = None,
+        inputs: dict[str, Any] | None = None,
         code_version: str = "",
-        params: Optional[Dict[str, Any]] = None,
-        seed: Optional[Any] = None,
-        env: Optional[Dict[str, Any]] = None,
-        env_exclude: Optional[List[str]] = None,
+        params: dict[str, Any] | None = None,
+        seed: Any | None = None,
+        env: dict[str, Any] | None = None,
+        env_exclude: list[str] | None = None,
     ) -> str:
         """One-shot fingerprint computation from raw components.
 
@@ -180,10 +180,10 @@ class RunFingerprint:
         experiment: Any,
         *,
         code_version: str = "",
-        seed: Optional[Any] = None,
-        env: Optional[Dict[str, Any]] = None,
-        env_exclude: Optional[List[str]] = None,
-    ) -> "RunFingerprint":
+        seed: Any | None = None,
+        env: dict[str, Any] | None = None,
+        env_exclude: list[str] | None = None,
+    ) -> RunFingerprint:
         """Build a fingerprint from an innovation_rd ``Experiment``.
 
         Inputs are taken from the experiment's dataset/metrics, params from its
@@ -191,8 +191,8 @@ class RunFingerprint:
         is a duck-typed helper so it does not hard-depend on the experiment
         module (avoids circular imports).
         """
-        inputs: Dict[str, Any] = {}
-        params: Dict[str, Any] = {}
+        inputs: dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if experiment is not None:
             inputs = {
                 "dataset": getattr(experiment, "dataset", ""),
@@ -211,8 +211,8 @@ class RunFingerprint:
 
 
 def filter_env_snapshot(
-    env: Dict[str, Any], extra_exclude: Optional[List[str]] = None
-) -> Dict[str, Any]:
+    env: dict[str, Any], extra_exclude: list[str] | None = None
+) -> dict[str, Any]:
     """Filter a raw environment snapshot down to fingerprint-relevant keys.
 
     Drops any key whose lowercased name contains a volatile marker from
@@ -229,9 +229,7 @@ def filter_env_snapshot(
     if extra_exclude:
         excludes.update(str(e).lower() for e in extra_exclude)
     return {
-        k: v
-        for k, v in env.items()
-        if not any(marker in str(k).lower() for marker in excludes)
+        k: v for k, v in env.items() if not any(marker in str(k).lower() for marker in excludes)
     }
 
 
@@ -254,7 +252,7 @@ def run_is_reproducible(run_a: Any, run_b: Any) -> bool:
     return digest_a == digest_b and digest_a is not None
 
 
-def _coerce_digest(run: Any) -> Optional[str]:
+def _coerce_digest(run: Any) -> str | None:
     """Coerce a run object into a fingerprint hex digest (or None)."""
     if isinstance(run, RunFingerprint):
         return run.compute()
@@ -297,7 +295,7 @@ class LedgerRecord:
     prev_hash: str
     record_hash: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "seq": self.seq,
             "run_id": self.run_id,
@@ -311,9 +309,16 @@ class LedgerRecord:
         }
 
 
-def _hash_record(seq: int, run_id: str, fingerprint: str, actor: str,
-                 action: str, isolation: bool, recorded_at: str,
-                 prev_hash: str) -> str:
+def _hash_record(
+    seq: int,
+    run_id: str,
+    fingerprint: str,
+    actor: str,
+    action: str,
+    isolation: bool,
+    recorded_at: str,
+    prev_hash: str,
+) -> str:
     """Compute a record's chained hash over its full content + prev hash."""
     payload = {
         "seq": seq,
@@ -339,7 +344,7 @@ class IntegrityLedger:
     access; there is no public mutation path, honouring append-only semantics.
     """
 
-    def __init__(self, db_path: str = ":memory:"):
+    def __init__(self, db_path: str = ":memory:") -> None:
         """Open (or create) the ledger database.
 
         Args:
@@ -378,7 +383,7 @@ class IntegrityLedger:
         action: str = "record",
         *,
         isolation: bool = False,
-        recorded_at: Optional[str] = None,
+        recorded_at: str | None = None,
     ) -> LedgerRecord:
         """Append a new record to the chain.
 
@@ -394,11 +399,17 @@ class IntegrityLedger:
             The newly appended :class:`LedgerRecord`.
         """
         prev_hash = self.last_hash()
-        timestamp = recorded_at or datetime.now(timezone.utc).isoformat()
+        timestamp = recorded_at or datetime.now(UTC).isoformat()
         next_seq = self._next_seq()
         record_hash = _hash_record(
-            next_seq, run_id, fingerprint, actor, action, isolation,
-            timestamp, prev_hash,
+            next_seq,
+            run_id,
+            fingerprint,
+            actor,
+            action,
+            isolation,
+            timestamp,
+            prev_hash,
         )
         self._conn.execute(
             """
@@ -407,8 +418,17 @@ class IntegrityLedger:
                  recorded_at, prev_hash, record_hash)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (next_seq, run_id, fingerprint, actor, action,
-             int(bool(isolation)), timestamp, prev_hash, record_hash),
+            (
+                next_seq,
+                run_id,
+                fingerprint,
+                actor,
+                action,
+                int(bool(isolation)),
+                timestamp,
+                prev_hash,
+                record_hash,
+            ),
         )
         self._conn.commit()
         record = LedgerRecord(
@@ -424,13 +444,16 @@ class IntegrityLedger:
         )
         logger.info(
             "Ledger append seq=%d run=%s action=%s isolation=%s",
-            next_seq, run_id, action, bool(isolation),
+            next_seq,
+            run_id,
+            action,
+            bool(isolation),
         )
         return record
 
     # -- read path -------------------------------------------------------
 
-    def records(self) -> List[LedgerRecord]:
+    def records(self) -> list[LedgerRecord]:
         """Return all records in chain order (seq ascending)."""
         rows = self._conn.execute(
             "SELECT seq, run_id, fingerprint, actor, action, isolation, "
@@ -439,9 +462,15 @@ class IntegrityLedger:
         ).fetchall()
         return [
             LedgerRecord(
-                seq=r[0], run_id=r[1], fingerprint=r[2], actor=r[3],
-                action=r[4], isolation=bool(r[5]), recorded_at=r[6],
-                prev_hash=r[7], record_hash=r[8],
+                seq=r[0],
+                run_id=r[1],
+                fingerprint=r[2],
+                actor=r[3],
+                action=r[4],
+                isolation=bool(r[5]),
+                recorded_at=r[6],
+                prev_hash=r[7],
+                record_hash=r[8],
             )
             for r in rows
         ]
@@ -474,7 +503,7 @@ class IntegrityLedger:
         except sqlite3.Error:  # pragma: no cover - defensive
             pass
 
-    def __enter__(self) -> "IntegrityLedger":
+    def __enter__(self) -> IntegrityLedger:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -482,7 +511,7 @@ class IntegrityLedger:
 
     # -- testing/tamper-simulation helpers (NOT a public mutation API) ---
 
-    def _execute_raw(self, sql: str, params: Tuple[Any, ...] = ()) -> None:
+    def _execute_raw(self, sql: str, params: tuple[Any, ...] = ()) -> None:
         """Execute raw SQL (used only to simulate tampering in tests)."""
         self._conn.execute(sql, params)
         self._conn.commit()
@@ -503,9 +532,9 @@ class VerificationResult:
 
     valid: bool
     total_records: int
-    tampered_seq: List[int] = field(default_factory=list)
-    broken_links: List[int] = field(default_factory=list)
-    missing_seq: List[int] = field(default_factory=list)
+    tampered_seq: list[int] = field(default_factory=list)
+    broken_links: list[int] = field(default_factory=list)
+    missing_seq: list[int] = field(default_factory=list)
 
     def summary(self) -> str:
         if self.valid:
@@ -545,11 +574,11 @@ class IntegrityVerifier:
         records = ledger.records()
         return self.verify_records(records)
 
-    def verify_records(self, records: List[LedgerRecord]) -> VerificationResult:
+    def verify_records(self, records: list[LedgerRecord]) -> VerificationResult:
         """Verify a list of ledger records as a standalone hash chain."""
-        tampered: List[int] = []
-        broken_links: List[int] = []
-        missing: List[int] = []
+        tampered: list[int] = []
+        broken_links: list[int] = []
+        missing: list[int] = []
 
         prev_hash = GENESIS_HASH
         expected_seq = 1
@@ -565,8 +594,14 @@ class IntegrityVerifier:
                 broken_links.append(rec.seq)
 
             recomputed = _hash_record(
-                rec.seq, rec.run_id, rec.fingerprint, rec.actor,
-                rec.action, rec.isolation, rec.recorded_at, rec.prev_hash,
+                rec.seq,
+                rec.run_id,
+                rec.fingerprint,
+                rec.actor,
+                rec.action,
+                rec.isolation,
+                rec.recorded_at,
+                rec.prev_hash,
             )
             if recomputed != rec.record_hash:
                 tampered.append(rec.seq)
@@ -612,6 +647,9 @@ def record_isolation_run(
         The appended :class:`LedgerRecord`.
     """
     return ledger.append(
-        run_id, fingerprint, actor=actor, action="isolated_run",
+        run_id,
+        fingerprint,
+        actor=actor,
+        action="isolated_run",
         isolation=isolation,
     )

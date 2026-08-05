@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     EventBus,
@@ -42,8 +42,8 @@ from .guardrails import (
     Guard,
     GuardRailFacade,
     GuardRailRunner,
-    GuardrailViolationError,
     Guardrails,
+    GuardrailViolationError,
     GuardResult,
     JailbreakValidator,
     JSONSchemaValidator,
@@ -51,8 +51,8 @@ from .guardrails import (
     NoPIIValidator,
     NoPromptInjectionValidator,
     NoToxicValidator,
-    PIIValidator,
     PassResult,
+    PIIValidator,
     ProfanityValidator,
     PromptInjectionValidator,
     RegexValidator,
@@ -112,18 +112,17 @@ __all__ = [
 _logger = logging.getLogger("enterprise.guardrails")
 
 
-@module(name="guardrails", version="2.0.0",
-        config_defaults={"default_guards": True})
+@module(name="guardrails", version="2.0.0", config_defaults={"default_guards": True})
 class GuardrailsModule(Module):
     """Kernel service exposing both the classic GuardRailFacade and the
     Guardrails-AI validator-plugin system (registry + declarative facade)."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._event_bus: Optional[EventBus] = None
-        self._facade: Optional[GuardRailFacade] = None
-        self._registry: Optional[ValidatorRegistry] = None
-        self._guardrails: Optional[Guardrails] = None
+        self._event_bus: EventBus | None = None
+        self._facade: GuardRailFacade | None = None
+        self._registry: ValidatorRegistry | None = None
+        self._guardrails: Guardrails | None = None
         self._lock = threading.RLock()
 
     # -- classic facade (legacy contract) ----------------------------------
@@ -131,14 +130,16 @@ class GuardrailsModule(Module):
     def facade(self) -> GuardRailFacade:
         with self._lock:
             if self._facade is None:
-                raise RuntimeError("Guardrails module not initialized")
+                msg = "Guardrails module not initialized"
+                raise RuntimeError(msg)
             return self._facade
 
     @property
     def registry(self) -> ValidatorRegistry:
         with self._lock:
             if self._registry is None:
-                raise RuntimeError("Guardrails module not initialized")
+                msg = "Guardrails module not initialized"
+                raise RuntimeError(msg)
             return self._registry
 
     @property
@@ -146,7 +147,8 @@ class GuardrailsModule(Module):
         """Declarative Guardrails-AI facade (registry + named guards)."""
         with self._lock:
             if self._guardrails is None:
-                raise RuntimeError("Guardrails module not initialized")
+                msg = "Guardrails module not initialized"
+                raise RuntimeError(msg)
             return self._guardrails
 
     # -- lifecycle ---------------------------------------------------------
@@ -168,7 +170,8 @@ class GuardrailsModule(Module):
             self._status = HealthStatus.HEALTHY
             _logger.info(
                 "Guardrails Module initialized (%d validators, %d guards)",
-                len(self._registry), len(self._guardrails.list_guards()),
+                len(self._registry),
+                len(self._guardrails.list_guards()),
             )
 
     async def health_check(self) -> HealthStatus:
@@ -196,13 +199,12 @@ class GuardrailsModule(Module):
         with self._lock:
             self._event_bus = event_bus
 
-    def get_event_bus(self) -> Optional[EventBus]:
+    def get_event_bus(self) -> EventBus | None:
         with self._lock:
             return self._event_bus
 
     # -- classic validation API --------------------------------------------
-    def validate(self, name: str, text: str,
-                 context: Optional[Dict[str, Any]] = None) -> GuardResult:
+    def validate(self, name: str, text: str, context: dict[str, Any] | None = None) -> GuardResult:
         """Validate text through a named guard via the classic facade."""
         return self.facade.validate(name, text, context)
 
@@ -210,12 +212,12 @@ class GuardrailsModule(Module):
         """Register a guard on the classic facade."""
         return self.facade.register_guard(guard)
 
-    def list_guards(self) -> List[str]:
+    def list_guards(self) -> list[str]:
         """List classic facade guard names."""
         return self.facade.list_guards()
 
     # -- plugin-layer API --------------------------------------------------
-    def list_validators(self) -> List[str]:
+    def list_validators(self) -> list[str]:
         """List validator names registered in the plugin registry."""
         return self.registry.list_validators()
 
@@ -229,26 +231,20 @@ class GuardrailsModule(Module):
     # -- defaults ----------------------------------------------------------
     @staticmethod
     def _register_default_guards(facade: GuardRailFacade) -> None:
-        facade.register_guard(
-            Guard(name="pii", validators=[NoPIIValidator()], on_fail="fix")
-        )
+        facade.register_guard(Guard(name="pii", validators=[NoPIIValidator()], on_fail="fix"))
         facade.register_guard(
             Guard(name="toxic", validators=[NoToxicValidator()], on_fail="filter")
         )
         facade.register_guard(
-            Guard(name="injection",
-                  validators=[NoPromptInjectionValidator()],
-                  on_fail="raise")
+            Guard(name="injection", validators=[NoPromptInjectionValidator()], on_fail="raise")
         )
         facade.register_guard(
-            Guard(name="length",
-                  validators=[LengthValidator(min=1, max=200)],
-                  on_fail="fix")
+            Guard(name="length", validators=[LengthValidator(min=1, max=200)], on_fail="fix")
         )
 
     @staticmethod
     def _register_plugin_guards(guardrails: Guardrails) -> None:
-        default_guards: List[Guard] = [
+        default_guards: list[Guard] = [
             Guard(name="pii", validators=[PIIValidator()]),
             Guard(name="injection", validators=[PromptInjectionValidator()]),
             Guard(name="jailbreak", validators=[JailbreakValidator()]),
@@ -263,7 +259,7 @@ class GuardrailsModule(Module):
 
 
 def create_guardrails_facade(
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
     with_defaults: bool = True,
 ) -> GuardRailFacade:
     """Create a standalone classic GuardRailFacade (convenience helper)."""
@@ -273,6 +269,6 @@ def create_guardrails_facade(
     return facade
 
 
-def create_guardrails_module(config: Optional[Dict[str, Any]] = None) -> GuardrailsModule:
+def create_guardrails_module(config: dict[str, Any] | None = None) -> GuardrailsModule:
     """Create a standalone GuardrailsModule instance (module contract)."""
     return GuardrailsModule(config)

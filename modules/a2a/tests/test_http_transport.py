@@ -17,28 +17,27 @@ Run with:
 from __future__ import annotations
 
 import json
-from typing import Generator
+from typing import TYPE_CHECKING
 
 import pytest
-
+from enterprise.modules.a2a import A2AError, TaskNotFoundError
 from enterprise.modules.a2a.a2a import TaskManager, TaskState, TaskStore
 from enterprise.modules.a2a.http_transport import (
     A2AHttpClient,
     A2AHttpServer,
     A2ATransportError,
-    A2ATransportTimeout,
     MemoryFailureInjector,
-    OutOfOrderError,
 )
-from enterprise.modules.a2a import A2AError, TaskNotFoundError
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def server_inmem() -> Generator[A2AHttpServer, None, None]:
     """A2AHttpServer over an in-memory TaskManager on an ephemeral port."""
     srv = A2AHttpServer(port=0, store=TaskManager())
@@ -49,7 +48,7 @@ def server_inmem() -> Generator[A2AHttpServer, None, None]:
         srv.stop()
 
 
-@pytest.fixture()
+@pytest.fixture
 def server_sqlite() -> Generator[A2AHttpServer, None, None]:
     """A2AHttpServer over a durable in-memory SQLite TaskStore."""
     srv = A2AHttpServer(port=0, store=TaskStore(db_path=":memory:"))
@@ -60,7 +59,7 @@ def server_sqlite() -> Generator[A2AHttpServer, None, None]:
         srv.stop()
 
 
-@pytest.fixture()
+@pytest.fixture
 def client(server_inmem: A2AHttpServer) -> A2AHttpClient:
     return A2AHttpClient(server_inmem.base_url)
 
@@ -87,7 +86,8 @@ def test_client_send_task_creates_submitted(client: A2AHttpClient) -> None:
     assert task.task_id
     assert task.state is TaskState.SUBMITTED
     assert task.agent_id == "analyst"
-    assert task.messages and "hello" in task.messages[0].text()
+    assert task.messages
+    assert "hello" in task.messages[0].text()
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +100,8 @@ def test_send_then_get_round_trip(client: A2AHttpClient) -> None:
     fetched = client.get_task(created.task_id)
     assert fetched.task_id == created.task_id
     assert fetched.state is TaskState.SUBMITTED
-    assert fetched.messages and "summarize" in fetched.messages[0].text()
+    assert fetched.messages
+    assert "summarize" in fetched.messages[0].text()
 
 
 def test_get_returns_messages_and_state(client: A2AHttpClient) -> None:
@@ -120,9 +121,7 @@ def test_cancel_transitions_task(client: A2AHttpClient) -> None:
 
 
 def test_cancel_with_message_and_idempotency(client: A2AHttpClient) -> None:
-    created = client.send_task(
-        "analyst", "work", idempotency_key="idem-1", session_id="sess-9"
-    )
+    created = client.send_task("analyst", "work", idempotency_key="idem-1", session_id="sess-9")
     assert created.idempotency_key == "idem-1"
     assert created.session_id == "sess-9"
     # idempotent re-send returns the same task
@@ -174,9 +173,7 @@ def test_server_unknown_route_returns_404(client: A2AHttpClient) -> None:
 def test_drop_once_then_retry_succeeds(server_inmem: A2AHttpServer) -> None:
     injector = MemoryFailureInjector()
     created = A2AHttpClient(server_inmem.base_url).send_task("analyst", "first")
-    inj_client = A2AHttpClient(
-        server_inmem.base_url, injector=injector, max_retries=1
-    )
+    inj_client = A2AHttpClient(server_inmem.base_url, injector=injector, max_retries=1)
     injector.drop(1)
     # first attempt dropped (timeout), retry succeeds against the real server
     task = inj_client.get_task(created.task_id)
@@ -216,14 +213,15 @@ def test_repeated_timeout_surfaces_transport_error(server_inmem: A2AHttpServer) 
 def test_out_of_order_stale_response_retries(server_inmem: A2AHttpServer) -> None:
     injector = MemoryFailureInjector()
     client = A2AHttpClient(server_inmem.base_url, injector=injector, max_retries=1)
-    task_a = client.send_task("analyst", "a")
+    client.send_task("analyst", "a")
     task_b = client.send_task("analyst", "b")
     # arm reorder for the next get: a stale copy of task A is delivered
     injector.reorder(1)
     task = client.get_task(task_b.task_id)
     # client detected the stale (out-of-order) response and retried to real one
     assert task.task_id == task_b.task_id
-    assert task.messages and task.messages[0].text() == "b"
+    assert task.messages
+    assert task.messages[0].text() == "b"
     assert injector.reordered == 1
 
 

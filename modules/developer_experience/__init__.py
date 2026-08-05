@@ -19,92 +19,92 @@ Architecture:
 
 __version__ = "1.0.0"
 
-from enterprise.modules.developer_experience.journey import (
-    DeveloperJourney,
-    JourneyStage,
-    JourneyStageStatus,
-    get_journey,
-    get_all_journeys,
-    get_stage,
-    advance_stage,
+from enterprise.modules.developer_experience.ai_rules import (
+    AIRule,
+    AIRuleCategory,
+    AIRuleSeverity,
+    enforce_ai_rules,
+    generate_ai_rules_report,
+    get_ai_rules,
+    validate_ai_compliance,
 )
-from enterprise.modules.developer_experience.standards import (
-    RepoStandard,
-    StandardCategory,
-    StandardSeverity,
-    validate_repo_standards,
-    get_required_standards,
-    check_standard_compliance,
-    generate_standard_report,
+from enterprise.modules.developer_experience.docs import (
+    DocQualityGate,
+    DocStandard,
+    DocStatus,
+    assess_doc_quality,
+    generate_doc_report,
+    get_doc_standards,
+    validate_documentation,
 )
 from enterprise.modules.developer_experience.environment import (
     DevEnvironment,
     EnvironmentProvider,
     EnvironmentStatus,
     create_environment,
-    validate_environment,
     get_environment_spec,
     list_supported_providers,
+    validate_environment,
 )
 from enterprise.modules.developer_experience.golden_paths import (
     GoldenPath,
     PathCategory,
     PathStatus,
+    execute_golden_path,
     get_golden_path,
     list_golden_paths,
-    execute_golden_path,
     validate_path_prerequisites,
 )
-from enterprise.modules.developer_experience.platform import (
-    IDPCapability,
-    CapabilityStatus,
-    PlatformRequest,
-    get_capability,
-    list_capabilities,
-    request_capability,
-    get_service_catalog,
-    self_service_action,
-)
-from enterprise.modules.developer_experience.ai_rules import (
-    AIRule,
-    AIRuleCategory,
-    AIRuleSeverity,
-    get_ai_rules,
-    validate_ai_compliance,
-    generate_ai_rules_report,
-    enforce_ai_rules,
-)
-from enterprise.modules.developer_experience.docs import (
-    DocStandard,
-    DocQualityGate,
-    DocStatus,
-    validate_documentation,
-    get_doc_standards,
-    assess_doc_quality,
-    generate_doc_report,
+from enterprise.modules.developer_experience.journey import (
+    DeveloperJourney,
+    JourneyStage,
+    JourneyStageStatus,
+    advance_stage,
+    get_all_journeys,
+    get_journey,
+    get_stage,
 )
 from enterprise.modules.developer_experience.metrics import (
+    DORAMetrics,
     DXMetric,
     MetricCategory,
-    DORAMetrics,
-    collect_metric,
-    get_metrics_dashboard,
     calculate_dora_metrics,
+    collect_metric,
     generate_metrics_report,
-    track_setup_time,
+    get_metrics_dashboard,
     track_build_duration,
     track_deploy_frequency,
+    track_setup_time,
+)
+from enterprise.modules.developer_experience.platform import (
+    CapabilityStatus,
+    IDPCapability,
+    PlatformRequest,
+    get_capability,
+    get_service_catalog,
+    list_capabilities,
+    request_capability,
+    self_service_action,
+)
+from enterprise.modules.developer_experience.standards import (
+    RepoStandard,
+    StandardCategory,
+    StandardSeverity,
+    check_standard_compliance,
+    generate_standard_report,
+    get_required_standards,
+    validate_repo_standards,
 )
 from enterprise.modules.developer_experience.validation import (
+    CheckResult,
+    DeliveryBand,
+    DeliveryMetrics,
+    DeployEvent,
+    DXScore,
     GoldenCheck,
     GoldenPath as GoldenPathChecklist,
     GoldenPathValidator,
     ValidationReport,
-    CheckResult,
-    DeliveryBand,
-    DeployEvent,
-    DeliveryMetrics,
-    DXScore,
     letter_grade,
 )
 
@@ -200,16 +200,14 @@ __all__ = [
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio
+import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
-
-from .journey import DeveloperJourney
 
 _logger = logging.getLogger("enterprise.developer_experience")
 
@@ -224,7 +222,7 @@ class DeveloperExperienceModule(Module):
     UNHEALTHY rather than crashing the platform.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._lock = threading.RLock()
         self._component = None
@@ -234,7 +232,9 @@ class DeveloperExperienceModule(Module):
         with self._lock:
             self._status = HealthStatus.STARTING
             try:
-                self._component = DeveloperJourney(developer_id="kernel", developer_name="Kernel", team="platform", role="engineer")
+                self._component = DeveloperJourney(
+                    developer_id="kernel", developer_name="Kernel", team="platform", role="engineer"
+                )
                 self._status = HealthStatus.HEALTHY
                 _logger.info("%s module initialized", self.name)
             except Exception as e:  # pragma: no cover - degrade gracefully
@@ -261,6 +261,8 @@ class DeveloperExperienceModule(Module):
             self._init_error = None
 
 
-def create_developer_experience_module(config: Optional[Dict[str, Any]] = None) -> DeveloperExperienceModule:
+def create_developer_experience_module(
+    config: dict[str, Any] | None = None,
+) -> DeveloperExperienceModule:
     """Factory: create a developer_experience module instance."""
     return DeveloperExperienceModule(config)

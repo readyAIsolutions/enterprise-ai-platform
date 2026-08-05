@@ -18,20 +18,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 import pytest
-
-from enterprise.modules.llmops_trace.prom_scrape import (
-    PROMETHEUS_CONTENT_TYPE,
-    PrometheusScrapeEndpoint,
-    ScrapeTarget,
-    fetch_metrics,
-    scrape_example,
-)
 from enterprise.modules.llmops_trace.otel_genai import (
     ExportPipeline,
     PrometheusExporter,
     end_span,
     reset as reset_otel,
     start_genai_span,
+)
+from enterprise.modules.llmops_trace.prom_scrape import (
+    PROMETHEUS_CONTENT_TYPE,
+    PrometheusScrapeEndpoint,
+    ScrapeTarget,
+    fetch_metrics,
+    scrape_example,
 )
 
 METRIC_NAMES = (
@@ -49,12 +48,14 @@ def _isolate():
     reset_otel()
 
 
-def _record_and_flush(pipeline, system="openai", model="gpt-4o",
-                      input_tokens=10, output_tokens=20):
+def _record_and_flush(pipeline, system="openai", model="gpt-4o", input_tokens=10, output_tokens=20):
     """Record a gen_ai span and flush it through the pipeline."""
     span = start_genai_span(
-        system, model, operation="generate",
-        input_tokens=input_tokens, output_tokens=output_tokens,
+        system,
+        model,
+        operation="generate",
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
     )
     end_span(span)
     pipeline.add(span)
@@ -66,7 +67,7 @@ def _record_and_flush(pipeline, system="openai", model="gpt-4o",
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_endpoint_serves_prometheus_content_type_and_metric_lines():
+def test_endpoint_serves_prometheus_content_type_and_metric_lines() -> None:
     prom = PrometheusExporter()
     pipe = ExportPipeline(exporters=[prom])
     _record_and_flush(pipe)
@@ -84,7 +85,7 @@ def test_endpoint_serves_prometheus_content_type_and_metric_lines():
         assert "# TYPE llmops_genai_duration_ms gauge" in text
 
 
-def test_types_headers_present_even_without_spans():
+def test_types_headers_present_even_without_spans() -> None:
     # The text exposition must include the TYPE/HELP lines regardless.
     with ScrapeTarget() as endpoint:
         _status, _headers, body = fetch_metrics(endpoint)
@@ -100,11 +101,10 @@ def test_types_headers_present_even_without_spans():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_span_flushed_appears_in_served_metrics():
+def test_span_flushed_appears_in_served_metrics() -> None:
     prom = PrometheusExporter()
     pipe = ExportPipeline(exporters=[prom])
-    _record_and_flush(pipe, system="openai", model="gpt-4o",
-                      input_tokens=3, output_tokens=7)
+    _record_and_flush(pipe, system="openai", model="gpt-4o", input_tokens=3, output_tokens=7)
     with PrometheusScrapeEndpoint(pipeline=pipe) as endpoint:
         text = endpoint.exports()
         assert 'llmops_genai_spans_total{gen_ai_system="openai",' in text
@@ -113,7 +113,7 @@ def test_span_flushed_appears_in_served_metrics():
         assert 'model="gpt-4o",operation="generate"} 3' in text
         assert 'llmops_genai_output_tokens_total{system="openai",' in text
         assert 'model="gpt-4o",operation="generate"} 7' in text
-        assert "llmops_genai_duration_ms{gen_ai_system=\"openai\"" in text
+        assert 'llmops_genai_duration_ms{gen_ai_system="openai"' in text
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -121,13 +121,14 @@ def test_span_flushed_appears_in_served_metrics():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_endpoint_start_stop_on_ephemeral_port():
+def test_endpoint_start_stop_on_ephemeral_port() -> None:
     endpoint = PrometheusScrapeEndpoint()
     assert endpoint.port is None
     endpoint.start()
     try:
         port = endpoint.port
-        assert port is not None and port > 0
+        assert port is not None
+        assert port > 0
         assert endpoint.host == "127.0.0.1"
         status, _headers, _body = fetch_metrics(endpoint)
         assert status == 200
@@ -136,7 +137,7 @@ def test_endpoint_start_stop_on_ephemeral_port():
     assert endpoint.port is None
 
 
-def test_endpoint_can_restart_on_a_fresh_port():
+def test_endpoint_can_restart_on_a_fresh_port() -> None:
     endpoint = PrometheusScrapeEndpoint()
     endpoint.start()
     first_port = endpoint.port
@@ -144,7 +145,8 @@ def test_endpoint_can_restart_on_a_fresh_port():
     endpoint.start()
     try:
         second_port = endpoint.port
-        assert second_port is not None and second_port > 0
+        assert second_port is not None
+        assert second_port > 0
         status, _headers, _body = fetch_metrics(endpoint)
         assert status == 200
         # Ephemeral binding: a fresh port is usually allocated.
@@ -158,7 +160,7 @@ def test_endpoint_can_restart_on_a_fresh_port():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_real_scrape_returns_200_and_expected_metric_names():
+def test_real_scrape_returns_200_and_expected_metric_names() -> None:
     prom = PrometheusExporter()
     pipe = ExportPipeline(exporters=[prom])
     _record_and_flush(pipe)
@@ -171,7 +173,7 @@ def test_real_scrape_returns_200_and_expected_metric_names():
         assert "llmops_genai_output_tokens_total" in text
 
 
-def test_unknown_path_returns_404():
+def test_unknown_path_returns_404() -> None:
     with ScrapeTarget() as endpoint:
         status, _headers, _body = fetch_metrics(endpoint, "/nope")
         assert status == 404
@@ -182,13 +184,13 @@ def test_unknown_path_returns_404():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_exports_matches_served_body_and_updates_after_new_flush():
+def test_exports_matches_served_body_and_updates_after_new_flush() -> None:
     prom = PrometheusExporter()
     pipe = ExportPipeline()
     pipe.register(prom)  # wire the exporter into the pipeline explicitly
     with PrometheusScrapeEndpoint(pipeline=pipe, exporter=prom) as endpoint:
         _record_and_flush(pipe, input_tokens=1, output_tokens=2)
-        first = fetch_metrics(endpoint)[2].decode("utf-8")
+        fetch_metrics(endpoint)[2].decode("utf-8")
         # flush another span -> a second scrape must reflect the new span
         _record_and_flush(pipe, input_tokens=5, output_tokens=6)
         second = fetch_metrics(endpoint)[2].decode("utf-8")
@@ -196,7 +198,7 @@ def test_exports_matches_served_body_and_updates_after_new_flush():
         assert endpoint.exports() == second, "exports() must equal served body"
 
 
-def test_scrape_count_increments_across_scrapes():
+def test_scrape_count_increments_across_scrapes() -> None:
     prom = PrometheusExporter()
     pipe = ExportPipeline(exporters=[prom])
     with PrometheusScrapeEndpoint(pipeline=pipe) as endpoint:
@@ -213,10 +215,11 @@ def test_scrape_count_increments_across_scrapes():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def test_scrape_target_returns_started_endpoint():
+def test_scrape_target_returns_started_endpoint() -> None:
     target = ScrapeTarget()
     try:
-        assert target.port is not None and target.port > 0
+        assert target.port is not None
+        assert target.port > 0
         assert target.url == f"http://127.0.0.1:{target.port}/metrics"
         status, _headers, _body = fetch_metrics(target)
         assert status == 200
@@ -224,7 +227,7 @@ def test_scrape_target_returns_started_endpoint():
         target.stop()
 
 
-def test_scrape_example_serves_complete_genai_metrics():
+def test_scrape_example_serves_complete_genai_metrics() -> None:
     text = scrape_example(system="openai", model="gpt-4o")
     assert "llmops_genai_duration_ms{" in text
     assert "llmops_genai_input_tokens_total{" in text

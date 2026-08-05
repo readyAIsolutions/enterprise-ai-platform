@@ -37,14 +37,18 @@ Python: 3.10+
 from __future__ import annotations
 
 import abc
+import contextlib
 import json
 import re
 import sqlite3
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import builtins
+    from collections.abc import Iterable, Sequence
 
 __all__ = [
     "KbDoc",
@@ -65,10 +69,10 @@ _WORD_RE = re.compile(r"[A-Za-z0-9_]+", re.UNICODE)
 
 def _now_iso() -> str:
     """Current UTC time as an ISO-8601 string (for ``retrieved_at``)."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
-def tokenize(text: str) -> List[str]:
+def tokenize(text: str) -> list[str]:
     """Split ``text`` into lower-cased keyword terms.
 
     Non-alphanumeric characters act as separators.  Returns a list of terms
@@ -109,7 +113,7 @@ class KbDoc:
     id: str
     text: str
     source: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     score: float = 0.0
     retrieved_at: str = field(default_factory=_now_iso)
 
@@ -128,8 +132,8 @@ class SourceAdapter(abc.ABC):
     def query(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[KbDoc]:
+        filters: dict[str, Any] | None = None,
+    ) -> list[KbDoc]:
         """Search this source for documents relevant to ``query``.
 
         Args:
@@ -143,7 +147,7 @@ class SourceAdapter(abc.ABC):
         """
 
     @abc.abstractmethod
-    def list_docs(self, limit: Optional[int] = None) -> List[KbDoc]:
+    def list_docs(self, limit: int | None = None) -> list[KbDoc]:
         """List every document available from this source.
 
         Args:
@@ -171,15 +175,14 @@ class FileSourceAdapter(SourceAdapter):
 
     _SUPPORTED = {".md", ".markdown", ".txt"}
 
-    def __init__(self, directory: str, source_id: Optional[str] = None) -> None:
+    def __init__(self, directory: str, source_id: str | None = None) -> None:
         self.root = Path(directory).expanduser().resolve()
         self.id = source_id or f"file:{self.root.name}"
         self.type = "file"
         self._extensions: set = set(self._SUPPORTED)
         if not self.root.is_dir():
-            raise FileNotFoundError(
-                f"FileSourceAdapter root does not exist or is not a dir: {self.root}"
-            )
+            msg = f"FileSourceAdapter root does not exist or is not a dir: {self.root}"
+            raise FileNotFoundError(msg)
 
     def _iter_files(self) -> Iterable[Path]:
         for path in sorted(self.root.rglob("*")):
@@ -208,15 +211,14 @@ class FileSourceAdapter(SourceAdapter):
     def query(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[KbDoc]:
+        filters: dict[str, Any] | None = None,
+    ) -> list[KbDoc]:
         filters = filters or {}
-        results: List[KbDoc] = []
+        results: list[KbDoc] = []
         for path in self._iter_files():
             doc = self._to_doc(path)
-            if filters.get("path") is not None:
-                if str(path) != str(filters["path"]):
-                    continue
+            if filters.get("path") is not None and str(path) != str(filters["path"]):
+                continue
             if filters.get("suffix") is not None:
                 if path.suffix.lower() != filters["suffix"].lower():
                     continue
@@ -229,7 +231,7 @@ class FileSourceAdapter(SourceAdapter):
         results.sort(key=lambda d: (-d.score, d.id))
         return results
 
-    def list_docs(self, limit: Optional[int] = None) -> List[KbDoc]:
+    def list_docs(self, limit: int | None = None) -> list[KbDoc]:
         docs = [self._to_doc(p) for p in self._iter_files()]
         docs.sort(key=lambda d: d.id)
         return docs[:limit] if limit is not None else docs
@@ -263,7 +265,7 @@ class SqliteSourceAdapter(SourceAdapter):
         self,
         database: str,
         table: str = "docs",
-        source_id: Optional[str] = None,
+        source_id: str | None = None,
         auto_create: bool = True,
     ) -> None:
         self.database = str(database)
@@ -288,7 +290,7 @@ class SqliteSourceAdapter(SourceAdapter):
         self._conn.commit()
 
     @staticmethod
-    def _parse_meta(raw: Any) -> Dict[str, Any]:
+    def _parse_meta(raw: Any) -> dict[str, Any]:
         if isinstance(raw, dict):
             return dict(raw)
         if raw is None:
@@ -311,11 +313,11 @@ class SqliteSourceAdapter(SourceAdapter):
     def query(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[KbDoc]:
+        filters: dict[str, Any] | None = None,
+    ) -> list[KbDoc]:
         filters = filters or {}
-        clauses: List[str] = []
-        params: List[Any] = []
+        clauses: list[str] = []
+        params: list[Any] = []
         if query:
             clauses.append(f"{self.table}.text LIKE ?")
             params.append(f"%{query}%")
@@ -335,7 +337,7 @@ class SqliteSourceAdapter(SourceAdapter):
         results.sort(key=lambda d: (-d.score, d.id))
         return results
 
-    def list_docs(self, limit: Optional[int] = None) -> List[KbDoc]:
+    def list_docs(self, limit: int | None = None) -> list[KbDoc]:
         sql = f"SELECT * FROM {self.table} ORDER BY {self.table}.id"
         rows = self._conn.execute(sql).fetchall()
         docs = [self._row_to_doc(r) for r in rows]
@@ -343,10 +345,8 @@ class SqliteSourceAdapter(SourceAdapter):
         return docs[:limit] if limit is not None else docs
 
     def close(self) -> None:
-        try:
+        with contextlib.suppress(sqlite3.Error):
             self._conn.close()
-        except sqlite3.Error:
-            pass
 
 
 class JsonSourceAdapter(SourceAdapter):
@@ -360,37 +360,32 @@ class JsonSourceAdapter(SourceAdapter):
     def __init__(
         self,
         path: str,
-        source_id: Optional[str] = None,
+        source_id: str | None = None,
     ) -> None:
         self.path = Path(path).expanduser().resolve()
         self.id = source_id or f"json:{self.path.name}"
         self.type = "json"
-        self._docs: Optional[List[KbDoc]] = None
+        self._docs: list[KbDoc] | None = None
         if not self.path.is_file():
-            raise FileNotFoundError(f"JsonSourceAdapter file not found: {self.path}")
+            msg = f"JsonSourceAdapter file not found: {self.path}"
+            raise FileNotFoundError(msg)
 
-    def _load(self) -> List[KbDoc]:
+    def _load(self) -> list[KbDoc]:
         if self._docs is None:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             if not isinstance(raw, list):
-                raise ValueError(
-                    f"JsonSourceAdapter expects a JSON array, got {type(raw).__name__}"
-                )
-            docs: List[KbDoc] = []
+                msg = f"JsonSourceAdapter expects a JSON array, got {type(raw).__name__}"
+                raise ValueError(msg)
+            docs: list[KbDoc] = []
             for i, item in enumerate(raw):
                 if not isinstance(item, dict):
-                    raise ValueError(
-                        f"JsonSourceAdapter item {i} is not an object: {item!r}"
-                    )
+                    msg = f"JsonSourceAdapter item {i} is not an object: {item!r}"
+                    raise ValueError(msg)
                 if "id" not in item or "text" not in item:
-                    raise ValueError(
-                        f"JsonSourceAdapter item {i} missing 'id' or 'text': {item!r}"
-                    )
+                    msg = f"JsonSourceAdapter item {i} missing 'id' or 'text': {item!r}"
+                    raise ValueError(msg)
                 meta = item.get("metadata", {})
-                if isinstance(meta, dict):
-                    meta = dict(meta)
-                else:
-                    meta = {}
+                meta = dict(meta) if isinstance(meta, dict) else {}
                 if item.get("source"):
                     meta = {**meta, "source": item["source"]}
                 docs.append(
@@ -408,10 +403,10 @@ class JsonSourceAdapter(SourceAdapter):
     def query(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[KbDoc]:
+        filters: dict[str, Any] | None = None,
+    ) -> list[KbDoc]:
         filters = filters or {}
-        results: List[KbDoc] = []
+        results: list[KbDoc] = []
         for doc in self._load():
             if filters.get("source") is not None and doc.source != filters["source"]:
                 continue
@@ -428,7 +423,7 @@ class JsonSourceAdapter(SourceAdapter):
         results.sort(key=lambda d: (-d.score, d.id))
         return results
 
-    def list_docs(self, limit: Optional[int] = None) -> List[KbDoc]:
+    def list_docs(self, limit: int | None = None) -> list[KbDoc]:
         docs = sorted(self._load(), key=lambda d: d.id)
         return docs[:limit] if limit is not None else docs
 
@@ -446,7 +441,7 @@ class SourceRegistry:
     """
 
     def __init__(self) -> None:
-        self._adapters: Dict[str, SourceAdapter] = {}
+        self._adapters: dict[str, SourceAdapter] = {}
 
     def register(self, adapter: SourceAdapter) -> SourceAdapter:
         """Register ``adapter`` under ``adapter.id`` and return it.
@@ -456,7 +451,8 @@ class SourceRegistry:
                 registered.
         """
         if adapter.id in self._adapters:
-            raise ValueError(f"Source adapter already registered: {adapter.id!r}")
+            msg = f"Source adapter already registered: {adapter.id!r}"
+            raise ValueError(msg)
         self._adapters[adapter.id] = adapter
         return adapter
 
@@ -468,19 +464,19 @@ class SourceRegistry:
         """
         return self._adapters[source_id]
 
-    def get_or_create(self, source_id: str) -> Optional[SourceAdapter]:
+    def get_or_create(self, source_id: str) -> SourceAdapter | None:
         """Return the adapter for ``source_id`` or ``None`` if absent."""
         return self._adapters.get(source_id)
 
-    def list(self) -> List[str]:
+    def list(self) -> builtins.list[str]:
         """Return the ids of all registered adapters (sorted)."""
         return sorted(self._adapters.keys())
 
-    def adapters(self) -> List[SourceAdapter]:
+    def adapters(self) -> builtins.list[SourceAdapter]:
         """Return all registered adapters in registration order."""
         return list(self._adapters.values())
 
-    def remove(self, source_id: str) -> Optional[SourceAdapter]:
+    def remove(self, source_id: str) -> SourceAdapter | None:
         """Unregister and return the adapter with ``source_id`` (if any)."""
         return self._adapters.pop(source_id, None)
 
@@ -506,12 +502,12 @@ class KbMerger:
        returned.
     """
 
-    def __init__(self, registry: Optional[SourceRegistry] = None) -> None:
+    def __init__(self, registry: SourceRegistry | None = None) -> None:
         self.registry = registry or SourceRegistry()
 
     @staticmethod
-    def _dedupe(docs: Iterable[KbDoc]) -> List[KbDoc]:
-        best: Dict[str, KbDoc] = {}
+    def _dedupe(docs: Iterable[KbDoc]) -> list[KbDoc]:
+        best: dict[str, KbDoc] = {}
         for doc in docs:
             current = best.get(doc.id)
             if current is None or doc.score > current.score:
@@ -521,10 +517,10 @@ class KbMerger:
     def query(
         self,
         query: str,
-        filters: Optional[Dict[str, Any]] = None,
-        source_ids: Optional[Sequence[str]] = None,
-        limit: Optional[int] = None,
-    ) -> List[KbDoc]:
+        filters: dict[str, Any] | None = None,
+        source_ids: Sequence[str] | None = None,
+        limit: int | None = None,
+    ) -> list[KbDoc]:
         """Query one or more sources and return merged, ranked results.
 
         Args:
@@ -542,7 +538,7 @@ class KbMerger:
         else:
             adapters = self.registry.adapters()
 
-        collected: List[KbDoc] = []
+        collected: list[KbDoc] = []
         for adapter in adapters:
             collected.extend(adapter.query(query, filters=filters))
 
@@ -570,7 +566,7 @@ class KbQueryBridge:
         bridge.close()
     """
 
-    def __init__(self, registry: Optional[SourceRegistry] = None) -> None:
+    def __init__(self, registry: SourceRegistry | None = None) -> None:
         self.registry = registry or SourceRegistry()
         self.merger = KbMerger(self.registry)
 
@@ -578,21 +574,21 @@ class KbQueryBridge:
         """Register a source adapter so it participates in future queries."""
         return self.registry.register(adapter)
 
-    def unregister(self, source_id: str) -> Optional[SourceAdapter]:
+    def unregister(self, source_id: str) -> SourceAdapter | None:
         """Remove a source adapter by id; returns it (or ``None``)."""
         return self.registry.remove(source_id)
 
-    def list_sources(self) -> List[str]:
+    def list_sources(self) -> list[str]:
         """Return the ids of all registered sources."""
         return self.registry.list()
 
     def query(
         self,
         query: str,
-        limit: Optional[int] = None,
-        source_ids: Optional[Sequence[str]] = None,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[KbDoc]:
+        limit: int | None = None,
+        source_ids: Sequence[str] | None = None,
+        filters: dict[str, Any] | None = None,
+    ) -> list[KbDoc]:
         """Query the given sources and return merged, ranked results.
 
         Args:

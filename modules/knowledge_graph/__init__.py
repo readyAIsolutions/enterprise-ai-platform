@@ -49,37 +49,32 @@ __all__ = [
     "create_persistence",
 ]
 
-from .entities import Entity, EntityType, EntityRegistry, KGTestCaseEntity
-from .relationships import Relationship, RelationshipType, RelationshipRegistry
-from .ingestion import IngestionPipeline, IngestionSource, IngestionResult
-from .provenance import Provenance, ProvenanceChain, SourceType, ConfidenceLevel
-from .resolution import EntityResolver, ResolutionStrategy, ResolutionResult
-from .contradiction import ContradictionManager, ContradictionRecord, ContradictionStatus
-from .retrieval import GraphQueryEngine, QueryBuilder, QueryResult
-from .security import GraphSecurityManager, AccessPolicy, AuditLogger
-from .persistence import KGPersistence, create_persistence
-
 # --------------------------------------------------------------------------
-
 # --------------------------------------------------------------------------
-
 # --------------------------------------------------------------------------
-
 # --------------------------------------------------------------------------
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio
+import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
+from .contradiction import ContradictionManager, ContradictionRecord, ContradictionStatus
+from .entities import Entity, EntityRegistry, EntityType, KGTestCaseEntity
+from .ingestion import IngestionPipeline, IngestionResult, IngestionSource
+from .persistence import KGPersistence, create_persistence
+from .provenance import ConfidenceLevel, Provenance, ProvenanceChain, SourceType
+from .relationships import Relationship, RelationshipRegistry, RelationshipType
+from .resolution import EntityResolver, ResolutionResult, ResolutionStrategy
+from .retrieval import GraphQueryEngine, QueryBuilder, QueryResult
+from .security import AccessPolicy, AuditLogger, GraphSecurityManager
+
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 
-from .entities import EntityRegistry
-from .persistence import KGPersistence, create_persistence
 
 _logger = logging.getLogger("enterprise.knowledge_graph")
 
@@ -94,7 +89,7 @@ class KnowledgeGraphModule(Module):
     UNHEALTHY rather than crashing the platform.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         cfg = config or {}
         self._lock = threading.RLock()
@@ -104,7 +99,7 @@ class KnowledgeGraphModule(Module):
         # or file path enables durable storage. Defaults to data/ under the
         # enterprise repo root.
         db_path = cfg.get("db_path", "data")
-        self.persistence: Optional[KGPersistence] = None
+        self.persistence: KGPersistence | None = None
         try:
             self.persistence = create_persistence(None if db_path is None else db_path)
         except Exception as e:  # pragma: no cover - degrade gracefully
@@ -142,6 +137,6 @@ class KnowledgeGraphModule(Module):
             self._init_error = None
 
 
-def create_knowledge_graph_module(config: Optional[Dict[str, Any]] = None) -> KnowledgeGraphModule:
+def create_knowledge_graph_module(config: dict[str, Any] | None = None) -> KnowledgeGraphModule:
     """Factory: create a knowledge_graph module instance."""
     return KnowledgeGraphModule(config)

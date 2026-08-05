@@ -42,7 +42,7 @@ Python: 3.11+
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     EventBus,
@@ -51,49 +51,44 @@ from enterprise.platform_kernel import (
     module,
 )
 
-from .tui_engine import (
-    TUIEngine,
-    Component,
-    KeybindingRegistry,
-    ThemeEngine,
-    ComponentNode,
-    TUIHealthCheck,
+from .buddy_system import (
+    BuddyAgent,
+    BuddyManager,
+    BuddyRole,
+    SharedContext,
 )
-
-from .server import (
-    ClaudServer,
-    WebSocketSessionManager,
-    SessionState,
-    ServerConfig,
-)
-
 from .plugin_system import (
     PluginManager,
-    PluginSandbox,
     PluginMarketplace,
     PluginMetadata,
+    PluginSandbox,
     PluginState,
 )
-
-from .buddy_system import (
-    BuddyManager,
-    BuddyAgent,
-    SharedContext,
-    BuddyRole,
+from .server import (
+    ClaudServer,
+    ServerConfig,
+    SessionState,
+    WebSocketSessionManager,
 )
-
-from .voice import (
-    VoicePipeline,
-    TTSProvider,
-    STTProvider,
-    VoiceSession,
-)
-
 from .status import (
-    InfraStatus,
-    ComponentStatus,
-    ComponentState,
     CORE_COMPONENTS,
+    ComponentState,
+    ComponentStatus,
+    InfraStatus,
+)
+from .tui_engine import (
+    Component,
+    ComponentNode,
+    KeybindingRegistry,
+    ThemeEngine,
+    TUIEngine,
+    TUIHealthCheck,
+)
+from .voice import (
+    STTProvider,
+    TTSProvider,
+    VoicePipeline,
+    VoiceSession,
 )
 
 __all__ = [
@@ -141,6 +136,7 @@ _logger: logging.Logger = logging.getLogger("enterprise.agent_infra")
 
 # ── Module class registered with the platform kernel ──────────────────────
 
+
 @module(name="agent_infra", version="1.0.0")
 class ClaudeCodeInfraModule(Module):
     """Enterprise Claude Code Infrastructure Module.
@@ -168,41 +164,41 @@ class ClaudeCodeInfraModule(Module):
       - claude.infra.bootstrap.complete
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._event_bus: Optional[EventBus] = None
-        self._tui: Optional[TUIEngine] = None
-        self._server: Optional[ClaudServer] = None
-        self._plugin_manager: Optional[PluginManager] = None
-        self._buddy_manager: Optional[BuddyManager] = None
-        self._voice: Optional[VoicePipeline] = None
+        self._event_bus: EventBus | None = None
+        self._tui: TUIEngine | None = None
+        self._server: ClaudServer | None = None
+        self._plugin_manager: PluginManager | None = None
+        self._buddy_manager: BuddyManager | None = None
+        self._voice: VoicePipeline | None = None
         # Unified health/status facade aggregating every core component.
         self._infra = InfraStatus(module_name="agent_infra")
 
     # ── Properties ───────────────────────────────────────────────────────
 
     @property
-    def tui(self) -> Optional[TUIEngine]:
+    def tui(self) -> TUIEngine | None:
         """The active TUI engine instance."""
         return self._tui
 
     @property
-    def server(self) -> Optional[ClaudServer]:
+    def server(self) -> ClaudServer | None:
         """The active FastAPI server instance."""
         return self._server
 
     @property
-    def plugin_manager(self) -> Optional[PluginManager]:
+    def plugin_manager(self) -> PluginManager | None:
         """The active plugin manager instance."""
         return self._plugin_manager
 
     @property
-    def buddy_manager(self) -> Optional[BuddyManager]:
+    def buddy_manager(self) -> BuddyManager | None:
         """The active buddy manager instance."""
         return self._buddy_manager
 
     @property
-    def voice(self) -> Optional[VoicePipeline]:
+    def voice(self) -> VoicePipeline | None:
         """The active voice pipeline instance."""
         return self._voice
 
@@ -211,7 +207,7 @@ class ClaudeCodeInfraModule(Module):
         """The unified InfraStatus facade aggregating all core components."""
         return self._infra
 
-    def component(self, name: str) -> Optional[ComponentStatus]:
+    def component(self, name: str) -> ComponentStatus | None:
         """Return a single component's health via the status facade."""
         return self._infra.component(name)
 
@@ -225,7 +221,7 @@ class ClaudeCodeInfraModule(Module):
         """
         self._status = HealthStatus.STARTING
         _logger.info("Claude Code Infra module initializing...")
-        cfg: Dict[str, Any] = self._config or {}
+        cfg: dict[str, Any] = self._config or {}
 
         # ── TUI Engine ─────────────────────────────────────────────────
         try:
@@ -236,7 +232,9 @@ class ClaudeCodeInfraModule(Module):
             await self._tui.initialize()
             _logger.info("TUI Engine initialized")
             self._infra.update("tui", ok=True, message="TUI engine initialized")
-            self._publish("claude.infra.tui.started", {"mode": cfg.get("tui_mode", "prompt_toolkit")})
+            self._publish(
+                "claude.infra.tui.started", {"mode": cfg.get("tui_mode", "prompt_toolkit")}
+            )
         except Exception:
             _logger.exception("TUI Engine failed to initialize")
             self._status = HealthStatus.DEGRADED
@@ -266,15 +264,17 @@ class ClaudeCodeInfraModule(Module):
                 config=cfg.get("plugins", {}),
             )
             await self._plugin_manager.initialize()
-            _logger.info("Plugin Manager initialized (%d plugins discovered)",
-                         len(self._plugin_manager.plugins))
-            self._infra.update("plugin_system", ok=True,
-                               message="Plugin manager initialized")
+            _logger.info(
+                "Plugin Manager initialized (%d plugins discovered)",
+                len(self._plugin_manager.plugins),
+            )
+            self._infra.update("plugin_system", ok=True, message="Plugin manager initialized")
         except Exception:
             _logger.exception("Plugin Manager failed to initialize")
             self._status = HealthStatus.DEGRADED
-            self._infra.update("plugin_system", ok=False,
-                               message="Plugin manager failed to initialize")
+            self._infra.update(
+                "plugin_system", ok=False, message="Plugin manager failed to initialize"
+            )
             raise
 
         # ── Buddy System ──────────────────────────────────────────────
@@ -289,8 +289,7 @@ class ClaudeCodeInfraModule(Module):
         except Exception:
             _logger.exception("Buddy Manager failed to initialize")
             self._status = HealthStatus.DEGRADED
-            self._infra.update("buddy", ok=False,
-                               message="Buddy manager failed to initialize")
+            self._infra.update("buddy", ok=False, message="Buddy manager failed to initialize")
             raise
 
         # ── Voice Pipeline ────────────────────────────────────────────
@@ -306,8 +305,7 @@ class ClaudeCodeInfraModule(Module):
         except Exception:
             _logger.exception("Voice Pipeline failed to initialize")
             self._status = HealthStatus.DEGRADED
-            self._infra.update("voice", ok=False,
-                               message="Voice pipeline failed to initialize")
+            self._infra.update("voice", ok=False, message="Voice pipeline failed to initialize")
             raise
 
         self._status = HealthStatus.HEALTHY
@@ -336,15 +334,13 @@ class ClaudeCodeInfraModule(Module):
 
         for comp_key, _label, obj in targets:
             if obj is None:
-                self._infra.update(comp_key, ok=False,
-                                   message="subsystem not initialized")
+                self._infra.update(comp_key, ok=False, message="subsystem not initialized")
                 continue
             try:
                 ok = await obj.health_check()
             except Exception:
                 ok = False
-            self._infra.update(comp_key, ok=ok,
-                               message=f"{comp_key} health check")
+            self._infra.update(comp_key, ok=ok, message=f"{comp_key} health check")
 
         # bootstrap reflects whether the core middleware aggregate is healthy
         core_ok = True
@@ -353,8 +349,7 @@ class ClaudeCodeInfraModule(Module):
             if cs is None or not cs.ok:
                 core_ok = False
                 break
-        self._infra.update("bootstrap", ok=core_ok,
-                           message="aggregate core health check")
+        self._infra.update("bootstrap", ok=core_ok, message="aggregate core health check")
 
         self._status = self._infra.overall_status()
         return self._status
@@ -387,10 +382,9 @@ class ClaudeCodeInfraModule(Module):
         """
         self._event_bus = event_bus
 
-    def _publish(self, topic: str, payload: Dict[str, Any]) -> None:
+    def _publish(self, topic: str, payload: dict[str, Any]) -> None:
         """Publish an event if the event bus is wired."""
         if self._event_bus is not None:
             from enterprise.platform_kernel import Event
-            self._event_bus.publish(
-                Event.create(topic, "agent_infra", payload)
-            )
+
+            self._event_bus.publish(Event.create(topic, "agent_infra", payload))

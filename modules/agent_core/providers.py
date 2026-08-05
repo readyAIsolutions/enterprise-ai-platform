@@ -34,9 +34,9 @@ import random
 import time
 import urllib.error
 import urllib.request
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("enterprise.agent.providers")
 
@@ -65,7 +65,7 @@ class ProviderResponse:
     """Result of a single chat completion."""
 
     text: str
-    usage: Dict[str, int] = field(default_factory=dict)
+    usage: dict[str, int] = field(default_factory=dict)
     model: str = ""
     latency: float = 0.0
 
@@ -115,7 +115,7 @@ def default_opener() -> urllib.request.OpenerDirector:
 class HttpError(Exception):
     """Raised for non-2xx HTTP responses."""
 
-    def __init__(self, status: int, body: Any = None):
+    def __init__(self, status: int, body: Any = None) -> None:
         self.status = status
         self.body = body
         super().__init__(f"HTTP {status}: {body if body is not None else ''}")
@@ -140,13 +140,13 @@ class ChatProvider(ABC):
 
     def __init__(
         self,
-        base_url: Optional[str] = None,
-        api_key_env: Optional[str] = None,
-        api_key: Optional[str] = None,
+        base_url: str | None = None,
+        api_key_env: str | None = None,
+        api_key: str | None = None,
         timeout: float = 60.0,
         opener: Any = None,
-        retry: Optional[RetryPolicy] = None,
-        fallback: Optional["ChatProvider"] = None,
+        retry: RetryPolicy | None = None,
+        fallback: ChatProvider | None = None,
         **kwargs: Any,
     ) -> None:
         self.base_url = (base_url or self.default_base_url()).rstrip("/")
@@ -156,7 +156,7 @@ class ChatProvider(ABC):
         self._opener = opener
         self.retry = retry or RetryPolicy(timeout=timeout)
         self.fallback = fallback
-        self.metrics: Dict[str, int] = {"calls": 0, "retries": 0, "timeouts": 0}
+        self.metrics: dict[str, int] = {"calls": 0, "retries": 0, "timeouts": 0}
 
     # ---- subclass hooks --------------------------------------------------
 
@@ -168,11 +168,11 @@ class ChatProvider(ABC):
 
     # ---- request building (subclasses override) --------------------------
     def build_request(
-        self, messages: List[Dict[str, Any]], model: str, **kw: Any
-    ) -> Dict[str, Any]:
+        self, messages: list[dict[str, Any]], model: str, **kw: Any
+    ) -> dict[str, Any]:
         raise NotImplementedError
 
-    def build_headers(self) -> Dict[str, str]:
+    def build_headers(self) -> dict[str, str]:
         return {"Content-Type": "application/json"}
 
     def parse_response(self, status: int, body_bytes: bytes) -> ProviderResponse:
@@ -180,7 +180,7 @@ class ChatProvider(ABC):
 
     # ---- public ----------------------------------------------------------
 
-    def get_api_key(self) -> Optional[str]:
+    def get_api_key(self) -> str | None:
         if self.api_key:
             return self.api_key
         if self.api_key_env:
@@ -190,14 +190,12 @@ class ChatProvider(ABC):
     def request_url(self) -> str:
         return self.base_url
 
-    def _open_loop(
-        self, request: urllib.request.Request
-    ) -> tuple[int, bytes]:
+    def _open_loop(self, request: urllib.request.Request) -> tuple[int, bytes]:
         """Run the urllib POST with retry/backoff, return (status, body)."""
         policy = self.retry
         attempts = max(1, policy.max_attempts)
-        last_response: Optional[tuple[int, bytes]] = None
-        last_error: Optional[Exception] = None
+        last_response: tuple[int, bytes] | None = None
+        last_error: Exception | None = None
 
         for attempt in range(1, attempts + 1):
             try:
@@ -212,18 +210,23 @@ class ChatProvider(ABC):
                         self.metrics["retries"] += 1
                         logger.warning(
                             "provider %s transient HTTP %s, retry %d/%d",
-                            self.name, status, attempt + 1, attempts,
+                            self.name,
+                            status,
+                            attempt + 1,
+                            attempts,
                         )
                         continue
                     return status, body
                 return status, body
-            except (TimeoutError, urllib.error.URLError,
-                    urllib.error.HTTPError) as exc:
+            except (TimeoutError, urllib.error.URLError, urllib.error.HTTPError) as exc:
                 last_error = exc
                 self.metrics["timeouts"] += 1
                 logger.warning(
                     "provider %s network error %r, retry %d/%d",
-                    self.name, exc, attempt + 1, attempts,
+                    self.name,
+                    exc,
+                    attempt + 1,
+                    attempts,
                 )
                 if attempt < attempts:
                     _sleep = self._backoff(attempt)
@@ -238,12 +241,12 @@ class ChatProvider(ABC):
             status, body = last_response
             raise HttpError(
                 status,
-                body[:200].decode("utf-8", "replace") if isinstance(body, bytes)
-                else body,
+                body[:200].decode("utf-8", "replace") if isinstance(body, bytes) else body,
             )
         if last_error is not None:
             raise last_error
-        raise RuntimeError("provider request failed unexpectedly")
+        msg = "provider request failed unexpectedly"
+        raise RuntimeError(msg)
 
     def _single_post(self, request: urllib.request.Request) -> tuple[int, bytes]:
         opener = self._opener or default_opener()
@@ -265,7 +268,7 @@ class ChatProvider(ABC):
 
     async def complete(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         model: str,
         **kw: Any,
     ) -> ProviderResponse:
@@ -281,7 +284,7 @@ class ChatProvider(ABC):
 
     def _complete_sync(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         model: str,
         **kw: Any,
     ) -> ProviderResponse:
@@ -318,7 +321,7 @@ class OpenAICompatibleProvider(ChatProvider):
             return base + "/chat/completions"
         return base + "/v1/chat/completions"
 
-    def build_headers(self) -> Dict[str, str]:
+    def build_headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
         key = self.get_api_key()
         if key:
@@ -328,9 +331,9 @@ class OpenAICompatibleProvider(ChatProvider):
         return headers
 
     def build_request(
-        self, messages: List[Dict[str, Any]], model: str, **kw: Any
-    ) -> Dict[str, Any]:
-        request: Dict[str, Any] = {
+        self, messages: list[dict[str, Any]], model: str, **kw: Any
+    ) -> dict[str, Any]:
+        request: dict[str, Any] = {
             "model": model,
             "messages": self._normalize_messages(messages),
             "temperature": kw.get("temperature", 0.7),
@@ -348,14 +351,12 @@ class OpenAICompatibleProvider(ChatProvider):
             request["tools"] = kw["tools"]
         return request
 
-    def _normalize_messages(
-        self, messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _normalize_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         out = []
         for m in messages:
             role = m.get("role", "user")
             content = m.get("content", "")
-            entry: Dict[str, Any] = {"role": role, "content": content}
+            entry: dict[str, Any] = {"role": role, "content": content}
             if role == "assistant" and m.get("tool_calls"):
                 entry["tool_calls"] = m["tool_calls"]
             if m.get("name"):
@@ -409,7 +410,7 @@ class AnthropicProvider(ChatProvider):
             return base + "/messages"
         return base + "/v1/messages"
 
-    def build_headers(self) -> Dict[str, str]:
+    def build_headers(self) -> dict[str, str]:
         headers = {
             "Content-Type": "application/json",
             "anthropic-version": self.api_version,
@@ -421,17 +422,15 @@ class AnthropicProvider(ChatProvider):
         return headers
 
     def build_request(
-        self, messages: List[Dict[str, Any]], model: str, **kw: Any
-    ) -> Dict[str, Any]:
-        system_parts = [
-            m["content"] for m in messages if m.get("role") == "system"
-        ]
+        self, messages: list[dict[str, Any]], model: str, **kw: Any
+    ) -> dict[str, Any]:
+        system_parts = [m["content"] for m in messages if m.get("role") == "system"]
         api_messages = [
             {"role": self._map_role(m.get("role", "user")), "content": m.get("content", "")}
             for m in messages
             if m.get("role") not in ("system",)
         ]
-        request: Dict[str, Any] = {
+        request: dict[str, Any] = {
             "model": model,
             "max_tokens": int(kw.get("max_tokens", kw.get("max_output_tokens", 1024))),
             "messages": api_messages,
@@ -468,8 +467,7 @@ class AnthropicProvider(ChatProvider):
             usage={
                 "prompt_tokens": usage.get("input_tokens", 0),
                 "completion_tokens": usage.get("output_tokens", 0),
-                "total_tokens": usage.get("input_tokens", 0)
-                + usage.get("output_tokens", 0),
+                "total_tokens": usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
             },
             model=data.get("model") or "",
         )
@@ -489,7 +487,7 @@ class ResilientProvider(ChatProvider):
 
     name = "resilient"
 
-    def __init__(self, primary: ChatProvider, fallback: Optional[ChatProvider] = None):
+    def __init__(self, primary: ChatProvider, fallback: ChatProvider | None = None) -> None:
         super().__init__(base_url=primary.base_url, fallback=fallback)
         self.primary = primary
         self.fallback = fallback
@@ -546,13 +544,13 @@ class MockProvider(ChatProvider):
     name = "mock"
     requires_api_key = False
 
-    def __init__(self, responses=None, failures=None, **kw):
+    def __init__(self, responses=None, failures=None, **kw) -> None:
         super().__init__(**kw)
         #: list of ProviderResponse to return in order (last repeats)
         self.responses = list(responses or [])
         #: list of exceptions to raise in order (last repeats)
         self.failures = list(failures or [])
-        self.calls: List[Dict[str, Any]] = []
+        self.calls: list[dict[str, Any]] = []
 
     def default_base_url(self) -> str:
         return "mock://mock"
@@ -592,8 +590,8 @@ class ProviderRegistry:
     """Registry of provider *builders* + constructed instances."""
 
     def __init__(self) -> None:
-        self._builders: Dict[str, Any] = {}
-        self._instances: Dict[str, ChatProvider] = {}
+        self._builders: dict[str, Any] = {}
+        self._instances: dict[str, ChatProvider] = {}
         self._register_builtins()
 
     def _register_builtins(self) -> None:
@@ -610,17 +608,18 @@ class ProviderRegistry:
     def has(self, name: str) -> bool:
         return name in self._builders
 
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         return sorted(self._builders)
 
-    def get(self, name: str, config: Optional[Dict[str, Any]] = None) -> ChatProvider:
+    def get(self, name: str, config: dict[str, Any] | None = None) -> ChatProvider:
         """Build (or return cached) provider from config."""
         config = config or {}
         if name in self._instances and not config.get("_fresh"):
             return self._instances[name]
         builder = self._builders.get(name)
         if builder is None:
-            raise KeyError(f"Unknown provider {name!r}; known: {self.names()}")
+            msg = f"Unknown provider {name!r}; known: {self.names()}"
+            raise KeyError(msg)
         allowed = {k: v for k, v in config.items() if k != "_fresh"}
         provider = builder(**allowed)
         if not config.get("_fresh"):
@@ -628,7 +627,7 @@ class ProviderRegistry:
         return provider
 
 
-_DEFAULT_REGISTRY: Optional[ProviderRegistry] = None
+_DEFAULT_REGISTRY: ProviderRegistry | None = None
 
 
 def _registry() -> ProviderRegistry:
@@ -639,8 +638,9 @@ def _registry() -> ProviderRegistry:
 
 
 def get_provider(
-    name: str, config: Optional[Dict[str, Any]] = None,
-    registry: Optional[ProviderRegistry] = None,
+    name: str,
+    config: dict[str, Any] | None = None,
+    registry: ProviderRegistry | None = None,
 ) -> ChatProvider:
     """Factory: return a provider instance for ``name`` from ``config``."""
     reg = registry or _registry()

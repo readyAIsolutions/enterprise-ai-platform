@@ -31,25 +31,17 @@ import uuid
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum, auto
+from datetime import UTC, datetime
+from enum import Enum
 from typing import (
+    TYPE_CHECKING,
     Any,
-    AsyncGenerator,
-    AsyncIterator,
-    Awaitable,
-    Callable,
     ClassVar,
-    Dict,
-    Generic,
-    List,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
     TypeVar,
-    Union,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 
 logger = logging.getLogger("enterprise.agent.query_engine")
 
@@ -62,6 +54,7 @@ T = TypeVar("T")
 
 class ModelFamily(Enum):
     """Supported model families."""
+
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
     GOOGLE = "google"
@@ -73,6 +66,7 @@ class ModelFamily(Enum):
 
 class MessageRole(Enum):
     """Message roles for the conversation."""
+
     SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"
@@ -81,6 +75,7 @@ class MessageRole(Enum):
 
 class ToolCallStatus(Enum):
     """Status of a tool invocation."""
+
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -91,6 +86,7 @@ class ToolCallStatus(Enum):
 
 class StreamEventType(Enum):
     """Types of streaming events."""
+
     TEXT_DELTA = "text_delta"
     TOOL_CALL_START = "tool_call_start"
     TOOL_CALL_DELTA = "tool_call_delta"
@@ -105,16 +101,17 @@ class StreamEventType(Enum):
 @dataclass
 class Message:
     """A single message in the conversation."""
+
     role: MessageRole
     content: str
     message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    tool_calls: List[ToolCall] = field(default_factory=list)
-    tool_call_id: Optional[str] = None
-    name: Optional[str] = None
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    metadata: dict[str, Any] = field(default_factory=dict)
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    tool_call_id: str | None = None
+    name: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = {
             "role": self.role.value,
             "content": self.content,
@@ -140,14 +137,15 @@ class Message:
 @dataclass
 class ToolCall:
     """A tool call requested by the model."""
+
     tool_call_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = ""
-    arguments: Dict[str, Any] = field(default_factory=dict)
+    arguments: dict[str, Any] = field(default_factory=dict)
     status: ToolCallStatus = ToolCallStatus.PENDING
-    result: Optional[str] = None
-    error: Optional[str] = None
-    started_at: Optional[float] = None
-    finished_at: Optional[float] = None
+    result: str | None = None
+    error: str | None = None
+    started_at: float | None = None
+    finished_at: float | None = None
 
     @property
     def duration_ms(self) -> float:
@@ -155,7 +153,7 @@ class ToolCall:
             return (self.finished_at - self.started_at) * 1000
         return 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "tool_call_id": self.tool_call_id,
             "name": self.name,
@@ -169,10 +167,11 @@ class ToolCall:
 @dataclass
 class StreamEvent:
     """A single streaming event."""
+
     event_type: StreamEventType
     data: str
-    tool_call: Optional[ToolCall] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    tool_call: ToolCall | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __repr__(self) -> str:
         return f"<StreamEvent {self.event_type.value}: {self.data[:50]}>"
@@ -186,11 +185,12 @@ class StreamEvent:
 @dataclass
 class ModelConfig:
     """Configuration for a specific model."""
+
     name: str
     family: ModelFamily
     provider: str
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
+    api_key: str | None = None
+    base_url: str | None = None
     max_tokens: int = 200000
     max_output_tokens: int = 4096
     cost_per_1k_input: float = 0.0
@@ -203,16 +203,17 @@ class ModelConfig:
     rate_limit_rpm: int = 100
     circuit_breaker_failures: int = 5
     circuit_breaker_timeout_s: float = 30.0
-    headers: Dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class RoutingDecision:
     """Result of model routing."""
+
     model: ModelConfig
     reason: str
     score: float
-    fallback_models: List[ModelConfig] = field(default_factory=list)
+    fallback_models: list[ModelConfig] = field(default_factory=list)
 
 
 class ModelRouter:
@@ -226,12 +227,12 @@ class ModelRouter:
       - Historical success rate per model
     """
 
-    def __init__(self, models: Optional[List[ModelConfig]] = None) -> None:
-        self._models: Dict[str, ModelConfig] = {}
-        self._circuit_state: Dict[str, int] = defaultdict(int)
-        self._circuit_open_until: Dict[str, float] = {}
-        self._success_counts: Dict[str, int] = defaultdict(int)
-        self._failure_counts: Dict[str, int] = defaultdict(int)
+    def __init__(self, models: list[ModelConfig] | None = None) -> None:
+        self._models: dict[str, ModelConfig] = {}
+        self._circuit_state: dict[str, int] = defaultdict(int)
+        self._circuit_open_until: dict[str, float] = {}
+        self._success_counts: dict[str, int] = defaultdict(int)
+        self._failure_counts: dict[str, int] = defaultdict(int)
         if models:
             for m in models:
                 self.register_model(m)
@@ -241,7 +242,9 @@ class ModelRouter:
         self._models[model.name] = model
         logger.info(
             "Registered model: %s (family=%s, provider=%s)",
-            model.name, model.family.value, model.provider,
+            model.name,
+            model.family.value,
+            model.provider,
         )
 
     def unregister_model(self, name: str) -> bool:
@@ -250,8 +253,8 @@ class ModelRouter:
 
     def route(
         self,
-        messages: List[Message],
-        constraints: Optional[Dict[str, Any]] = None,
+        messages: list[Message],
+        constraints: dict[str, Any] | None = None,
     ) -> RoutingDecision:
         """Select the best model for the given messages and constraints.
 
@@ -266,10 +269,11 @@ class ModelRouter:
         available = self._get_available_models()
 
         if not available:
-            raise RuntimeError("No available models for routing")
+            msg = "No available models for routing"
+            raise RuntimeError(msg)
 
         # Score each model
-        scored: List[Tuple[ModelConfig, float]] = []
+        scored: list[tuple[ModelConfig, float]] = []
         for model in available:
             score = self._score_model(model, messages, constraints)
             scored.append((model, score))
@@ -289,7 +293,8 @@ class ModelRouter:
         )
         logger.info(
             "Routing decided: %s (score=%.2f, fallbacks=%s)",
-            primary.name, scored[0][1],
+            primary.name,
+            scored[0][1],
             [f.name for f in fallbacks],
         )
         return decision
@@ -308,16 +313,14 @@ class ModelRouter:
         if model:
             self._circuit_state[model_name] += 1
             if self._circuit_state[model_name] >= model.circuit_breaker_failures:
-                self._circuit_open_until[model_name] = (
-                    time.time() + model.circuit_breaker_timeout_s
-                )
+                self._circuit_open_until[model_name] = time.time() + model.circuit_breaker_timeout_s
                 logger.warning(
                     "Circuit breaker OPEN for model %s until %s",
                     model_name,
                     datetime.fromtimestamp(self._circuit_open_until[model_name]).isoformat(),
                 )
 
-    def _get_available_models(self) -> List[ModelConfig]:
+    def _get_available_models(self) -> list[ModelConfig]:
         """Return models not in circuit-break open state."""
         now = time.time()
         available = []
@@ -334,8 +337,8 @@ class ModelRouter:
     def _score_model(
         self,
         model: ModelConfig,
-        messages: List[Message],
-        constraints: Dict[str, Any],
+        messages: list[Message],
+        constraints: dict[str, Any],
     ) -> float:
         """Score a model for routing. Higher is better."""
         score = 100.0
@@ -364,7 +367,7 @@ class ModelRouter:
         total_calls = self._success_counts[model.name] + self._failure_counts[model.name]
         if total_calls > 0:
             success_rate = self._success_counts[model.name] / total_calls
-            score *= (0.5 + success_rate * 0.5)
+            score *= 0.5 + success_rate * 0.5
 
         # Tool support
         if constraints.get("require_tools") and not model.supports_tools:
@@ -378,7 +381,7 @@ class ModelRouter:
         return max(1.0, score)
 
     def _explain_decision(
-        self, model: ModelConfig, score: float, constraints: Dict[str, Any]
+        self, model: ModelConfig, score: float, constraints: dict[str, Any]
     ) -> str:
         parts = [f"Selected {model.name} (score={score:.1f})"]
         if constraints.get("preferred_family"):
@@ -393,10 +396,10 @@ class ModelRouter:
         return "; ".join(parts)
 
     @property
-    def registered_models(self) -> List[str]:
+    def registered_models(self) -> list[str]:
         return list(self._models.keys())
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return routing statistics."""
         return {
             "registered_models": len(self._models),
@@ -427,7 +430,7 @@ class StreamingResponse:
         self._finished = False
         self._event_count = 0
         self._text_accumulated = ""
-        self._tool_calls: List[ToolCall] = []
+        self._tool_calls: list[ToolCall] = []
 
     def cancel(self) -> None:
         """Cancel the stream."""
@@ -455,7 +458,7 @@ class StreamingResponse:
                 yield event
                 if event.event_type == StreamEventType.FINISH:
                     break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
     async def collect(self) -> str:
@@ -482,6 +485,7 @@ class StreamingResponse:
 @dataclass
 class WindowConfig:
     """Configuration for the context window manager."""
+
     max_tokens: int = 180000
     reserve_tokens: int = 2000
     compact_at_usage: float = 0.85
@@ -503,7 +507,7 @@ class ContextWindowManager:
       - Warning thresholds and automatic compaction triggers
     """
 
-    def __init__(self, config: Optional[WindowConfig] = None) -> None:
+    def __init__(self, config: WindowConfig | None = None) -> None:
         self.config = config or WindowConfig()
         self._total_tokens = 0
         self._compactions_count = 0
@@ -514,7 +518,7 @@ class ContextWindowManager:
         """Estimate token count for text. 4 chars ≈ 1 token as rough estimate."""
         return max(1, len(text) // 4)
 
-    def estimate_total(self, messages: List[Message]) -> int:
+    def estimate_total(self, messages: list[Message]) -> int:
         """Estimate total tokens in a message list."""
         total = 0
         for msg in messages:
@@ -526,16 +530,16 @@ class ContextWindowManager:
                     total += self.estimate_tokens(json.dumps(tc.arguments))
         return total
 
-    def needs_compaction(self, messages: List[Message]) -> bool:
+    def needs_compaction(self, messages: list[Message]) -> bool:
         """Check if messages need compaction."""
         usage_ratio = self.estimate_total(messages) / self.config.max_tokens
         return usage_ratio >= self.config.compact_at_usage
 
     def compact(
         self,
-        messages: List[Message],
+        messages: list[Message],
         strategy: str = "auto",
-    ) -> Tuple[List[Message], Dict[str, Any]]:
+    ) -> tuple[list[Message], dict[str, Any]]:
         """Compact messages to fit within the context window.
 
         Args:
@@ -545,7 +549,7 @@ class ContextWindowManager:
         Returns:
             Tuple of (compacted_messages, compaction_stats).
         """
-        stats: Dict[str, Any] = {
+        stats: dict[str, Any] = {
             "before_tokens": self.estimate_total(messages),
             "before_count": len(messages),
             "strategy": strategy,
@@ -581,11 +585,13 @@ class ContextWindowManager:
             new_msgs = non_system[cutoff:]
 
             summary_text = self._generate_summary(old_msgs)
-            compacted.append(Message(
-                role=MessageRole.SYSTEM,
-                content=f"[Conversation Summary] {summary_text}",
-                metadata={"compacted": True, "original_count": len(old_msgs)},
-            ))
+            compacted.append(
+                Message(
+                    role=MessageRole.SYSTEM,
+                    content=f"[Conversation Summary] {summary_text}",
+                    metadata={"compacted": True, "original_count": len(old_msgs)},
+                )
+            )
             compacted.extend(new_msgs)
             self._summarizations_count += 1
 
@@ -595,7 +601,9 @@ class ContextWindowManager:
                     compacted.append(msg)
                 else:
                     if self.config.truncate_long_messages:
-                        truncated = self._truncate_message(msg, available_tokens - self.estimate_total(compacted))
+                        truncated = self._truncate_message(
+                            msg, available_tokens - self.estimate_total(compacted)
+                        )
                         if truncated:
                             compacted.append(truncated)
                     self._evictions_count += 1
@@ -608,12 +616,15 @@ class ContextWindowManager:
 
         logger.info(
             "Context compacted: %d → %d tokens, %d → %d messages (strategy=%s)",
-            stats["before_tokens"], stats["after_tokens"],
-            stats["before_count"], stats["after_count"], strategy,
+            stats["before_tokens"],
+            stats["after_tokens"],
+            stats["before_count"],
+            stats["after_count"],
+            strategy,
         )
         return compacted, stats
 
-    def _generate_summary(self, messages: List[Message]) -> str:
+    def _generate_summary(self, messages: list[Message]) -> str:
         """Generate a summary of old messages."""
         total = len(messages)
         if total == 0:
@@ -633,24 +644,23 @@ class ContextWindowManager:
         # Sample key user queries
         for i, msg in enumerate(user_msgs[:3]):
             preview = msg.content[:200].replace("\n", " ")
-            parts.append(f"  Query {i+1}: {preview}...")
+            parts.append(f"  Query {i + 1}: {preview}...")
 
         return "\n".join(parts)
 
-    def _truncate_message(self, msg: Message, max_tokens: int) -> Optional[Message]:
+    def _truncate_message(self, msg: Message, max_tokens: int) -> Message | None:
         """Truncate a message to fit within a token budget."""
         max_chars = max_tokens * 4
         if len(msg.content) <= max_chars:
             return msg
-        truncated = Message(
+        return Message(
             role=msg.role,
-            content=msg.content[:max_chars - 100] + "\n... [truncated]",
+            content=msg.content[: max_chars - 100] + "\n... [truncated]",
             metadata={**msg.metadata, "truncated": True},
         )
-        return truncated
 
     @property
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         return {
             "compactions": self._compactions_count,
             "evictions": self._evictions_count,
@@ -666,16 +676,17 @@ class ContextWindowManager:
 @dataclass
 class ToolDefinition:
     """Definition of a tool that can be called by the model."""
+
     name: str
     description: str
-    parameters: Dict[str, Any]  # JSON Schema
+    parameters: dict[str, Any]  # JSON Schema
     handler: Callable[..., Awaitable[Any]]
     requires_confirmation: bool = False
     timeout_sec: float = 60.0
     max_retries: int = 2
     parallel_safe: bool = True
 
-    def to_schema(self) -> Dict[str, Any]:
+    def to_schema(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "description": self.description,
@@ -687,9 +698,9 @@ class ToolRegistry:
     """Registry for available tools with metadata."""
 
     def __init__(self) -> None:
-        self._tools: Dict[str, ToolDefinition] = {}
-        self._call_counts: Dict[str, int] = defaultdict(int)
-        self._error_counts: Dict[str, int] = defaultdict(int)
+        self._tools: dict[str, ToolDefinition] = {}
+        self._call_counts: dict[str, int] = defaultdict(int)
+        self._error_counts: dict[str, int] = defaultdict(int)
 
     def register(self, tool: ToolDefinition) -> None:
         self._tools[tool.name] = tool
@@ -697,17 +708,17 @@ class ToolRegistry:
     def unregister(self, name: str) -> bool:
         return self._tools.pop(name, None) is not None
 
-    def get(self, name: str) -> Optional[ToolDefinition]:
+    def get(self, name: str) -> ToolDefinition | None:
         return self._tools.get(name)
 
-    def get_schemas(self) -> List[Dict[str, Any]]:
+    def get_schemas(self) -> list[dict[str, Any]]:
         return [t.to_schema() for t in self._tools.values()]
 
     async def execute(
         self,
         name: str,
-        arguments: Dict[str, Any],
-        timeout_sec: Optional[float] = None,
+        arguments: dict[str, Any],
+        timeout_sec: float | None = None,
     ) -> ToolCallResult:
         """Execute a tool by name with arguments."""
         tool = self._tools.get(name)
@@ -727,7 +738,7 @@ class ToolRegistry:
                 tool.handler(**arguments),
                 timeout=actual_timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._error_counts[name] += 1
             return ToolCallResult(
                 tool_name=name,
@@ -752,10 +763,10 @@ class ToolRegistry:
         )
 
     @property
-    def tool_names(self) -> List[str]:
+    def tool_names(self) -> list[str]:
         return list(self._tools.keys())
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return {
             "total_tools": len(self._tools),
             "call_counts": dict(self._call_counts),
@@ -766,10 +777,11 @@ class ToolRegistry:
 @dataclass
 class ToolCallResult:
     """Result of a tool execution."""
+
     tool_name: str
     success: bool
     result: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     duration_ms: float = 0.0
 
     @property
@@ -787,9 +799,10 @@ class ToolCallResult:
 @dataclass
 class QueryConfig:
     """Configuration for a query run."""
+
     system_prompt: str = ""
-    model: Optional[str] = None
-    fallback_model: Optional[str] = None
+    model: str | None = None
+    fallback_model: str | None = None
     max_turns: int = 50
     max_tokens: int = 180000
     max_output_tokens: int = 4096
@@ -803,25 +816,26 @@ class QueryConfig:
     retry_base_delay: float = 1.0
     auto_compact: bool = True
     thinking_enabled: bool = True
-    thinking_budget: Optional[int] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    thinking_budget: int | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class QueryResult:
     """Complete result of a query."""
+
     query_id: str
-    messages: List[Message]
+    messages: list[Message]
     final_response: str
-    tool_calls: List[ToolCall]
+    tool_calls: list[ToolCall]
     total_tokens_input: int
     total_tokens_output: int
     total_cost: float
     turns: int
     duration_ms: float
     success: bool
-    error: Optional[str] = None
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+    metrics: dict[str, Any] = field(default_factory=dict)
     terminated_reason: str = "complete"
 
 
@@ -836,10 +850,10 @@ class ModelBackend(ABC):
     @abstractmethod
     async def generate(
         self,
-        messages: List[Message],
+        messages: list[Message],
         config: QueryConfig,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        stream: Optional[StreamingResponse] = None,
+        tools: list[dict[str, Any]] | None = None,
+        stream: StreamingResponse | None = None,
     ) -> Message:
         """Generate a response from the model."""
         ...
@@ -847,9 +861,9 @@ class ModelBackend(ABC):
     @abstractmethod
     async def generate_stream(
         self,
-        messages: List[Message],
+        messages: list[Message],
         config: QueryConfig,
-        tools: Optional[List[Dict[str, Any]]] = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[StreamEvent, None]:
         """Generate a streaming response from the model."""
         ...
@@ -882,11 +896,11 @@ class AnthropicBackend(ModelBackend):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        provider: Optional[Any] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        provider: Any | None = None,
         api_key_env: str = "ANTHROPIC_API_KEY",
-    ):
+    ) -> None:
         self._api_key = api_key
         self._base_url = base_url
         self._api_key_env = api_key_env
@@ -895,7 +909,7 @@ class AnthropicBackend(ModelBackend):
             fixed_response="[Anthropic backend: no API key configured; response simulated]"
         )
 
-    def _resolve_provider(self) -> Optional[Any]:
+    def _resolve_provider(self) -> Any | None:
         """Build the AnthropicProvider if an API key is available."""
         if self._provider is not None:
             return self._provider
@@ -904,6 +918,7 @@ class AnthropicBackend(ModelBackend):
             return None
         try:
             from .providers import AnthropicProvider
+
             self._provider = AnthropicProvider(
                 base_url=self._base_url,
                 api_key=key,
@@ -918,7 +933,7 @@ class AnthropicBackend(ModelBackend):
         if provider is None:
             logger.warning("Anthropic backend not configured; using simulation")
             return await self._sim.generate(messages, config, tools, stream)
-        model = (config.model or self._DEFAULT_MODEL)
+        model = config.model or self._DEFAULT_MODEL
         try:
             payload = [m.to_dict() for m in messages]
             resp = await provider.complete(
@@ -948,10 +963,11 @@ class AnthropicBackend(ModelBackend):
             async for ev in self._sim.generate_stream(messages, config, tools):
                 yield ev
             return
-        model = (config.model or self._DEFAULT_MODEL)
+        model = config.model or self._DEFAULT_MODEL
         try:
             resp = await provider.complete(
-                [m.to_dict() for m in messages], model,
+                [m.to_dict() for m in messages],
+                model,
                 temperature=config.temperature,
                 max_output_tokens=config.max_output_tokens,
                 tools=tools,
@@ -963,23 +979,23 @@ class AnthropicBackend(ModelBackend):
                 yield ev
             return
         if tools:
-            last_user = next(
-                (m for m in reversed(messages) if m.role == MessageRole.USER), None
-            )
+            last_user = next((m for m in reversed(messages) if m.role == MessageRole.USER), None)
             if last_user and "bash" in last_user.content.lower():
                 tc = ToolCall(name="bash", arguments={"command": "echo test"})
                 yield StreamEvent(
-                    StreamEventType.TOOL_CALL_START, "bash", tool_call=tc,
+                    StreamEventType.TOOL_CALL_START,
+                    "bash",
+                    tool_call=tc,
                 )
         yield StreamEvent(StreamEventType.FINISH, "")
 
     async def count_tokens(self, text):
         return max(1, len(text) // 4)
 
-    def supports_tools(self):
+    def supports_tools(self) -> bool:
         return True
 
-    def supports_streaming(self):
+    def supports_streaming(self) -> bool:
         return True
 
 
@@ -995,11 +1011,11 @@ class OpenAICompatibleBackend(ModelBackend):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        provider: Optional[Any] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        provider: Any | None = None,
         api_key_env: str = "OPENAI_API_KEY",
-    ):
+    ) -> None:
         self._api_key = api_key
         self._base_url = base_url
         self._api_key_env = api_key_env
@@ -1008,7 +1024,7 @@ class OpenAICompatibleBackend(ModelBackend):
             fixed_response="[OpenAI backend: no API key configured; response simulated]"
         )
 
-    def _resolve_provider(self) -> Optional[Any]:
+    def _resolve_provider(self) -> Any | None:
         if self._provider is not None:
             return self._provider
         key = self._api_key or os.environ.get(self._api_key_env)
@@ -1016,6 +1032,7 @@ class OpenAICompatibleBackend(ModelBackend):
             return None
         try:
             from .providers import OpenAICompatibleProvider
+
             self._provider = OpenAICompatibleProvider(
                 base_url=self._base_url or "https://api.openai.com/v1",
                 api_key=key,
@@ -1030,7 +1047,7 @@ class OpenAICompatibleBackend(ModelBackend):
         if provider is None:
             logger.warning("OpenAI backend not configured; using simulation")
             return await self._sim.generate(messages, config, tools, stream)
-        model = (config.model or self._DEFAULT_MODEL)
+        model = config.model or self._DEFAULT_MODEL
         try:
             payload = [m.to_dict() for m in messages]
             resp = await provider.complete(
@@ -1060,10 +1077,11 @@ class OpenAICompatibleBackend(ModelBackend):
             async for ev in self._sim.generate_stream(messages, config, tools):
                 yield ev
             return
-        model = (config.model or self._DEFAULT_MODEL)
+        model = config.model or self._DEFAULT_MODEL
         try:
             resp = await provider.complete(
-                [m.to_dict() for m in messages], model,
+                [m.to_dict() for m in messages],
+                model,
                 temperature=config.temperature,
                 max_output_tokens=config.max_output_tokens,
                 tools=tools,
@@ -1075,23 +1093,23 @@ class OpenAICompatibleBackend(ModelBackend):
                 yield ev
             return
         if tools:
-            last_user = next(
-                (m for m in reversed(messages) if m.role == MessageRole.USER), None
-            )
+            last_user = next((m for m in reversed(messages) if m.role == MessageRole.USER), None)
             if last_user and "bash" in last_user.content.lower():
                 tc = ToolCall(name="bash", arguments={"command": "echo test"})
                 yield StreamEvent(
-                    StreamEventType.TOOL_CALL_START, "bash", tool_call=tc,
+                    StreamEventType.TOOL_CALL_START,
+                    "bash",
+                    tool_call=tc,
                 )
         yield StreamEvent(StreamEventType.FINISH, "")
 
     async def count_tokens(self, text):
         return max(1, len(text) // 4)
 
-    def supports_tools(self):
+    def supports_tools(self) -> bool:
         return True
 
-    def supports_streaming(self):
+    def supports_streaming(self) -> bool:
         return True
 
 
@@ -1102,7 +1120,7 @@ class SimulationBackend(ModelBackend):
     Useful for unit testing and integration testing.
     """
 
-    def __init__(self, fixed_response: Optional[str] = None):
+    def __init__(self, fixed_response: str | None = None) -> None:
         self._fixed = fixed_response
         self._call_count = 0
 
@@ -1156,10 +1174,10 @@ class SimulationBackend(ModelBackend):
     async def count_tokens(self, text):
         return max(1, len(text) // 4)
 
-    def supports_tools(self):
+    def supports_tools(self) -> bool:
         return True
 
-    def supports_streaming(self):
+    def supports_streaming(self) -> bool:
         return True
 
 
@@ -1171,6 +1189,7 @@ class SimulationBackend(ModelBackend):
 @dataclass
 class QueryMetrics:
     """Metrics for a single query execution."""
+
     query_id: str
     start_time: float
     end_time: float = 0.0
@@ -1198,7 +1217,7 @@ class QueryMetrics:
             return (self.tokens_output / self.duration_ms) * 1000
         return 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "query_id": self.query_id,
             "duration_ms": self.duration_ms,
@@ -1249,7 +1268,7 @@ class SuperiorQueryEngine:
     """
 
     # Default models registered
-    DEFAULT_MODELS: ClassVar[List[ModelConfig]] = [
+    DEFAULT_MODELS: ClassVar[list[ModelConfig]] = [
         ModelConfig(
             name="claude-sonnet-4-20250514",
             family=ModelFamily.ANTHROPIC,
@@ -1302,12 +1321,12 @@ class SuperiorQueryEngine:
 
     def __init__(
         self,
-        config: Optional[QueryConfig] = None,
-        router: Optional[ModelRouter] = None,
+        config: QueryConfig | None = None,
+        router: ModelRouter | None = None,
     ) -> None:
         self.config = config or QueryConfig()
         self.router = router or ModelRouter(list(self.DEFAULT_MODELS))
-        self._backends: Dict[str, ModelBackend] = {}
+        self._backends: dict[str, ModelBackend] = {}
         self._tools = ToolRegistry()
         self._window = ContextWindowManager()
         self._query_count = 0
@@ -1335,9 +1354,9 @@ class SuperiorQueryEngine:
 
     async def query(
         self,
-        messages: List[Message],
-        system_prompt: Optional[str] = None,
-        constraints: Optional[Dict[str, Any]] = None,
+        messages: list[Message],
+        system_prompt: str | None = None,
+        constraints: dict[str, Any] | None = None,
     ) -> QueryResult:
         """Execute a query against the model with tool loop.
 
@@ -1361,9 +1380,8 @@ class SuperiorQueryEngine:
         if sys_prompt and not any(m.role == MessageRole.SYSTEM for m in all_messages):
             all_messages.insert(0, Message(role=MessageRole.SYSTEM, content=sys_prompt))
 
-        tool_calls: List[ToolCall] = []
+        tool_calls: list[ToolCall] = []
         turns = 0
-        last_error = None
 
         try:
             # Context window compaction check
@@ -1403,7 +1421,9 @@ class SuperiorQueryEngine:
 
                 # Generate response
                 response = await backend.generate(
-                    all_messages, self.config, tool_schemas,
+                    all_messages,
+                    self.config,
+                    tool_schemas,
                 )
                 all_messages.append(response)
                 metrics.tokens_output += response.estimated_tokens
@@ -1416,7 +1436,7 @@ class SuperiorQueryEngine:
                     # Execute tool calls (possibly in parallel)
                     if self.config.parallel_tool_calls and len(new_tool_calls) > 1:
                         results = await self._execute_tools_parallel(
-                            new_tool_calls[:self.config.max_parallel_tools],
+                            new_tool_calls[: self.config.max_parallel_tools],
                         )
                     else:
                         results = []
@@ -1428,7 +1448,7 @@ class SuperiorQueryEngine:
                     metrics.tool_calls_count += len(new_tool_calls)
 
                     # Add tool results to messages
-                    for tc, result in zip(new_tool_calls, results):
+                    for tc, result in zip(new_tool_calls, results, strict=False):
                         tc.result = result.formatted
                         if not result.success:
                             tc.error = result.error
@@ -1437,12 +1457,14 @@ class SuperiorQueryEngine:
                         else:
                             tc.status = ToolCallStatus.SUCCESS
 
-                        all_messages.append(Message(
-                            role=MessageRole.TOOL,
-                            content=result.formatted,
-                            tool_call_id=tc.tool_call_id,
-                            name=tc.name,
-                        ))
+                        all_messages.append(
+                            Message(
+                                role=MessageRole.TOOL,
+                                content=result.formatted,
+                                tool_call_id=tc.tool_call_id,
+                                name=tc.name,
+                            )
+                        )
 
                     self._total_tool_calls += len(new_tool_calls)
                 else:
@@ -1452,10 +1474,9 @@ class SuperiorQueryEngine:
             metrics.success = True
 
             # Estimate cost
-            metrics.cost_estimate = (
-                (metrics.tokens_input / 1000) * model.cost_per_1k_input
-                + (metrics.tokens_output / 1000) * model.cost_per_1k_output
-            )
+            metrics.cost_estimate = (metrics.tokens_input / 1000) * model.cost_per_1k_input + (
+                metrics.tokens_output / 1000
+            ) * model.cost_per_1k_output
 
             self.router.record_success(model.name)
 
@@ -1478,7 +1499,7 @@ class SuperiorQueryEngine:
             metrics.end_time = time.monotonic()
             metrics.success = False
             metrics.error_type = type(exc).__name__
-            self.router.record_failure(model.name if 'model' in dir() else "unknown")
+            self.router.record_failure(model.name if "model" in dir() else "unknown")
 
             logger.error("Query %s failed: %s", query_id, exc, exc_info=True)
 
@@ -1500,8 +1521,8 @@ class SuperiorQueryEngine:
 
     async def query_stream(
         self,
-        messages: List[Message],
-        system_prompt: Optional[str] = None,
+        messages: list[Message],
+        system_prompt: str | None = None,
     ) -> StreamingResponse:
         """Execute a query with streaming response.
 
@@ -1529,17 +1550,26 @@ class SuperiorQueryEngine:
                 async for event in backend.generate_stream(all_messages, self.config):
                     await stream.put(event)
             else:
-                response = await (backend.generate(all_messages, self.config) if backend else
-                    SimulationBackend().generate(all_messages, self.config))
-                await stream.put(StreamEvent(
-                    StreamEventType.TEXT_DELTA, response.content,
-                ))
+                response = await (
+                    backend.generate(all_messages, self.config)
+                    if backend
+                    else SimulationBackend().generate(all_messages, self.config)
+                )
+                await stream.put(
+                    StreamEvent(
+                        StreamEventType.TEXT_DELTA,
+                        response.content,
+                    )
+                )
 
             elapsed = (time.monotonic() - t0) * 1000
-            await stream.put(StreamEvent(
-                StreamEventType.METADATA, "",
-                metadata={"duration_ms": elapsed, "query_id": query_id},
-            ))
+            await stream.put(
+                StreamEvent(
+                    StreamEventType.METADATA,
+                    "",
+                    metadata={"duration_ms": elapsed, "query_id": query_id},
+                )
+            )
             await stream.finish()
 
         except Exception as exc:
@@ -1559,17 +1589,22 @@ class SuperiorQueryEngine:
         for attempt in range(self.config.retry_max_attempts):
             try:
                 result = await self._tools.execute(
-                    tc.name, tc.arguments, self.config.tool_timeout_default,
+                    tc.name,
+                    tc.arguments,
+                    self.config.tool_timeout_default,
                 )
                 tc.finished_at = time.monotonic()
                 if result.success or attempt == self.config.retry_max_attempts - 1:
                     return result
                 # Retry on failure
                 self._total_retries += 1
-                delay = self.config.retry_base_delay * (2 ** attempt)
+                delay = self.config.retry_base_delay * (2**attempt)
                 logger.warning(
                     "Tool %s failed (attempt %d/%d), retrying in %.1fs",
-                    tc.name, attempt + 1, self.config.retry_max_attempts, delay,
+                    tc.name,
+                    attempt + 1,
+                    self.config.retry_max_attempts,
+                    delay,
                 )
                 await asyncio.sleep(delay)
             except Exception as exc:
@@ -1580,15 +1615,16 @@ class SuperiorQueryEngine:
         return ToolCallResult(tool_name=tc.name, success=False, error="Max retries exceeded")
 
     async def _execute_tools_parallel(
-        self, tool_calls: List[ToolCall],
-    ) -> List[ToolCallResult]:
+        self,
+        tool_calls: list[ToolCall],
+    ) -> list[ToolCallResult]:
         """Execute multiple tool calls in parallel."""
         tasks = [self._execute_tool(tc) for tc in tool_calls]
         return await asyncio.gather(*tasks)
 
     # ── Metrics ──────────────────────────────────────────────────────────
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Return engine-wide metrics."""
         return {
             "total_queries": self._query_count,
@@ -1599,7 +1635,7 @@ class SuperiorQueryEngine:
             "tools": self._tools.get_stats(),
         }
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """Quick health check of the engine."""
         healthy = True
         issues = []

@@ -25,11 +25,13 @@ import time
 import urllib.request
 import uuid
 from collections import defaultdict, deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # ---------------------------------------------------------------------------
 # Result type
@@ -73,9 +75,7 @@ class GatewayResult:
 # ---------------------------------------------------------------------------
 
 
-def _default_opener(
-    url: str, data: bytes, headers: dict[str, str]
-) -> Any:
+def _default_opener(url: str, data: bytes, headers: dict[str, str]) -> Any:
     """Send a POST via ``urllib.request`` and return the response object.
 
     The returned object must expose ``.read()`` (like ``http.client`` /
@@ -406,9 +406,7 @@ def _is_transient_failure(channel: Channel, result: GatewayResult) -> bool:
     retrying it would just re-spin on a config error. Any other failure is
     treated as transient (network / downstream) and eligible for retry.
     """
-    if not channel.enabled:
-        return False
-    return True
+    return channel.enabled
 
 
 def send_with_retry(
@@ -738,9 +736,7 @@ class Gateway:
         self._event_sink = event_sink
         self._delivery_policy = delivery_policy or DeliveryPolicy()
         # Delivery-resilience: shared router (retry/backoff/handoff) + outbox.
-        self.router = GatewayRouter(
-            registry=self.registry, default_policy=self._delivery_policy
-        )
+        self.router = GatewayRouter(registry=self.registry, default_policy=self._delivery_policy)
         self.outbox = Outbox(router=self.router)
 
     # ── Registration ───────────────────────────────────────────────────────
@@ -913,29 +909,20 @@ def cron_next(expr: str, from_ts: float) -> float | None:
     dom_full = days_of_month == set(range(1, 32))
     dow_full = days_of_week == set(range(0, 7))
 
-    start = (
-        datetime.fromtimestamp(from_ts, tz=UTC)
-        .replace(second=0, microsecond=0)
-        + timedelta(minutes=1)
+    start = datetime.fromtimestamp(from_ts, tz=UTC).replace(second=0, microsecond=0) + timedelta(
+        minutes=1
     )
     horizon = start + timedelta(days=366 * 5)
 
     candidate = start
     while candidate <= horizon:
-        if (
-            candidate.month in months
-            and candidate.minute in minutes
-            and candidate.hour in hours
-        ):
+        if candidate.month in months and candidate.minute in minutes and candidate.hour in hours:
             dom_match = candidate.day in days_of_month
             # Python weekday(): Mon=0..Sun=6; cron dow 0 => Sunday.
             cron_dow = (candidate.weekday() + 1) % 7
             dow_match = cron_dow in days_of_week
 
-            if dom_full or dow_full:
-                day_ok = dom_match and dow_match
-            else:
-                day_ok = dom_match or dow_match
+            day_ok = dom_match and dow_match if dom_full or dow_full else dom_match or dow_match
 
             if day_ok:
                 return candidate.timestamp()

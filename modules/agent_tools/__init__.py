@@ -54,8 +54,8 @@ License: Proprietary — ENI AI OS
 
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 # Ensure enterprise path is available
 _ENTERPRISE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -65,51 +65,92 @@ if _PARENT not in sys.path:
 
 # Platform kernel imports
 try:
-    from enterprise.platform_kernel import Module, module, HealthStatus
+    from enterprise.platform_kernel import HealthStatus, Module, module
 except ImportError:
-    from platform_kernel import Module, module, HealthStatus
+    from platform_kernel import HealthStatus, Module, module
 
 # Tool registry
-from .tool_registry import (
-    ToolRegistry,
-    ToolPermission,
-    PermissionGate,
-    ToolMetrics,
-    ToolExecutionContext,
-    ProgressEvent,
+from .agent_tools import (
+    AgentResult,
+    AgentTool,
+    SkillResult,
+    SkillTool,
+    TaskResult,
+    TaskTool,
+    TeamResult,
+    TeamTool,
+)
+
+# All tools
+from .bash import BashResult, BashSandboxConfig, BashTool
+from .file_tools import (
+    FileEditResult,
+    FileEditTool,
+    FileReadResult,
+    FileReadTool,
+    FileWriteResult,
+    FileWriteTool,
+    GlobResult,
+    GlobTool,
+    GrepResult,
+    GrepTool,
 )
 
 # ── Master-class tool gate + audit ─────────────────────────────────────────
 from .gate import (
-    ToolGate, ToolPolicy, ToolRule, ToolAudit, AuditRecord,
-    GateResult, Decision,
-)
-
-# All tools
-from .bash import BashTool, BashResult, BashSandboxConfig
-from .file_tools import (
-    FileReadTool, FileWriteTool, FileEditTool, GlobTool, GrepTool,
-    FileReadResult, FileWriteResult, FileEditResult, GlobResult, GrepResult,
-)
-from .web_tools import (
-    WebFetchTool, WebSearchTool,
-    WebFetchResult, WebSearchResult, WebCacheEntry,
-)
-from .agent_tools import (
-    AgentTool, SkillTool, TaskTool, TeamTool,
-    AgentResult, SkillResult, TaskResult, TeamResult,
+    AuditRecord,
+    Decision,
+    GateResult,
+    ToolAudit,
+    ToolGate,
+    ToolPolicy,
+    ToolRule,
 )
 from .mcp_lsp import (
-    MCPTool, LSPTool,
-    MCPResult, LSPResult, MCPServerConfig,
+    LSPResult,
+    LSPTool,
+    MCPResult,
+    MCPServerConfig,
+    MCPTool,
 )
 from .specialty_tools import (
-    NotebookTool, ImageTool, BrowserTool, CodeExecutionTool,
-    DatabaseTool, APITool, GitTool, DockerTool, CronTool, KanbanTool,
-    ToolDiscoveryTool,
-    NotebookResult, ImageResult, BrowserResult, CodeExecutionResult,
-    DatabaseResult, APIResult, GitResult, DockerResult, CronResult, KanbanResult,
+    APIResult,
+    APITool,
+    BrowserResult,
+    BrowserTool,
+    CodeExecutionResult,
+    CodeExecutionTool,
+    CronResult,
+    CronTool,
+    DatabaseResult,
+    DatabaseTool,
+    DockerResult,
+    DockerTool,
+    GitResult,
+    GitTool,
+    ImageResult,
+    ImageTool,
+    KanbanResult,
+    KanbanTool,
+    NotebookResult,
+    NotebookTool,
     ToolDiscoveryResult,
+    ToolDiscoveryTool,
+)
+from .tool_registry import (
+    PermissionGate,
+    ProgressEvent,
+    ToolExecutionContext,
+    ToolMetrics,
+    ToolPermission,
+    ToolRegistry,
+)
+from .web_tools import (
+    WebCacheEntry,
+    WebFetchResult,
+    WebFetchTool,
+    WebSearchResult,
+    WebSearchTool,
 )
 
 # ── Module class registered with the platform kernel ──────────────────────
@@ -135,40 +176,42 @@ class ClaudeCodeToolsModule(Module):
         self._registry = ToolRegistry(config=self._config)
 
         # Register all 25+ tools
-        await self._registry.register_all([
-            # System
-            BashTool(),
-            # File tools
-            FileReadTool(),
-            FileWriteTool(),
-            FileEditTool(),
-            GlobTool(),
-            GrepTool(),
-            # Web tools
-            WebFetchTool(),
-            WebSearchTool(),
-            # Agent tools
-            AgentTool(),
-            SkillTool(),
-            TaskTool(),
-            TeamTool(),
-            # MCP / LSP
-            MCPTool(),
-            LSPTool(),
-            # Specialty tools
-            NotebookTool(),
-            ImageTool(),
-            BrowserTool(),
-            CodeExecutionTool(),
-            DatabaseTool(),
-            APITool(),
-            GitTool(),
-            DockerTool(),
-            CronTool(),
-            KanbanTool(),
-            # Meta
-            ToolDiscoveryTool(),
-        ])
+        await self._registry.register_all(
+            [
+                # System
+                BashTool(),
+                # File tools
+                FileReadTool(),
+                FileWriteTool(),
+                FileEditTool(),
+                GlobTool(),
+                GrepTool(),
+                # Web tools
+                WebFetchTool(),
+                WebSearchTool(),
+                # Agent tools
+                AgentTool(),
+                SkillTool(),
+                TaskTool(),
+                TeamTool(),
+                # MCP / LSP
+                MCPTool(),
+                LSPTool(),
+                # Specialty tools
+                NotebookTool(),
+                ImageTool(),
+                BrowserTool(),
+                CodeExecutionTool(),
+                DatabaseTool(),
+                APITool(),
+                GitTool(),
+                DockerTool(),
+                CronTool(),
+                KanbanTool(),
+                # Meta
+                ToolDiscoveryTool(),
+            ]
+        )
 
         self._status = HealthStatus.HEALTHY
 
@@ -179,10 +222,7 @@ class ClaudeCodeToolsModule(Module):
             return self._status
         try:
             summary = self._registry.health_check()
-            self._status = (
-                HealthStatus.HEALTHY if summary["healthy"]
-                else HealthStatus.DEGRADED
-            )
+            self._status = HealthStatus.HEALTHY if summary["healthy"] else HealthStatus.DEGRADED
         except Exception:
             self._status = HealthStatus.UNHEALTHY
         return self._status
@@ -214,31 +254,72 @@ __all__ = [
     "ToolExecutionContext",
     "ProgressEvent",
     # Master-class tool gate + audit
-    "ToolGate", "ToolPolicy", "ToolRule", "ToolAudit", "AuditRecord",
-    "GateResult", "Decision",
+    "ToolGate",
+    "ToolPolicy",
+    "ToolRule",
+    "ToolAudit",
+    "AuditRecord",
+    "GateResult",
+    "Decision",
     # System
     "BashTool",
     "BashResult",
     "BashSandboxConfig",
     # File tools
-    "FileReadTool", "FileWriteTool", "FileEditTool", "GlobTool", "GrepTool",
-    "FileReadResult", "FileWriteResult", "FileEditResult", "GlobResult", "GrepResult",
+    "FileReadTool",
+    "FileWriteTool",
+    "FileEditTool",
+    "GlobTool",
+    "GrepTool",
+    "FileReadResult",
+    "FileWriteResult",
+    "FileEditResult",
+    "GlobResult",
+    "GrepResult",
     # Web tools
-    "WebFetchTool", "WebSearchTool",
-    "WebFetchResult", "WebSearchResult", "WebCacheEntry",
+    "WebFetchTool",
+    "WebSearchTool",
+    "WebFetchResult",
+    "WebSearchResult",
+    "WebCacheEntry",
     # Agent tools
-    "AgentTool", "SkillTool", "TaskTool", "TeamTool",
-    "AgentResult", "SkillResult", "TaskResult", "TeamResult",
+    "AgentTool",
+    "SkillTool",
+    "TaskTool",
+    "TeamTool",
+    "AgentResult",
+    "SkillResult",
+    "TaskResult",
+    "TeamResult",
     # MCP/LSP
-    "MCPTool", "LSPTool",
-    "MCPResult", "LSPResult", "MCPServerConfig",
+    "MCPTool",
+    "LSPTool",
+    "MCPResult",
+    "LSPResult",
+    "MCPServerConfig",
     # Specialty tools
-    "NotebookTool", "ImageTool", "BrowserTool", "CodeExecutionTool",
-    "DatabaseTool", "APITool", "GitTool", "DockerTool", "CronTool", "KanbanTool",
+    "NotebookTool",
+    "ImageTool",
+    "BrowserTool",
+    "CodeExecutionTool",
+    "DatabaseTool",
+    "APITool",
+    "GitTool",
+    "DockerTool",
+    "CronTool",
+    "KanbanTool",
     "ToolDiscoveryTool",
-    "NotebookResult", "ImageResult", "BrowserResult", "CodeExecutionResult",
-    "DatabaseResult", "APIResult", "GitResult", "DockerResult", "CronResult",
-    "KanbanResult", "ToolDiscoveryResult",
+    "NotebookResult",
+    "ImageResult",
+    "BrowserResult",
+    "CodeExecutionResult",
+    "DatabaseResult",
+    "APIResult",
+    "GitResult",
+    "DockerResult",
+    "CronResult",
+    "KanbanResult",
+    "ToolDiscoveryResult",
 ]
 
 __version__ = "2.0.0"

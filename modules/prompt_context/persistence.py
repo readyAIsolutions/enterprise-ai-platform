@@ -32,8 +32,11 @@ import os
 import random
 import sqlite3
 import threading
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import builtins
 
 __all__ = [
     "PromptStore",
@@ -55,7 +58,7 @@ class PromptNotFoundError(PromptStoreError):
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class PromptStore:
@@ -72,7 +75,7 @@ class PromptStore:
           prompt_context.db      <- SQLite file
     """
 
-    def __init__(self, db_path: Optional[str] = None) -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         """
         Args:
             db_path: Directory (or ``.db`` file path) for the SQLite database.
@@ -93,13 +96,10 @@ class PromptStore:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _resolve_path(db_path: Optional[str]) -> str:
+    def _resolve_path(db_path: str | None) -> str:
         if db_path is None:
             return ":memory:"
-        if db_path.endswith(".db"):
-            path = db_path
-        else:
-            path = os.path.join(db_path, DEFAULT_DB_FILENAME)
+        path = db_path if db_path.endswith(".db") else os.path.join(db_path, DEFAULT_DB_FILENAME)
         # Make directory-relative paths relative to CWD as-is; ensure parent exists.
         parent = os.path.dirname(os.path.abspath(path))
         if parent and not os.path.isdir(parent):
@@ -147,10 +147,10 @@ class PromptStore:
         name: str,
         template: str = "",
         version: str = "",
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
         status: str = "draft",
-        metadata: Optional[Dict[str, Any]] = None,
-        record_json: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
+        record_json: dict[str, Any] | None = None,
     ) -> None:
         """
         Insert or update a prompt record by name. Any existing ``version``
@@ -181,8 +181,7 @@ class PromptStore:
                     record_json=excluded.record_json,
                     updated_at=excluded.updated_at
                 """,
-                (name, template, version, params_json, status,
-                 metadata_json, record_payload, now),
+                (name, template, version, params_json, status, metadata_json, record_payload, now),
             )
 
             # Append version history only when the version actually changed
@@ -194,11 +193,10 @@ class PromptStore:
                          metadata_json, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (name, version, template, params_json, status,
-                     metadata_json, now),
+                    (name, version, template, params_json, status, metadata_json, now),
                 )
 
-    def get(self, name: str) -> Dict[str, Any]:
+    def get(self, name: str) -> dict[str, Any]:
         """
         Fetch a prompt record by name.
 
@@ -207,14 +205,13 @@ class PromptStore:
              record, updated_at}
         """
         with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM prompts WHERE name=?", (name,)
-            ).fetchone()
+            row = self._conn.execute("SELECT * FROM prompts WHERE name=?", (name,)).fetchone()
         if row is None:
-            raise PromptNotFoundError(f"Prompt not found in store: {name}")
+            msg = f"Prompt not found in store: {name}"
+            raise PromptNotFoundError(msg)
         return self._row_to_record(row)
 
-    def get_or_none(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_or_none(self, name: str) -> dict[str, Any] | None:
         """Like :meth:`get` but returns ``None`` instead of raising."""
         try:
             return self.get(name)
@@ -231,19 +228,19 @@ class PromptStore:
             self._conn.execute("DELETE FROM prompt_versions WHERE name=?", (name,))
             return cur.rowcount > 0
 
-    def list(self) -> List[str]:
+    def list(self) -> builtins.list[str]:
         """Return all prompt names currently stored."""
         with self._lock:
             rows = self._conn.execute("SELECT name FROM prompts ORDER BY name").fetchall()
         return [r["name"] for r in rows]
 
-    def list_records(self) -> List[Dict[str, Any]]:
+    def list_records(self) -> builtins.list[dict[str, Any]]:
         """Return all prompt records as dicts."""
         with self._lock:
             rows = self._conn.execute("SELECT * FROM prompts ORDER BY name").fetchall()
         return [self._row_to_record(r) for r in rows]
 
-    def versions(self, name: str) -> List[Dict[str, Any]]:
+    def versions(self, name: str) -> builtins.list[dict[str, Any]]:
         """
         Return the ordered version history for a prompt name.
 
@@ -272,7 +269,7 @@ class PromptStore:
     # Serialization helpers
     # ------------------------------------------------------------------
 
-    def _row_to_record(self, row: sqlite3.Row) -> Dict[str, Any]:
+    def _row_to_record(self, row: sqlite3.Row) -> dict[str, Any]:
         record = {
             "name": row["name"],
             "template": row["template"],
@@ -287,7 +284,7 @@ class PromptStore:
             record["record"] = json.loads(rj)
         return record
 
-    def _row_to_version(self, row: sqlite3.Row) -> Dict[str, Any]:
+    def _row_to_version(self, row: sqlite3.Row) -> dict[str, Any]:
         return {
             "name": row["name"],
             "version": row["version"],
@@ -302,7 +299,7 @@ class PromptStore:
     # Context manager (auto-close)
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> "PromptStore":
+    def __enter__(self) -> PromptStore:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -318,9 +315,9 @@ class VariantStats:
         self,
         n: int = 0,
         sum_score: float = 0.0,
-        best_score: Optional[float] = None,
-        last_used: Optional[str] = None,
-        created_at: Optional[str] = None,
+        best_score: float | None = None,
+        last_used: str | None = None,
+        created_at: str | None = None,
     ) -> None:
         self.n = int(n)
         self.sum_score = float(sum_score)
@@ -332,14 +329,14 @@ class VariantStats:
     def mean_score(self) -> float:
         return round(self.sum_score / self.n, 4) if self.n else 0.0
 
-    def record(self, score: float, when: Optional[str] = None) -> None:
+    def record(self, score: float, when: str | None = None) -> None:
         self.n += 1
         self.sum_score += float(score)
         if self.best_score is None or score > self.best_score:
             self.best_score = score
         self.last_used = when or _now()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "n": self.n,
             "mean_score": self.mean_score,
@@ -349,7 +346,7 @@ class VariantStats:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VariantStats":
+    def from_dict(cls, data: dict[str, Any]) -> VariantStats:
         return cls(
             n=data.get("n", 0),
             sum_score=data.get("n", 0) * data.get("mean_score", 0.0),
@@ -382,17 +379,17 @@ class ABOptimizer:
     def __init__(
         self,
         prompt: str,
-        variants: Optional[List[str]] = None,
+        variants: list[str] | None = None,
         epsilon: float = 0.1,
         min_samples: int = 10,
-        seed: Optional[int] = None,
-        db_path: Optional[str] = None,
+        seed: int | None = None,
+        db_path: str | None = None,
     ) -> None:
         self.prompt = prompt
         self.epsilon = float(epsilon)
         self.min_samples = int(min_samples)
         self._rng = random.Random(seed)
-        self._stats: Dict[str, VariantStats] = {}
+        self._stats: dict[str, VariantStats] = {}
         self._lock = threading.RLock()
 
         variant_list = list(variants or [])
@@ -401,7 +398,7 @@ class ABOptimizer:
                 self._stats[v] = VariantStats()
 
         # Optional SQLite persistence of A/B stats
-        self._store: Optional[PromptStore] = None
+        self._store: PromptStore | None = None
         self._ab_db_path = db_path
         if db_path is not None:
             self._store = PromptStore(db_path)
@@ -420,7 +417,7 @@ class ABOptimizer:
                 self._persist_stats()
 
     @property
-    def variants(self) -> List[str]:
+    def variants(self) -> list[str]:
         with self._lock:
             return list(self._stats.keys())
 
@@ -432,7 +429,7 @@ class ABOptimizer:
     # Recording
     # ------------------------------------------------------------------
 
-    def record(self, name: str, score: float, when: Optional[str] = None) -> None:
+    def record(self, name: str, score: float, when: str | None = None) -> None:
         """Record a single evaluation score for a variant."""
         with self._lock:
             if name not in self._stats:
@@ -441,7 +438,7 @@ class ABOptimizer:
             if self._store is not None:
                 self._persist_stats()
 
-    def record_scores(self, scores: Dict[str, float]) -> None:
+    def record_scores(self, scores: dict[str, float]) -> None:
         """Record multiple variant scores at once: {variant: score}."""
         with self._lock:
             for name, score in scores.items():
@@ -464,9 +461,8 @@ class ABOptimizer:
         with self._lock:
             variants = list(self._stats.keys())
             if not variants:
-                raise PromptNotFoundError(
-                    f"No variants registered for prompt '{self.prompt}'"
-                )
+                msg = f"No variants registered for prompt '{self.prompt}'"
+                raise PromptNotFoundError(msg)
 
             if len(variants) == 1:
                 return variants[0]
@@ -495,14 +491,15 @@ class ABOptimizer:
     def stats(self, name: str) -> VariantStats:
         with self._lock:
             if name not in self._stats:
-                raise PromptNotFoundError(f"Variant not registered: {name}")
+                msg = f"Variant not registered: {name}"
+                raise PromptNotFoundError(msg)
             return self._stats[name]
 
-    def all_stats(self) -> Dict[str, VariantStats]:
+    def all_stats(self) -> dict[str, VariantStats]:
         with self._lock:
             return dict(self._stats)
 
-    def best_variant(self, min_samples: Optional[int] = None) -> Optional[str]:
+    def best_variant(self, min_samples: int | None = None) -> str | None:
         """
         Best-performing variant (highest mean score) that has cleared the
         sample throttle. Returns None if none have enough samples.

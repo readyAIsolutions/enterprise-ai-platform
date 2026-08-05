@@ -38,11 +38,14 @@ Python: 3.10+
 from __future__ import annotations
 
 import time as _time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any
 
 from .task_harness import TaskCard, TaskHarness, TaskStatus
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 
 # ===========================================================================
@@ -51,10 +54,10 @@ from .task_harness import TaskCard, TaskHarness, TaskStatus
 class RunningStatus(Enum):
     """Outcome classification for a single task run."""
 
-    RUNNING = "running"                 # success (completed) or healthy
-    RUNNING_RETRY = "running_retry"     # transient/stall -> will retry
+    RUNNING = "running"  # success (completed) or healthy
+    RUNNING_RETRY = "running_retry"  # transient/stall -> will retry
     RUNNING_PERMANENT = "running_permanent"  # permanent failure, no retry
-    EXPIRED = "expired"                 # exceeded the deadline
+    EXPIRED = "expired"  # exceeded the deadline
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.value
@@ -86,15 +89,15 @@ _DEFAULT_RETRYABLE: tuple[type[BaseException], ...] = (
     RetryableError,
     ConnectionError,
     TimeoutError,
-    OSError,        # includes ConnectionError; network + filesystem flakes
+    OSError,  # includes ConnectionError; network + filesystem flakes
 )
 
 # Exceptions that are, by default, permanent (logic / bad input / misuse).
 _DEFAULT_PERMANENT: tuple[type[BaseException], ...] = (
     PermanentError,
-    ValueError,     # bad input
-    TypeError,      # wrong types -> bug
-    KeyError,       # bad key -> logic
+    ValueError,  # bad input
+    TypeError,  # wrong types -> bug
+    KeyError,  # bad key -> logic
     AttributeError,
     IndexError,
     ZeroDivisionError,
@@ -139,7 +142,8 @@ class ErrorClassifier:
 # ===========================================================================
 # Retry policy
 # ===========================================================================
-_DEFAULT_BACKOFF: Callable[[int], float] = lambda attempt: 2.0 ** (attempt - 1)
+def _DEFAULT_BACKOFF(attempt: int) -> float:
+    return 2.0 ** (attempt - 1)
 
 
 @dataclass
@@ -157,19 +161,23 @@ class RetryPolicy:
 
     def __post_init__(self) -> None:
         if self.max_attempts < 1:
-            raise ValueError("max_attempts must be >= 1")
+            msg = "max_attempts must be >= 1"
+            raise ValueError(msg)
         if isinstance(self.backoff, (int, float)):
             if self.backoff < 0:
-                raise ValueError("backoff must be >= 0")
+                msg = "backoff must be >= 0"
+                raise ValueError(msg)
             self._base: float = float(self.backoff)
             self._fn: Callable[[int], float] | None = None
         elif callable(self.backoff):
             self._base = 0.0
             self._fn = self.backoff
         else:
-            raise TypeError("backoff must be a float or a callable")
+            msg = "backoff must be a float or a callable"
+            raise TypeError(msg)
         if not (0.0 <= self.jitter < 1.0):
-            raise ValueError("jitter must be in [0, 1)")
+            msg = "jitter must be in [0, 1)"
+            raise ValueError(msg)
 
     def delay(self, attempt: int) -> float:
         """Return the sleep delay (seconds) before the given retry attempt."""
@@ -201,7 +209,8 @@ class Deadline:
 
     def __init__(self, max_runtime: float, clock: Callable[[], float]) -> None:
         if max_runtime <= 0:
-            raise ValueError("max_runtime must be > 0")
+            msg = "max_runtime must be > 0"
+            raise ValueError(msg)
         self.max_runtime: float = max_runtime
         self.clock: Callable[[], float] = clock
         self._start: dict[str, float] = {}
@@ -244,7 +253,8 @@ class Heartbeat:
 
     def __init__(self, timeout: float, clock: Callable[[], float]) -> None:
         if timeout <= 0:
-            raise ValueError("timeout must be > 0")
+            msg = "timeout must be > 0"
+            raise ValueError(msg)
         self.timeout: float = timeout
         self.clock: Callable[[], float] = clock
         self._beat: dict[str, float] = {}
@@ -289,10 +299,10 @@ class RunnerStats:
     completed: int = 0
     failed: int = 0
     expired: int = 0
-    retried: int = 0          # attempts triggered by retryable error
-    stalled: int = 0          # tasks reaped by heartbeat watchdog
-    stalled_failed: int = 0   # stalled tasks that exhausted attempts
-    attempts: int = 0         # total executor invocations
+    retried: int = 0  # attempts triggered by retryable error
+    stalled: int = 0  # tasks reaped by heartbeat watchdog
+    stalled_failed: int = 0  # stalled tasks that exhausted attempts
+    attempts: int = 0  # total executor invocations
 
     @property
     def total_runs(self) -> int:
@@ -373,9 +383,8 @@ class WorkerRunner:
 
     @staticmethod
     def _default_executor(card: TaskCard) -> Any:  # pragma: no cover - default
-        raise PermanentError(
-            f"no executor configured for task {card.id!r}; inject one"
-        )
+        msg = f"no executor configured for task {card.id!r}; inject one"
+        raise PermanentError(msg)
 
     # ------------------------------------------------------------------
     # Claiming
@@ -563,11 +572,7 @@ def build_runner(
     sleep = sleep or _time.sleep
     retry_policy = RetryPolicy(max_attempts=max_attempts, backoff=backoff)
     deadline = Deadline(max_runtime, clock) if max_runtime is not None else None
-    heartbeat = (
-        Heartbeat(heartbeat_timeout, clock)
-        if heartbeat_timeout is not None
-        else None
-    )
+    heartbeat = Heartbeat(heartbeat_timeout, clock) if heartbeat_timeout is not None else None
     return WorkerRunner(
         harness,
         executor=executor,

@@ -30,8 +30,9 @@ from __future__ import annotations
 import copy
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any
 
 __all__ = [
     "START",
@@ -51,8 +52,8 @@ START = "__start__"
 END = "__end__"
 
 # Type aliases
-State = Dict[str, Any]
-NodeFn = Callable[[State], Optional[State]]
+State = dict[str, Any]
+NodeFn = Callable[[State], State | None]
 ConditionFn = Callable[[State], bool]
 
 
@@ -67,7 +68,7 @@ class GraphNode:
     """
 
     name: str
-    fn: Optional[NodeFn] = None
+    fn: NodeFn | None = None
 
     def __call__(self, state: State) -> State:
         """Invoke this node against ``state``, merging its returned update."""
@@ -77,9 +78,8 @@ class GraphNode:
         if result is None:
             return {}
         if not isinstance(result, dict):
-            raise TypeError(
-                f"node {self.name!r} returned {type(result).__name__}, expected dict"
-            )
+            msg = f"node {self.name!r} returned {type(result).__name__}, expected dict"
+            raise TypeError(msg)
         return result
 
 
@@ -96,7 +96,7 @@ class GraphEdge:
 
     from_node: str
     to_node: str
-    condition: Optional[ConditionFn] = None
+    condition: ConditionFn | None = None
 
     def __repr__(self) -> str:
         tag = "" if self.condition is None else " (conditional)"
@@ -119,8 +119,8 @@ class GraphRun:
 
     run_id: str
     final_state: State = field(default_factory=dict)
-    path: List[str] = field(default_factory=list)
-    checkpoints: List[State] = field(default_factory=list)
+    path: list[str] = field(default_factory=list)
+    checkpoints: list[State] = field(default_factory=list)
     mode: str = "default"
 
     @property
@@ -144,20 +144,21 @@ class StateCheckpointStore:
     """
 
     def __init__(self) -> None:
-        self._runs: Dict[str, List[State]] = {}
+        self._runs: dict[str, list[State]] = {}
 
     def save(self, run_id: str, state: State) -> None:
         """Append a deep copy of ``state`` to the history for ``run_id``."""
         self._runs.setdefault(run_id, []).append(copy.deepcopy(state))
 
-    def load(self, run_id: str) -> List[State]:
+    def load(self, run_id: str) -> list[State]:
         """Return the ordered list of states for ``run_id``.
 
         Raises:
             KeyError: if no run with ``run_id`` exists.
         """
         if run_id not in self._runs:
-            raise KeyError(f"No checkpoint for run_id {run_id!r}")
+            msg = f"No checkpoint for run_id {run_id!r}"
+            raise KeyError(msg)
         return [copy.deepcopy(s) for s in self._runs[run_id]]
 
     def latest(self, run_id: str) -> State:
@@ -169,7 +170,7 @@ class StateCheckpointStore:
         """Return True if any checkpoints exist for ``run_id``."""
         return run_id in self._runs
 
-    def list_runs(self) -> List[str]:
+    def list_runs(self) -> list[str]:
         """Return all ``run_id`` keys in insertion order."""
         return list(self._runs.keys())
 
@@ -198,30 +199,30 @@ class AgentGraph:
         self,
         start: str = START,
         end: str = END,
-        store: Optional[StateCheckpointStore] = None,
+        store: StateCheckpointStore | None = None,
         max_steps: int = 1000,
     ) -> None:
         self.start = start
         self.end = end
         self.store = store if store is not None else StateCheckpointStore()
         self.max_steps = max_steps
-        self._nodes: Dict[str, GraphNode] = {}
-        self._edges: List[GraphEdge] = []
-        self._out: Dict[str, List[GraphEdge]] = defaultdict(list)
+        self._nodes: dict[str, GraphNode] = {}
+        self._edges: list[GraphEdge] = []
+        self._out: dict[str, list[GraphEdge]] = defaultdict(list)
 
     # -- Build time API -----------------------------------------------------
 
     @property
-    def nodes(self) -> List[str]:
+    def nodes(self) -> list[str]:
         """Names of all defined nodes in insertion order."""
         return list(self._nodes.keys())
 
     @property
-    def edges(self) -> List[GraphEdge]:
+    def edges(self) -> list[GraphEdge]:
         """All defined edges."""
         return list(self._edges)
 
-    def add_node(self, name: str, fn: Optional[NodeFn] = None) -> GraphNode:
+    def add_node(self, name: str, fn: NodeFn | None = None) -> GraphNode:
         """Register a node.
 
         Args:
@@ -235,9 +236,11 @@ class AgentGraph:
             ValueError: if the name is empty or already in use.
         """
         if not isinstance(name, str) or not name.strip():
-            raise ValueError("node name must be a non-empty string")
+            msg = "node name must be a non-empty string"
+            raise ValueError(msg)
         if name in self._nodes:
-            raise ValueError(f"node already exists: {name!r}")
+            msg = f"node already exists: {name!r}"
+            raise ValueError(msg)
         node = GraphNode(name=name, fn=fn)
         self._nodes[name] = node
         return node
@@ -246,7 +249,7 @@ class AgentGraph:
         self,
         from_node: str,
         to_node: str,
-        condition: Optional[ConditionFn] = None,
+        condition: ConditionFn | None = None,
     ) -> GraphEdge:
         """Connect ``from_node`` to ``to_node``, optionally gated by a predicate.
 
@@ -263,14 +266,15 @@ class AgentGraph:
                 explicit START/END marker is always permitted).
         """
         if from_node != self.start and from_node not in self._nodes:
-            raise ValueError(f"undefined source node for edge: {from_node!r}")
+            msg = f"undefined source node for edge: {from_node!r}"
+            raise ValueError(msg)
         if to_node != self.end and to_node not in self._nodes:
-            raise ValueError(f"undefined target node for edge: {to_node!r}")
+            msg = f"undefined target node for edge: {to_node!r}"
+            raise ValueError(msg)
         if condition is not None and not callable(condition):
-            raise TypeError("edge condition must be callable or None")
-        edge = GraphEdge(
-            from_node=from_node, to_node=to_node, condition=condition
-        )
+            msg = "edge condition must be callable or None"
+            raise TypeError(msg)
+        edge = GraphEdge(from_node=from_node, to_node=to_node, condition=condition)
         self._edges.append(edge)
         self._out[from_node].append(edge)
         return edge
@@ -279,9 +283,9 @@ class AgentGraph:
 
     def run(
         self,
-        initial_state: Optional[State] = None,
+        initial_state: State | None = None,
         mode: str = "default",
-        run_id: Optional[str] = None,
+        run_id: str | None = None,
     ) -> GraphRun:
         """Execute the graph from its entry point against ``initial_state``.
 
@@ -303,20 +307,21 @@ class AgentGraph:
         """
         run_id = run_id or str(uuid.uuid4())
         state = dict(initial_state or {})
-        checkpoints: List[State] = [copy.deepcopy(state)]
+        checkpoints: list[State] = [copy.deepcopy(state)]
         self.store.save(run_id, copy.deepcopy(state))
 
-        path: List[str] = []
+        path: list[str] = []
         current = self._entry_node()
         steps = 0
 
         while current is not None and current != self.end:
             steps += 1
             if steps > self.max_steps:
-                raise RuntimeError(
+                msg = (
                     f"run {run_id!r} exceeded max_steps={self.max_steps}; "
                     "aborting to prevent an unbounded cycle"
                 )
+                raise RuntimeError(msg)
             node = self._nodes[current]
             path.append(current)
             update = node(state)
@@ -334,7 +339,7 @@ class AgentGraph:
             mode=mode,
         )
 
-    def _entry_node(self) -> Optional[str]:
+    def _entry_node(self) -> str | None:
         """Resolve the execution entry point.
 
         An explicit START marker/node wins if present; otherwise a single node
@@ -356,22 +361,20 @@ class AgentGraph:
                 incoming.add(edge.to_node)
 
         seeded = bool(start_targets)
-        roots: List[str] = []
+        roots: list[str] = []
         for node_name in self._nodes:
-            if node_name in start_targets:
-                roots.append(node_name)
-            elif not seeded and node_name not in incoming:
+            if node_name in start_targets or not seeded and node_name not in incoming:
                 roots.append(node_name)
 
         if len(roots) == 1:
             return roots[0]
         if len(roots) == 0:
-            raise ValueError("graph has no entry point: no START node and no source node")
-        raise ValueError(
-            "graph has multiple entry points; define an explicit START node"
-        )
+            msg = "graph has no entry point: no START node and no source node"
+            raise ValueError(msg)
+        msg = "graph has multiple entry points; define an explicit START node"
+        raise ValueError(msg)
 
-    def _next_node(self, node: str, state: State) -> Optional[str]:
+    def _next_node(self, node: str, state: State) -> str | None:
         """Choose the next node after executing ``node``.
 
         Unconditional edges are always candidates; conditional edges are only
@@ -379,21 +382,19 @@ class AgentGraph:
         multiple candidates remain the first (in definition order) is chosen.
         Returns None when there is no reachable successor (terminal).
         """
-        candidates: List[str] = []
+        candidates: list[str] = []
         for edge in self._out.get(node, []):
             if edge.condition is None:
                 candidates.append(edge.to_node)
             else:
                 matched = edge.condition(state)
                 if not isinstance(matched, bool) and matched is not None:
-                    raise TypeError(
-                        f"condition on {edge.from_node!r} -> {edge.to_node!r} "
-                        "must return a bool"
-                    )
+                    msg = f"condition on {edge.from_node!r} -> {edge.to_node!r} must return a bool"
+                    raise TypeError(msg)
                 if matched:
                     candidates.append(edge.to_node)
         # Deduplicate preserving definition order.
-        seen: List[str] = []
+        seen: list[str] = []
         for candidate in candidates:
             if candidate not in seen:
                 seen.append(candidate)
@@ -420,12 +421,12 @@ class SupervisorGraph:
         route_key: str = "task",
         start: str = START,
         end: str = END,
-        coordinator: Optional[NodeFn] = None,
+        coordinator: NodeFn | None = None,
     ) -> None:
         self.route_key = route_key
         self.graph = AgentGraph(start=start, end=end)
-        self._workers: Dict[str, NodeFn] = {}
-        self._routes: Dict[str, Any] = {}
+        self._workers: dict[str, NodeFn] = {}
+        self._routes: dict[str, Any] = {}
         self._coordinator = coordinator
         if self._coordinator is None:
             self._coordinator = lambda state: {}  # pass-through
@@ -436,7 +437,7 @@ class SupervisorGraph:
         self,
         name: str,
         fn: NodeFn,
-        route: Optional[Any] = None,
+        route: Any | None = None,
     ) -> str:
         """Register a worker node.
 
@@ -450,7 +451,8 @@ class SupervisorGraph:
             The worker name (for chaining).
         """
         if name in self._workers:
-            raise ValueError(f"worker already exists: {name!r}")
+            msg = f"worker already exists: {name!r}"
+            raise ValueError(msg)
         route_value = route if route is not None else name
         self._workers[name] = fn
         self._routes[name] = route_value
@@ -475,13 +477,13 @@ class SupervisorGraph:
     # -- Convenience --------------------------------------------------------
 
     @property
-    def workers(self) -> List[str]:
+    def workers(self) -> list[str]:
         """Registered worker names."""
         return list(self._workers.keys())
 
     def run(
         self,
-        initial_state: Optional[State] = None,
+        initial_state: State | None = None,
         **kwargs: Any,
     ) -> GraphRun:
         """Run the supervisor graph (delegates to :meth:`AgentGraph.run`)."""
@@ -506,12 +508,12 @@ class AgentGraphFacade:
 
     def __init__(self) -> None:
         self._store = StateCheckpointStore()
-        self._graph: Optional[AgentGraph] = None
+        self._graph: AgentGraph | None = None
 
     # -- Shape the graph ----------------------------------------------------
 
     @property
-    def graph(self) -> Optional[AgentGraph]:
+    def graph(self) -> AgentGraph | None:
         """The currently built graph (None until ``build_graph`` is called)."""
         return self._graph
 
@@ -522,12 +524,10 @@ class AgentGraphFacade:
         max_steps: int = 1000,
     ) -> AgentGraph:
         """Create (or replace) the active graph bound to this facade's store."""
-        self._graph = AgentGraph(
-            start=start, end=end, store=self._store, max_steps=max_steps
-        )
+        self._graph = AgentGraph(start=start, end=end, store=self._store, max_steps=max_steps)
         return self._graph
 
-    def add_node(self, name: str, fn: Optional[NodeFn] = None) -> GraphNode:
+    def add_node(self, name: str, fn: NodeFn | None = None) -> GraphNode:
         """Add a node to the active graph."""
         return self._require_graph().add_node(name, fn)
 
@@ -535,7 +535,7 @@ class AgentGraphFacade:
         self,
         from_node: str,
         to_node: str,
-        condition: Optional[ConditionFn] = None,
+        condition: ConditionFn | None = None,
     ) -> GraphEdge:
         """Add an edge to the active graph."""
         return self._require_graph().add_edge(from_node, to_node, condition=condition)
@@ -544,14 +544,14 @@ class AgentGraphFacade:
 
     def run_graph(
         self,
-        initial_state: Optional[State] = None,
+        initial_state: State | None = None,
         mode: str = "default",
-        run_id: Optional[str] = None,
+        run_id: str | None = None,
     ) -> GraphRun:
         """Run the active graph and return its :class:`GraphRun`."""
         return self._require_graph().run(initial_state, mode=mode, run_id=run_id)
 
-    def get_checkpoint(self, run_id: str) -> List[State]:
+    def get_checkpoint(self, run_id: str) -> list[State]:
         """Return the persisted state history for ``run_id``.
 
         Raises:
@@ -559,7 +559,7 @@ class AgentGraphFacade:
         """
         return self._store.load(run_id)
 
-    def list_runs(self) -> List[str]:
+    def list_runs(self) -> list[str]:
         """Return all run ids persisted by this facade's store."""
         return self._store.list_runs()
 
@@ -569,8 +569,11 @@ class AgentGraphFacade:
 
     def _require_graph(self) -> AgentGraph:
         if self._graph is None:
-            raise RuntimeError("agent_graph facade has no graph; call build_graph() first")
+            msg = "agent_graph facade has no graph; call build_graph() first"
+            raise RuntimeError(msg)
         return self._graph
+
+
 # ============================================================================
 # Durable state-graph DSL (LangGraph-style) with SQLite checkpointing
 # ----------------------------------------------------------------------------
@@ -600,7 +603,7 @@ __all__ += [
 ]
 
 # Type aliases for the DSL
-RoutingFn = Callable[[State], Optional[str]]
+RoutingFn = Callable[[State], str | None]
 
 # Default database location for durable checkpoints (relative to cwd).
 DEFAULT_DB_PATH = os.path.join("data", "agent_graph_state.db")
@@ -621,7 +624,7 @@ class SqliteCheckpointStore:
             database is used (ideal for tests). Defaults to ``data/``.
     """
 
-    def __init__(self, db_path: Optional[Union[str, Path]] = None) -> None:
+    def __init__(self, db_path: str | Path | None = None) -> None:
         self._db_path = db_path
         self._lock = threading.RLock()
         self._owns_conn = True
@@ -629,7 +632,7 @@ class SqliteCheckpointStore:
             target = ":memory:"
         else:
             path = Path(db_path)
-            parent = path.parent if str(path.parent) else Path(".")
+            parent = path.parent if str(path.parent) else Path()
             parent.mkdir(parents=True, exist_ok=True)
             target = str(path)
         self._conn = sqlite3.connect(target, check_same_thread=False)
@@ -675,7 +678,7 @@ class SqliteCheckpointStore:
         run_id: str,
         graph_name: str,
         mode: str = "default",
-        start_node: Optional[str] = None,
+        start_node: str | None = None,
     ) -> None:
         """Register a new run row before the first checkpoint is written."""
         with self._lock:
@@ -738,12 +741,12 @@ class SqliteCheckpointStore:
 
     # -- reads --------------------------------------------------------------
 
-    def load(self, run_id: str) -> List[Dict[str, Any]]:
+    def load(self, run_id: str) -> list[dict[str, Any]]:
         """Return the ordered list of state snapshots (deep copies) for run."""
         frames = self.frames(run_id)
         return [copy.deepcopy(f["state"]) for f in frames]
 
-    def frames(self, run_id: str) -> List[Dict[str, Any]]:
+    def frames(self, run_id: str) -> list[dict[str, Any]]:
         """Return ordered ``{seq, node, state, result}`` frames for a run."""
         with self._lock:
             cur = self._conn.execute(
@@ -771,10 +774,11 @@ class SqliteCheckpointStore:
         """Return the most recent state snapshot for ``run_id``."""
         frames = self.frames(run_id)
         if not frames:
-            raise KeyError(f"No checkpoint for run_id {run_id!r}")
+            msg = f"No checkpoint for run_id {run_id!r}"
+            raise KeyError(msg)
         return copy.deepcopy(frames[-1]["state"])
 
-    def completed_nodes(self, run_id: str) -> List[str]:
+    def completed_nodes(self, run_id: str) -> list[str]:
         """Return the ordered list of node names completed so far."""
         with self._lock:
             cur = self._conn.execute(
@@ -783,7 +787,8 @@ class SqliteCheckpointStore:
             )
             row = cur.fetchone()
         if row is None:
-            raise KeyError(f"No run_id {run_id!r} in store")
+            msg = f"No run_id {run_id!r} in store"
+            raise KeyError(msg)
         if not row["completed_nodes"]:
             return []
         return json.loads(row["completed_nodes"])
@@ -791,12 +796,11 @@ class SqliteCheckpointStore:
     def status(self, run_id: str) -> str:
         """Return the run status ('running' or 'complete')."""
         with self._lock:
-            cur = self._conn.execute(
-                "SELECT status FROM state_runs WHERE run_id = ?", (run_id,)
-            )
+            cur = self._conn.execute("SELECT status FROM state_runs WHERE run_id = ?", (run_id,))
             row = cur.fetchone()
         if row is None:
-            raise KeyError(f"No run_id {run_id!r} in store")
+            msg = f"No run_id {run_id!r} in store"
+            raise KeyError(msg)
         return row["status"]
 
     def has(self, run_id: str) -> bool:
@@ -808,7 +812,7 @@ class SqliteCheckpointStore:
             )
             return cur.fetchone() is not None
 
-    def list_runs(self) -> List[str]:
+    def list_runs(self) -> list[str]:
         """All persisted run ids (including incomplete / resumable)."""
         with self._lock:
             cur = self._conn.execute("SELECT run_id FROM state_runs ORDER BY created_at")
@@ -849,9 +853,9 @@ class StateGraphRun:
 
     run_id: str
     final_state: State = field(default_factory=dict)
-    path: List[str] = field(default_factory=list)
-    all_path: List[str] = field(default_factory=list)
-    checkpoints: List[State] = field(default_factory=list)
+    path: list[str] = field(default_factory=list)
+    all_path: list[str] = field(default_factory=list)
+    checkpoints: list[State] = field(default_factory=list)
     mode: str = "default"
     resumed: bool = False
     status: str = "complete"
@@ -873,7 +877,7 @@ class StateGraph:
 
         g.add_node("a", fn_a)
         g.add_node("b", fn_b)
-        g.add_edge("a", "b")                 # static edge
+        g.add_edge("a", "b")  # static edge
         g.add_conditional_edge("b", router)  # router(state) -> next node name
 
     Args:
@@ -888,9 +892,9 @@ class StateGraph:
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        checkpoint_store: Optional[SqliteCheckpointStore] = None,
-        db_path: Optional[Union[str, Path]] = DEFAULT_DB_PATH,
+        name: str | None = None,
+        checkpoint_store: SqliteCheckpointStore | None = None,
+        db_path: str | Path | None = DEFAULT_DB_PATH,
         start: str = START,
         end: str = END,
         max_steps: int = 1000,
@@ -904,43 +908,45 @@ class StateGraph:
             if checkpoint_store is not None
             else SqliteCheckpointStore(db_path=db_path)
         )
-        self._nodes: Dict[str, GraphNode] = {}
-        self._static: Dict[str, List[str]] = {}  # node -> list of static successors
-        self._conditional: Dict[str, RoutingFn] = {}  # node -> routing fn
-        self._order: List[str] = []  # declaration order
-        self._supervisors: Dict[str, SupervisorSpec] = {}
+        self._nodes: dict[str, GraphNode] = {}
+        self._static: dict[str, list[str]] = {}  # node -> list of static successors
+        self._conditional: dict[str, RoutingFn] = {}  # node -> routing fn
+        self._order: list[str] = []  # declaration order
+        self._supervisors: dict[str, SupervisorSpec] = {}
 
     # -- build-time API -----------------------------------------------------
 
     @property
-    def nodes(self) -> List[str]:
+    def nodes(self) -> list[str]:
         return list(self._order)
 
-    def add_node(self, name: str, fn: Optional[NodeFn] = None) -> "StateGraph":
+    def add_node(self, name: str, fn: NodeFn | None = None) -> StateGraph:
         """Register a node; returns self for chaining."""
         if not isinstance(name, str) or not name.strip():
-            raise ValueError("node name must be a non-empty string")
+            msg = "node name must be a non-empty string"
+            raise ValueError(msg)
         if name == self.end:
-            raise ValueError(f"node name {name!r} collides with the END marker")
+            msg = f"node name {name!r} collides with the END marker"
+            raise ValueError(msg)
         if name in self._nodes:
-            raise ValueError(f"node already exists: {name!r}")
+            msg = f"node already exists: {name!r}"
+            raise ValueError(msg)
         self._nodes[name] = GraphNode(name=name, fn=fn)
         self._order.append(name)
         return self
 
-    def add_edge(self, a: str, b: str) -> "StateGraph":
+    def add_edge(self, a: str, b: str) -> StateGraph:
         """Connect ``a`` -> ``b`` with a static edge; returns self."""
         self._require_node(a, "add_edge source")
         if b != self.end:
             self._require_node(b, "add_edge target")
         if a in self._conditional:
-            raise ValueError(
-                f"node {a!r} already has a conditional edge; use one routing style"
-            )
+            msg = f"node {a!r} already has a conditional edge; use one routing style"
+            raise ValueError(msg)
         self._static.setdefault(a, []).append(b)
         return self
 
-    def add_conditional_edge(self, a: str, routing_fn: RoutingFn) -> "StateGraph":
+    def add_conditional_edge(self, a: str, routing_fn: RoutingFn) -> StateGraph:
         """Attach a routing function to ``a``; ``routing_fn(state) -> node name``.
 
         The router's return value names the next node to execute (may be the END
@@ -948,13 +954,14 @@ class StateGraph:
         """
         self._require_node(a, "add_conditional_edge source")
         if not callable(routing_fn):
-            raise TypeError("routing_fn must be callable")
+            msg = "routing_fn must be callable"
+            raise TypeError(msg)
         if a in self._conditional:
-            raise ValueError(f"node {a!r} already has a conditional edge")
+            msg = f"node {a!r} already has a conditional edge"
+            raise ValueError(msg)
         if a in self._static:
-            raise ValueError(
-                f"node {a!r} already has a static edge; use one routing style"
-            )
+            msg = f"node {a!r} already has a static edge; use one routing style"
+            raise ValueError(msg)
         self._conditional[a] = routing_fn
         return self
 
@@ -962,9 +969,9 @@ class StateGraph:
         self,
         name: str,
         route_key: str,
-        workers: Dict[Any, Union[NodeFn, "StateGraph"]],
-        coordinator: Optional[NodeFn] = None,
-    ) -> "StateGraph":
+        workers: dict[Any, NodeFn | StateGraph],
+        coordinator: NodeFn | None = None,
+    ) -> StateGraph:
         """Add a supervisor node that fans out to one of ``workers``.
 
         The supervisor reads ``state[route_key]``, selects the matching worker
@@ -973,17 +980,20 @@ class StateGraph:
         subgraph inline and folds its final state into the parent. Returns self.
         """
         if not isinstance(route_key, str) or not route_key:
-            raise ValueError("route_key must be a non-empty string")
+            msg = "route_key must be a non-empty string"
+            raise ValueError(msg)
         if not workers:
-            raise ValueError("supervisor requires at least one worker")
+            msg = "supervisor requires at least one worker"
+            raise ValueError(msg)
 
         def _supervisor_fn(state: State) -> State:
             route = state.get(route_key)
             if route not in workers:
-                raise KeyError(
+                msg = (
                     f"supervisor {name!r}: no worker for {route_key}={route!r} "
                     f"(registered: {sorted(map(str, workers.keys()))})"
                 )
+                raise KeyError(msg)
             worker = workers[route]
             if isinstance(worker, StateGraph):
                 # Fan out to a subgraph, folding its final state into parent.
@@ -1002,7 +1012,8 @@ class StateGraph:
         if name in (self.start, self.end):
             return
         if name not in self._nodes:
-            raise ValueError(f"{ctx}: undefined node {name!r}")
+            msg = f"{ctx}: undefined node {name!r}"
+            raise ValueError(msg)
 
     def _entry_node(self) -> str:
         """Resolve the single execution entry node.
@@ -1023,9 +1034,8 @@ class StateGraph:
         if len(roots) == 1:
             return roots[0]
         if len(roots) == 0:
-            raise ValueError(
-                "state graph has no entry point: every node has an incoming edge"
-            )
+            msg = "state graph has no entry point: every node has an incoming edge"
+            raise ValueError(msg)
 
         def is_source(n: str) -> bool:
             if n in self._conditional:
@@ -1035,28 +1045,23 @@ class StateGraph:
         non_leaf = [n for n in roots if is_source(n)]
         if len(non_leaf) == 1:
             return non_leaf[0]
-        raise ValueError(
-            f"state graph has multiple entry points {roots}; "
-            "define an explicit start node"
-        )
+        msg = f"state graph has multiple entry points {roots}; define an explicit start node"
+        raise ValueError(msg)
 
-    def _route(self, node: str, state: State) -> Optional[str]:
+    def _route(self, node: str, state: State) -> str | None:
         """Determine the next node after ``node`` (None / END terminates)."""
         if node in self._conditional:
             nxt = self._conditional[node](state)
             if nxt is None:
                 return None
             if not isinstance(nxt, str):
-                raise TypeError(
-                    f"routing_fn on {node!r} returned {type(nxt).__name__}, "
-                    "expected a node name"
-                )
+                msg = f"routing_fn on {node!r} returned {type(nxt).__name__}, expected a node name"
+                raise TypeError(msg)
             if nxt == self.end:
                 return self.end
             if nxt not in self._nodes:
-                raise ValueError(
-                    f"routing_fn on {node!r} returned undefined node {nxt!r}"
-                )
+                msg = f"routing_fn on {node!r} returned undefined node {nxt!r}"
+                raise ValueError(msg)
             return nxt
         dsts = self._static.get(node, [])
         if not dsts:
@@ -1066,26 +1071,28 @@ class StateGraph:
             if nxt == self.end:
                 return self.end
             if nxt not in self._nodes:
-                raise ValueError(f"node {node!r} routes to undefined node {nxt!r}")
+                msg = f"node {node!r} routes to undefined node {nxt!r}"
+                raise ValueError(msg)
             return nxt
         # Multiple static successors = fan-out; the sequential engine can only
         # follow one path, so require an explicit conditional edge to route.
-        raise ValueError(
+        msg = (
             f"node {node!r} has {len(dsts)} static successors {dsts}; "
             "fan-out is not runnable sequentially — use a conditional edge to route"
         )
+        raise ValueError(msg)
 
     # -- execution ----------------------------------------------------------
 
-    def topological_order(self) -> List[str]:
+    def topological_order(self) -> list[str]:
         """Best-effort topological order over static edges (Kahn's algorithm).
 
         Conditional edges are excluded because their targets are only known at
         runtime; nodes that source a conditional edge are placed in declaration
         order after their static dependencies.
         """
-        in_deg: Dict[str, int] = {n: 0 for n in self._order}
-        adj: Dict[str, List[str]] = {n: [] for n in self._order}
+        in_deg: dict[str, int] = dict.fromkeys(self._order, 0)
+        adj: dict[str, list[str]] = {n: [] for n in self._order}
         for src, dsts in self._static.items():
             for dst in dsts:
                 if dst in self._nodes:
@@ -1093,7 +1100,7 @@ class StateGraph:
                     adj[src].append(dst)
         ready = [n for n in self._order if in_deg[n] == 0]
         ready.sort(key=self._order.index)
-        result: List[str] = []
+        result: list[str] = []
         while ready:
             node = ready.pop(0)
             result.append(node)
@@ -1107,17 +1114,18 @@ class StateGraph:
         # out of Kahn's result and is an error.
         if len(result) < len(self._order):
             remaining = [n for n in self._order if n not in result]
-            raise ValueError(
+            msg = (
                 "state graph contains a static cycle "
                 f"(nodes not topologically ordered: {remaining}); "
                 "cannot compute topological order"
             )
+            raise ValueError(msg)
         return result
 
     def run(
         self,
-        initial_state: Optional[State] = None,
-        run_id: Optional[str] = None,
+        initial_state: State | None = None,
+        run_id: str | None = None,
         mode: str = "default",
         resume: bool = False,
     ) -> StateGraphRun:
@@ -1147,14 +1155,12 @@ class StateGraph:
                 current = self._entry_node()
         else:
             state = dict(initial_state or {})
-            self.store.create_run(
-                run_id, self.name, mode, start_node=self._entry_node()
-            )
+            self.store.create_run(run_id, self.name, mode, start_node=self._entry_node())
             self.store.save_initial(run_id, copy.deepcopy(state))
             current = self._entry_node()
             all_path = []
 
-        path: List[str] = []
+        path: list[str] = []
         checkpoints = self.store.load(run_id)
         seq = len(checkpoints) - 1  # next checkpoint sequence number
         steps = 0
@@ -1162,17 +1168,17 @@ class StateGraph:
         while current is not None and current != self.end:
             steps += 1
             if steps > self.max_steps:
-                raise RuntimeError(
+                msg = (
                     f"state graph run {run_id!r} exceeded max_steps={self.max_steps}; "
                     "aborting to prevent an unbounded cycle"
                 )
+                raise RuntimeError(msg)
             node = self._nodes[current]
             path.append(current)
             result = node(state) or {}
             if not isinstance(result, dict):
-                raise TypeError(
-                    f"node {current!r} returned {type(result).__name__}, expected dict"
-                )
+                msg = f"node {current!r} returned {type(result).__name__}, expected dict"
+                raise TypeError(msg)
             state.update(result)
             seq += 1
             self.store.save_step(run_id, seq, current, copy.deepcopy(state), result)
@@ -1201,7 +1207,8 @@ class StateGraph:
             KeyError: if no checkpoints exist for ``run_id``.
         """
         if not self.store.has(run_id):
-            raise KeyError(f"No checkpoint for run_id {run_id!r}")
+            msg = f"No checkpoint for run_id {run_id!r}"
+            raise KeyError(msg)
         return self.run(resume=True, run_id=run_id)
 
 
@@ -1215,5 +1222,5 @@ class SupervisorSpec:
 
     name: str
     route_key: str
-    workers: Dict[Any, Any]
-    coordinator: Optional[NodeFn] = None
+    workers: dict[Any, Any]
+    coordinator: NodeFn | None = None

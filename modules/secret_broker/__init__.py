@@ -17,9 +17,9 @@ All components are stdlib-only with zero external dependencies.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
-from enterprise.platform_kernel import HealthStatus, Module, module
+from enterprise.platform_kernel import HealthStatus, Module, module  # noqa: F401
 
 from .secret_broker import (
     OutboundSecretLeakError,
@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 
-def create_secret_broker_module(config: Optional[Dict[str, Any]] = None) -> SecretBrokerModule:
+def create_secret_broker_module(config: dict[str, Any] | None = None) -> SecretBrokerModule:
     """Create a :class:`SecretBrokerModule` from an optional config dict.
 
     Args:

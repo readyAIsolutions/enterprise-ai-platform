@@ -24,8 +24,6 @@ Run:  python3 -m pytest tests/integration -q -p no:cacheprovider
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 # ---------------------------------------------------------------------------
@@ -49,15 +47,14 @@ from enterprise.modules.ai_defense.rate_limit import (
     ThrottleGate,
 )
 from enterprise.modules.compliance.evidence import (
-    BUILTIN_CONTROLS,
     ControlEvidence,
     EvidenceRegister,
     GapAnalysis,
 )
 from enterprise.modules.eval_gate import EvalGateFacade
 from enterprise.modules.guardrails import (
-    GuardResult,
     Guardrails,
+    GuardResult,
     NoPIIValidator,
     ProfanityValidator,
 )
@@ -68,9 +65,8 @@ from enterprise.modules.model_router import (
     RouteResult,
 )
 from enterprise.modules.model_security.probe_detector import SecurityScanner
-from enterprise.modules.secret_rotation.vault import VaultIntegrityError, VaultFacade
+from enterprise.modules.secret_rotation.vault import VaultFacade, VaultIntegrityError
 from enterprise.modules.universal_score import UniversalBuildScore
-
 
 # =============================================================================
 # Shared fixtures
@@ -82,8 +78,9 @@ def router() -> ModelRouter:
     """Offline model_router wired with the EchoAdapter (real facade)."""
     r = ModelRouter(adapter=EchoAdapter())
     r.add_deployment(
-        DeploymentModel(id="local-echo", model="echo-mini", provider="local",
-                        weight=1, group="integration")
+        DeploymentModel(
+            id="local-echo", model="echo-mini", provider="local", weight=1, group="integration"
+        )
     )
     return r
 
@@ -91,26 +88,23 @@ def router() -> ModelRouter:
 @pytest.fixture
 def query_engine() -> SuperiorQueryEngine:
     """Offline agent_core query engine over a single deterministic model."""
-    cfg = ModelConfig(name="integration-mock", family=ModelFamily.LOCAL,
-                      provider="mock")
+    cfg = ModelConfig(name="integration-mock", family=ModelFamily.LOCAL, provider="mock")
     engine_router = AgentModelRouter(models=[cfg])
     eng = SuperiorQueryEngine(config=QueryConfig(), router=engine_router)
     eng.register_model(cfg)
-    eng.register_backend("integration-mock",
-                         SimulationBackend(fixed_response="INTEGRATION_OK"))
+    eng.register_backend("integration-mock", SimulationBackend(fixed_response="INTEGRATION_OK"))
     return eng
 
 
 def _engine_with_mock(responses) -> SuperiorQueryEngine:
     """agent_core query engine driven by the REAL MockProvider."""
-    cfg = ModelConfig(name="integration-mock", family=ModelFamily.LOCAL,
-                      provider="mock")
+    cfg = ModelConfig(name="integration-mock", family=ModelFamily.LOCAL, provider="mock")
     engine_router = AgentModelRouter(models=[cfg])
-    eng = SuperiorQueryEngine(config=QueryConfig(model="integration-mock"),
-                              router=engine_router)
+    eng = SuperiorQueryEngine(config=QueryConfig(model="integration-mock"), router=engine_router)
     eng.register_model(cfg)
-    eng.register_backend("integration-mock",
-                         OpenAICompatibleBackend(provider=MockProvider(responses=responses)))
+    eng.register_backend(
+        "integration-mock", OpenAICompatibleBackend(provider=MockProvider(responses=responses))
+    )
     return eng
 
 
@@ -133,7 +127,7 @@ def guardrails() -> Guardrails:
 
 
 @pytest.mark.asyncio
-async def test_pipeline_router_contract_shape(router):
+async def test_pipeline_router_contract_shape(router) -> None:
     result = await router.route(
         "integration",
         [{"role": "user", "content": "hello pipeline"}],
@@ -152,16 +146,16 @@ async def test_pipeline_router_contract_shape(router):
 
 
 @pytest.mark.asyncio
-async def test_pipeline_agent_query_contract(query_engine):
-    res = await query_engine.query(
-        [Message(role=MessageRole.USER, content="hello agent")]
-    )
+async def test_pipeline_agent_query_contract(query_engine) -> None:
+    res = await query_engine.query([Message(role=MessageRole.USER, content="hello agent")])
     assert isinstance(res, QueryResult)
     assert res.success is True
     assert res.error is None
     assert res.final_response == "INTEGRATION_OK"
-    assert isinstance(res.messages, list) and res.messages
-    assert res.total_tokens_input >= 0 and res.total_tokens_output >= 0
+    assert isinstance(res.messages, list)
+    assert res.messages
+    assert res.total_tokens_input >= 0
+    assert res.total_tokens_output >= 0
     assert isinstance(res.metrics, dict)
     # Role/value contract must line up (MessageRole enum round-trips):
     # first message is the caller's user turn, last is the model response.
@@ -170,11 +164,9 @@ async def test_pipeline_agent_query_contract(query_engine):
 
 
 @pytest.mark.asyncio
-async def test_pipeline_agent_with_real_mockprovider():
+async def test_pipeline_agent_with_real_mockprovider() -> None:
     eng = _engine_with_mock(responses=["MOCK_ANSWER"])
-    res = await eng.query(
-        [Message(role=MessageRole.USER, content="real mock round trip")]
-    )
+    res = await eng.query([Message(role=MessageRole.USER, content="real mock round trip")])
     assert res.success is True
     assert res.final_response == "MOCK_ANSWER"
     # the provider really was invoked (provider facade recorded the call)
@@ -184,7 +176,7 @@ async def test_pipeline_agent_with_real_mockprovider():
 
 
 @pytest.mark.asyncio
-async def test_pipeline_eval_gate_contract(eval_facade):
+async def test_pipeline_eval_gate_contract(eval_facade) -> None:
     report = eval_facade.run_eval({"text": "The answer is clearly, directly relevant."})
     assert set(report.keys()) == {"passed", "score", "results"}
     assert 0.0 <= report["score"] <= 1.0
@@ -195,7 +187,7 @@ async def test_pipeline_eval_gate_contract(eval_facade):
 
 
 @pytest.mark.asyncio
-async def test_pipeline_messages_dict_shape_lines_up(router):
+async def test_pipeline_messages_dict_shape_lines_up(router) -> None:
     """The messages dict shape must line up across the module boundary."""
     # agent_core produces Message objects; model_router consumes [{role,content}]
     agent_msg = Message(role=MessageRole.USER, content="cross module contract")
@@ -210,7 +202,7 @@ async def test_pipeline_messages_dict_shape_lines_up(router):
 
 
 @pytest.mark.asyncio
-async def test_pipeline_full_chain(router, query_engine, eval_facade):
+async def test_pipeline_full_chain(router, query_engine, eval_facade) -> None:
     """model_router -> agent_core -> eval_gate end to end, assert healthy."""
     routed = await router.route(
         "integration",
@@ -218,9 +210,7 @@ async def test_pipeline_full_chain(router, query_engine, eval_facade):
     )
     assert routed.status == "success"
 
-    agent_res = await query_engine.query(
-        [Message(role=MessageRole.USER, content=routed.messages)]
-    )
+    agent_res = await query_engine.query([Message(role=MessageRole.USER, content=routed.messages)])
     assert agent_res.success is True
     assert agent_res.final_response == "INTEGRATION_OK"
 
@@ -234,7 +224,7 @@ async def test_pipeline_full_chain(router, query_engine, eval_facade):
 # =============================================================================
 
 
-def _write_sample_project(root):
+def _write_sample_project(root) -> None:
     (root / "pkg").mkdir()
     (root / "tests").mkdir()
     (root / "README.md").write_text("# demo project\n")
@@ -245,11 +235,11 @@ def _write_sample_project(root):
         "_CACHED = {}\n"
         "\n"
         "def add(a: float, b: float) -> float:\n"
-        "    \"\"\"Add two numbers.\"\"\"\n"
+        '    """Add two numbers."""\n'
         "    return a + b\n"
         "\n"
         "def mul(a: float, b: float) -> float:\n"
-        "    \"\"\"Multiply two numbers.\"\"\"\n"
+        '    """Multiply two numbers."""\n'
         "    return a * b\n"
     )
     (root / "tests" / "test_core.py").write_text(
@@ -261,18 +251,26 @@ def _write_sample_project(root):
     )
 
 
-def test_build_score_contract_keys(tmp_path):
+def test_build_score_contract_keys(tmp_path) -> None:
     _write_sample_project(tmp_path)
     result = UniversalBuildScore().score(tmp_path, run_tests=False)
-    expected = {"universal_score", "base_score", "bonus", "certification",
-                "hard_gates", "any_hard_gate_failed", "dimensions", "project",
-                "coverage_pct"}
+    expected = {
+        "universal_score",
+        "base_score",
+        "bonus",
+        "certification",
+        "hard_gates",
+        "any_hard_gate_failed",
+        "dimensions",
+        "project",
+        "coverage_pct",
+    }
     assert set(result.keys()) == expected
     assert 0.0 <= result["universal_score"] <= 130.0
     assert isinstance(result["certification"], str)
     assert len(result["dimensions"]) == 6
     # per-dimension report shape
-    for dim, d in result["dimensions"].items():
+    for _dim, d in result["dimensions"].items():
         assert set(d.keys()) == {"dimension", "score", "sub_signals"}
         assert 0.0 <= d["score"] <= 1.0
         for sub in d["sub_signals"]:
@@ -284,14 +282,14 @@ def test_build_score_contract_keys(tmp_path):
 # =============================================================================
 
 
-def test_guardrails_validate_returns_guardresult(guardrails):
+def test_guardrails_validate_returns_guardresult(guardrails) -> None:
     out = guardrails.validate("hello, could you summarize the report", "safe")
     assert isinstance(out, GuardResult)
     assert out.passed is True
     assert out.guard_name == "safe"
 
 
-def test_guardrails_blocks_profanity(guardrails):
+def test_guardrails_blocks_profanity(guardrails) -> None:
     out = guardrails.validate("you are a stupid damn moron", "toxicity")
     assert isinstance(out, GuardResult)
     assert out.passed is False
@@ -299,12 +297,12 @@ def test_guardrails_blocks_profanity(guardrails):
     assert out.failures  # aggregator surfaced a failure record
 
 
-def test_guardrails_unknown_guard_raises(guardrails):
+def test_guardrails_unknown_guard_raises(guardrails) -> None:
     with pytest.raises(KeyError):
         guardrails.validate("anything", "no-such-guard")
 
 
-def test_model_security_garak_scanner_contract():
+def test_model_security_garak_scanner_contract() -> None:
     scanner = SecurityScanner(target=lambda a: "I cannot help with that request.")
     report = scanner.scan(probe_names=["prompt_injection", "jailbreak"])
     assert report.probes_run == ["prompt_injection", "jailbreak"]
@@ -319,7 +317,7 @@ def test_model_security_garak_scanner_contract():
 # =============================================================================
 
 
-def test_secret_vault_encrypted_roundtrip(tmp_path):
+def test_secret_vault_encrypted_roundtrip(tmp_path) -> None:
     vf = VaultFacade(str(tmp_path / "vault.db"), master_key="master-key-123")
     vf.put("db_password", "s3cr3t-value", actor="pipeline")
     assert vf.get("db_password") == "s3cr3t-value"
@@ -332,7 +330,7 @@ def test_secret_vault_encrypted_roundtrip(tmp_path):
     vf.close()
 
 
-def test_ai_defense_attacker_store_records_attempt():
+def test_ai_defense_attacker_store_records_attempt() -> None:
     store = AttackerStore()  # in-memory
     tg = ThrottleGate(limit=2, window=60, threshold=1000)
     assert tg.allow("1.2.3.4", now=0.0).allowed is True
@@ -346,12 +344,18 @@ def test_ai_defense_attacker_store_records_attempt():
     assert "sql_injection" in rec["flags"]
 
 
-def test_compliance_evidence_register_integrity(tmp_path):
+def test_compliance_evidence_register_integrity(tmp_path) -> None:
     reg = EvidenceRegister()  # in-memory
-    reg.add(ControlEvidence(control_id="LLM01", framework="owasp",
-                            status="implemented", source="integration"))
-    reg.add(ControlEvidence(control_id="LLM02", framework="owasp",
-                            status="partial", source="integration"))
+    reg.add(
+        ControlEvidence(
+            control_id="LLM01", framework="owasp", status="implemented", source="integration"
+        )
+    )
+    reg.add(
+        ControlEvidence(
+            control_id="LLM02", framework="owasp", status="partial", source="integration"
+        )
+    )
     integrity = reg.verify_integrity()
     assert integrity["valid"] is True
     assert integrity["checked"] == 2
@@ -359,28 +363,36 @@ def test_compliance_evidence_register_integrity(tmp_path):
     ga = GapAnalysis(register=reg)
     report = ga.analyze(framework="owasp", top_n=3)
     # GapAnalysis contract keys
-    assert {"gaps", "gap_count", "integrity", "frameworks", "remediation",
-            "pass_pct", "scope", "timestamp"} <= set(report.keys())
+    assert {
+        "gaps",
+        "gap_count",
+        "integrity",
+        "frameworks",
+        "remediation",
+        "pass_pct",
+        "scope",
+        "timestamp",
+    } <= set(report.keys())
     assert report["integrity"]["valid"] is True
     assert report["gap_count"] >= 1
     assert report["frameworks"]["owasp"]["implemented"] == 1
 
 
-def test_tampering_evidence_is_detected():
+def test_tampering_evidence_is_detected() -> None:
     reg = EvidenceRegister()
-    reg.add(ControlEvidence(control_id="LLM01", framework="owasp",
-                            status="missing", source="scanner"))
+    reg.add(
+        ControlEvidence(control_id="LLM01", framework="owasp", status="missing", source="scanner")
+    )
     # Direct SQL tamper (bypasses the register API) must break the hash chain.
     row_id = next(iter(reg._conn.execute("SELECT id FROM evidence")))["id"]
-    reg._conn.execute("UPDATE evidence SET status='implemented' WHERE id=?",
-                      (row_id,))
+    reg._conn.execute("UPDATE evidence SET status='implemented' WHERE id=?", (row_id,))
     reg._conn.commit()
     integrity = reg.verify_integrity()
     assert integrity["valid"] is False
     assert integrity["problems"]
 
 
-def test_security_evidence_chain_roundtrip(tmp_path):
+def test_security_evidence_chain_roundtrip(tmp_path) -> None:
     """secret_rotation -> ai_defense -> compliance, all three stores round-trip
     and their integrity holds."""
     # 1) secret_rotation: encrypted-at-rest secret + audited access
@@ -397,10 +409,15 @@ def test_security_evidence_chain_roundtrip(tmp_path):
 
     # 3) compliance: file evidence that the token was rotated after the breach
     reg = EvidenceRegister()
-    reg.add(ControlEvidence(control_id="LLM05", framework="owasp",
-                            status="implemented",
-                            source="secret_rotation",
-                            detail="rotated after attack"))
+    reg.add(
+        ControlEvidence(
+            control_id="LLM05",
+            framework="owasp",
+            status="implemented",
+            source="secret_rotation",
+            detail="rotated after attack",
+        )
+    )
     assert reg.verify_integrity()["valid"] is True
 
     vf.close()

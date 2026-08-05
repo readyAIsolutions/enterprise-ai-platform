@@ -25,42 +25,41 @@ Metrics:
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 import logging
 import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from core.algorithms import (
+    BrotliCompressor,
+    ClawCompactorCompressor,
+    GlyphCache,
+    HeadroomCompressor,
+    LLMLinguaCompressor,
+    LZ4Compressor,
+    PAQ8Compressor,
+    PXPipeSteganography,
+    WenyanEncoder,
+    ZstdCompressor,
+)
 
 # ── Core ENI Compression imports ──────────────────────────────────────────
-from core.engine import CompressionEngine, CompressionResult, CompressionMode
-from core.algorithms import (
-    PAQ8Compressor,
-    ZstdCompressor,
-    LZ4Compressor,
-    BrotliCompressor,
-    LLMLinguaCompressor,
-    HeadroomCompressor,
-    ClawCompactorCompressor,
-    WenyanEncoder,
-    PXPipeSteganography,
-    GlyphCache,
-)
+from core.engine import CompressionEngine, CompressionMode, CompressionResult
 from core.selector import AdaptiveCompressorSelector
 
 # OMEGA
 try:
     from core.omega import (
         OMEGA_MODE,
-        OMEGAResult,
         OMEGAEncoder,
-        transcend,
+        OMEGAResult,
         get_omega,
+        transcend,
     )
 
     HAS_OMEGA = True
@@ -71,18 +70,29 @@ except ImportError:
 
 # ── Platform kernel types (lightweight, avoid circular deps) ──────────────
 try:
-    from enterprise.platform_kernel import EventBus, Event, HealthStatus
+    from enterprise.platform_kernel import Event, EventBus, HealthStatus  # noqa: F401
 except ImportError:
     import os as _os
     import sys as _sys
-    _enterprise_dir = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
+    _enterprise_dir = _os.path.dirname(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    )
     _parent = _os.path.dirname(_enterprise_dir)
     if _parent not in _sys.path:
         _sys.path.insert(0, _parent)
-    from enterprise.platform_kernel import EventBus, Event, HealthStatus
+    from enterprise.platform_kernel import Event
 
 # ── Pluggable codec registry + ratio negotiation (stdlib, no engine dep) ───
-from .codecs import CodecRegistry, negotiate_ratio, _as_bytes as _as_raw_bytes, _measure as _data_size
+from .codecs import (
+    CodecRegistry,
+    _as_bytes as _as_raw_bytes,
+    _measure as _data_size,
+    negotiate_ratio,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # ==========================================================================
 # Logger
@@ -119,7 +129,7 @@ class CompressionMetric:
     algorithm: str
     duration_ms: float
     throughput_mbps: float = 0.0
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -148,8 +158,7 @@ class BridgeStats:
             "total_bytes_processed": self.total_bytes_processed,
             "total_bytes_saved": self.total_bytes_saved,
             "avg_ratios_by_mode": {
-                m: round(sum(r) / len(r), 3) if r else 0.0
-                for m, r in self.ratios_by_mode.items()
+                m: round(sum(r) / len(r), 3) if r else 0.0 for m, r in self.ratios_by_mode.items()
             },
             "avg_throughput_by_mode": {
                 m: round(sum(t) / len(t), 2) if t else 0.0
@@ -363,7 +372,6 @@ class CompressionBridge:
         mode = self._resolve_mode(mode)
 
         # For ADAPTIVE mode, tap the selector to emit the selection event
-        original_mode = mode
         if mode == CompressionMode.ADAPTIVE:
             selected = self.engine.selector.select(data)
             self._events.emit(
@@ -630,10 +638,7 @@ class CompressionBridge:
             return self._omega_fallback(data, "OMEGA module not available")
 
         # Determine original size before any conversion
-        if isinstance(data, str):
-            original_size = len(data.encode())
-        else:
-            original_size = len(data)
+        len(data.encode()) if isinstance(data, str) else len(data)
 
         try:
             result = self._run_omega(data)
@@ -645,7 +650,7 @@ class CompressionBridge:
             "success": result.success,
             "original_size": result.original_size,
             "compressed_size": result.compressed_size,
-            "ratio": round(result.ratio, 3) if hasattr(result, 'ratio') else 0.0,
+            "ratio": round(result.ratio, 3) if hasattr(result, "ratio") else 0.0,
             "space_savings_pct": round(getattr(result, "space_savings_pct", 0.0), 2),
             "shannon_efficiency_pct": round(getattr(result, "shannon_efficiency_pct", 0.0), 2),
             "genome_fitness": round(getattr(result, "genome_fitness", 0.0), 4),
@@ -670,10 +675,7 @@ class CompressionBridge:
 
     def _omega_fallback(self, data: bytes | str, error: str) -> dict[str, Any]:
         """Return a failure dict for OMEGA errors."""
-        if isinstance(data, str):
-            orig = len(data.encode())
-        else:
-            orig = len(data)
+        orig = len(data.encode()) if isinstance(data, str) else len(data)
         return {
             "success": False,
             "original_size": orig,
@@ -689,9 +691,10 @@ class CompressionBridge:
         Uses a separate thread when inside an existing event loop.
         """
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # We're inside a running event loop — run in a background thread
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(self._sync_transcend, data)
                 return future.result(timeout=300)
@@ -705,7 +708,8 @@ class CompressionBridge:
             return asyncio.run(transcend(data))
         if self._omega is not None and hasattr(self._omega, "transcend"):
             return asyncio.run(self._omega.transcend(data))
-        raise RuntimeError("OMEGA encoder not callable")
+        msg = "OMEGA encoder not callable"
+        raise RuntimeError(msg)
 
     # ── Statistics ─────────────────────────────────────────────────────────
 
@@ -757,7 +761,7 @@ class CompressionBridge:
                     self._stats.selector_distribution.get(sel_algo, 0) + 1
                 )
 
-            self._stats.last_compress_at = datetime.now(timezone.utc)
+            self._stats.last_compress_at = datetime.now(UTC)
 
             # Trim lists
             for lst in (self._stats.ratios_by_mode, self._stats.throughput_by_mode):
@@ -806,7 +810,7 @@ class CompressionBridge:
 
         # Check selector
         try:
-            sel = AdaptiveCompressorSelector()
+            AdaptiveCompressorSelector()
             alg_status["AdaptiveCompressorSelector"] = BridgeHealth.OK.value
         except Exception as exc:
             alg_status["AdaptiveCompressorSelector"] = BridgeHealth.FAILED.value
@@ -868,9 +872,8 @@ class CompressionBridge:
         for m in CompressionMode:
             if m.value == mode.lower():
                 return m
-        raise ValueError(
-            f"Unknown compression mode: {mode!r}. Valid: {[m.name for m in CompressionMode]}"
-        )
+        msg = f"Unknown compression mode: {mode!r}. Valid: {[m.name for m in CompressionMode]}"
+        raise ValueError(msg)
 
     def register_event_handler(self, topic: str, handler: Callable[..., Any]) -> None:
         """Register a callback for bridge events (compression.completed, etc.)."""
@@ -918,7 +921,7 @@ class CompressionHealthCheck:
                 "module_name": "compression_bridge",
                 "status": "unhealthy",
                 "response_time_ms": round(elapsed, 2),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "details": {"error": "No CompressionBridge available"},
             }
 
@@ -929,7 +932,7 @@ class CompressionHealthCheck:
                 "module_name": "compression_bridge",
                 "status": "healthy" if report["healthy"] else "degraded",
                 "response_time_ms": round(elapsed, 2),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "details": report,
             }
         except Exception as exc:
@@ -938,6 +941,6 @@ class CompressionHealthCheck:
                 "module_name": "compression_bridge",
                 "status": "unhealthy",
                 "response_time_ms": round(elapsed, 2),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "details": {"error": str(exc)},
             }

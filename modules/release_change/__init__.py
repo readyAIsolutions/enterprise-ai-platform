@@ -17,24 +17,24 @@ Version: 1.0.0
 
 __version__ = "1.0.0"
 
-from .workflow import ChangeStage, ChangeRecord, ChangeWorkflow
-from .changes import ChangeType, RiskLevel, ChangeTemplate, ChangeClassifier
-from .strategies import StrategyType, DeploymentStrategy, StrategyEngine
-from .quality_gates import GateType, GateStatus, QualityGate, QualityGateEngine
-from .deliverables import DeliverableType, Deliverable, DeliverableManager
+from .changes import ChangeClassifier, ChangeTemplate, ChangeType, RiskLevel
+from .deliverables import Deliverable, DeliverableManager, DeliverableType
 from .flags import (
-    RuleOp,
-    TargetingRule,
-    FeatureFlag,
-    FlagEngine,
-    CanaryState,
-    Canary,
-    GateDecision,
-    ReleaseGate,
     AuditEntry,
     AuditLog,
+    Canary,
+    CanaryState,
+    FeatureFlag,
+    FlagEngine,
+    GateDecision,
+    ReleaseGate,
+    RuleOp,
+    TargetingRule,
     hash_bucket,
 )
+from .quality_gates import GateStatus, GateType, QualityGate, QualityGateEngine
+from .strategies import DeploymentStrategy, StrategyEngine, StrategyType
+from .workflow import ChangeRecord, ChangeStage, ChangeWorkflow
 
 __all__ = [
     # Workflow
@@ -83,16 +83,15 @@ __all__ = [
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio
+import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 
-from .workflow import ChangeWorkflow
 
 _logger = logging.getLogger("enterprise.release_change")
 
@@ -107,7 +106,7 @@ class ReleaseChangeModule(Module):
     UNHEALTHY rather than crashing the platform.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._lock = threading.RLock()
         self._component = None
@@ -144,6 +143,6 @@ class ReleaseChangeModule(Module):
             self._init_error = None
 
 
-def create_release_change_module(config: Optional[Dict[str, Any]] = None) -> ReleaseChangeModule:
+def create_release_change_module(config: dict[str, Any] | None = None) -> ReleaseChangeModule:
     """Factory: create a release_change module instance."""
     return ReleaseChangeModule(config)

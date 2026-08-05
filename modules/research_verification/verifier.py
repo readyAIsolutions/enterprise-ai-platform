@@ -24,20 +24,20 @@ Everything is stdlib-only and fully deterministic — no stubs, no randomness.
 from __future__ import annotations
 
 import datetime as _dt
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Iterable, Mapping
-
+from enum import StrEnum
+from typing import Any
 
 # ── Configuration constants ────────────────────────────────────────────────
 
 # Canonical tiers for the verifier's credibility model.
-PRIMARY_TIER = "primary"           # direct observation, original data
-GOV_TIER = "gov"                   # government / official records
-ACADEMIC_TIER = "academic"         # peer-reviewed literature
-NEWS_TIER = "reputable-news"       # established, fact-checked journalism
-UNKNOWN_TIER = "unknown"           # no provenance signal
-BANNED_TIER = "banned"             # known-low-integrity / disinformation
+PRIMARY_TIER = "primary"  # direct observation, original data
+GOV_TIER = "gov"  # government / official records
+ACADEMIC_TIER = "academic"  # peer-reviewed literature
+NEWS_TIER = "reputable-news"  # established, fact-checked journalism
+UNKNOWN_TIER = "unknown"  # no provenance signal
+BANNED_TIER = "banned"  # known-low-integrity / disinformation
 
 VALID_TIERS = frozenset(
     {PRIMARY_TIER, GOV_TIER, ACADEMIC_TIER, NEWS_TIER, UNKNOWN_TIER, BANNED_TIER}
@@ -56,10 +56,10 @@ TIER_BASE_CREDIBILITY: dict[str, float] = {
 
 # Recency windows (in days) with multiplicative freshness factors.
 _RECENCY_BANDS: tuple[tuple[int, float], ...] = (
-    (30, 1.00),    # ≤ 30 days old  — fully current
-    (180, 0.98),   # ≤ 6 months
-    (365, 0.95),   # ≤ 1 year
-    (730, 0.90),   # ≤ 2 years
+    (30, 1.00),  # ≤ 30 days old  — fully current
+    (180, 0.98),  # ≤ 6 months
+    (365, 0.95),  # ≤ 1 year
+    (730, 0.90),  # ≤ 2 years
     (1825, 0.85),  # ≤ 5 years
 )
 
@@ -219,7 +219,9 @@ class SourceCredibility:
 
         return round(_clamp01(credibility), 3)
 
-    def for_source(self, source: Source, corroboration: int = 1, now: _dt.date | None = None) -> float:
+    def for_source(
+        self, source: Source, corroboration: int = 1, now: _dt.date | None = None
+    ) -> float:
         """Derive credibility for a :class:`Source`, honouring any pre-set value."""
         if source.credibility is not None:
             return round(_clamp01(source.credibility), 3)
@@ -234,7 +236,7 @@ class SourceCredibility:
 # ── Verdict ────────────────────────────────────────────────────────────────
 
 
-class Verdict(str, Enum):
+class Verdict(StrEnum):
     """Possible verification outcomes for a claim."""
 
     VERIFIED = "verified"
@@ -364,7 +366,9 @@ class Verifier:
                     src, corroboration=max(corroboration, 1)
                 )
 
-        confidence = self._compute_confidence(supporting, contradicting, corroboration, contradiction)
+        confidence = self._compute_confidence(
+            supporting, contradicting, corroboration, contradiction
+        )
         verdict, reasons = self._judge(claim, corroboration, contradiction, confidence)
 
         return EvidenceChain(
@@ -408,8 +412,10 @@ class Verifier:
 
         # Contradiction pushes confidence down.
         if contradiction:
-            base -= min(contradiction * self.credibility.CONTRADICTION_STEP,
-                        self.credibility.CONTRADICTION_CAP)
+            base -= min(
+                contradiction * self.credibility.CONTRADICTION_STEP,
+                self.credibility.CONTRADICTION_CAP,
+            )
 
         return _clamp01(base)
 
@@ -526,7 +532,9 @@ def verify_report(
 
 
 # Standalone convenience wrapper.
-def verify_claim(claim: str, sources: Iterable[Source], verifier: Verifier | None = None) -> EvidenceChain:
+def verify_claim(
+    claim: str, sources: Iterable[Source], verifier: Verifier | None = None
+) -> EvidenceChain:
     """Verify a single claim, returning its :class:`EvidenceChain`."""
     return (verifier or Verifier()).assess_claim(claim, sources)
 

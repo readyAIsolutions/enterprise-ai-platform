@@ -42,9 +42,8 @@ import json
 import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Optional
-from urllib import error as urllib_error
-from urllib import request as urllib_request
+from typing import Any
+from urllib import error as urllib_error, request as urllib_request
 
 from .a2a import (
     A2AError,
@@ -53,7 +52,6 @@ from .a2a import (
     TaskManager,
     TaskNotFoundError,
     TaskRouter,
-    TaskState,
     TaskStore,
 )
 
@@ -104,7 +102,8 @@ def _coerce_message(payload: Any) -> Message:
             return Message.from_dict(
                 {"messageId": payload.get("messageId", "m"), "role": "user", "parts": parts}
             )
-    raise A2AError("Malformed message payload: expected text, parts, or an envelope")
+    msg = "Malformed message payload: expected text, parts, or an envelope"
+    raise A2AError(msg)
 
 
 class _FailureFactory:
@@ -137,7 +136,7 @@ class MemoryFailureInjector:
         self._drop = 0
         self._timeout = 0
         self._reorder = 0
-        self._last_response: Optional[str] = None
+        self._last_response: str | None = None
         self._lock = threading.Lock()
         self.intercept_count = 0
         self.dropped = 0
@@ -145,19 +144,19 @@ class MemoryFailureInjector:
         self.reordered = 0
 
     # -- arming ----------------------------------------------------------
-    def drop(self, n: int = 1) -> "MemoryFailureInjector":
+    def drop(self, n: int = 1) -> MemoryFailureInjector:
         """Arm the injector to drop the next ``n`` requests."""
         with self._lock:
             self._drop = max(0, self._drop + int(n))
         return self
 
-    def timeout_response(self, n: int = 1) -> "MemoryFailureInjector":
+    def timeout_response(self, n: int = 1) -> MemoryFailureInjector:
         """Arm the injector to time out the next ``n`` requests."""
         with self._lock:
             self._timeout = max(0, self._timeout + int(n))
         return self
 
-    def reorder(self, n: int = 1) -> "MemoryFailureInjector":
+    def reorder(self, n: int = 1) -> MemoryFailureInjector:
         """Arm the injector to serve stale (out-of-order) responses."""
         with self._lock:
             self._reorder = max(0, self._reorder + int(n))
@@ -176,7 +175,7 @@ class MemoryFailureInjector:
             return self._drop > 0 or self._timeout > 0 or self._reorder > 0
 
     # -- hooks ----------------------------------------------------------
-    def intercept(self, method: str, path: str) -> Optional[str]:
+    def intercept(self, method: str, path: str) -> str | None:
         """Return a fault kind (drop/timeout/reorder) for this request or None.
 
         Consumed one-shot: each armed fault is decremented when matched.
@@ -204,7 +203,7 @@ class MemoryFailureInjector:
         with self._lock:
             self._last_response = body
 
-    def deliver_stale(self) -> Optional[str]:
+    def deliver_stale(self) -> str | None:
         """Return the previously recorded response to simulate out-of-order."""
         with self._lock:
             return self._last_response
@@ -244,12 +243,14 @@ class _A2AHTTPHandler(BaseHTTPRequestHandler):
     def _read_json(self) -> Any:
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
-            raise A2AError("Empty request body: expected JSON payload")
+            msg = "Empty request body: expected JSON payload"
+            raise A2AError(msg)
         raw = self.rfile.read(length)
         try:
             return json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError) as exc:
-            raise A2AError(f"Malformed JSON payload: {exc}") from exc
+            msg = f"Malformed JSON payload: {exc}"
+            raise A2AError(msg) from exc
 
     # -- wire --------------------------------------------------------------
     def _route(self) -> None:
@@ -261,11 +262,12 @@ class _A2AHTTPHandler(BaseHTTPRequestHandler):
         if self.command == "POST" and path == "/tasks/cancel":
             return self.handle_cancel()
         if self.command == "GET" and path.startswith("/tasks/"):
-            task_id = path[len("/tasks/"):]
+            task_id = path[len("/tasks/") :]
             return self.handle_get(task_id)
         self._send_error_json(404, f"Unknown route: {self.command} {path}")
+        return None
 
-    def _server_logic(self) -> "A2AHttpServer":
+    def _server_logic(self) -> A2AHttpServer:
         return self.server.logic  # type: ignore[attr-defined]
 
     def do_GET(self) -> None:  # noqa: N802 (http.server API)
@@ -301,10 +303,12 @@ class _A2AHTTPHandler(BaseHTTPRequestHandler):
     def handle_send(self) -> None:
         body = self._read_json()
         if not isinstance(body, dict):
-            raise A2AError("Send payload must be a JSON object")
+            msg = "Send payload must be a JSON object"
+            raise A2AError(msg)
         agent_id = body.get("agentId")
         if not agent_id:
-            raise A2AError("Missing required field 'agentId'")
+            msg = "Missing required field 'agentId'"
+            raise A2AError(msg)
         message = _coerce_message(body.get("message"))
         task = self._server_logic().create_task(
             agent_id=agent_id,
@@ -318,17 +322,20 @@ class _A2AHTTPHandler(BaseHTTPRequestHandler):
 
     def handle_get(self, task_id: str) -> None:
         if not task_id:
-            raise A2AError("Missing task id in path")
+            msg = "Missing task id in path"
+            raise A2AError(msg)
         task = self._server_logic().get_task(task_id)
         self._send_json(200, {"task": task.to_dict()})
 
     def handle_cancel(self) -> None:
         body = self._read_json()
         if not isinstance(body, dict):
-            raise A2AError("Cancel payload must be a JSON object")
+            msg = "Cancel payload must be a JSON object"
+            raise A2AError(msg)
         task_id = body.get("taskId")
         if not task_id:
-            raise A2AError("Missing required field 'taskId'")
+            msg = "Missing required field 'taskId'"
+            raise A2AError(msg)
         task = self._server_logic().cancel_task(task_id)
         self._send_json(200, {"task": task.to_dict()})
 
@@ -347,8 +354,8 @@ class A2AHttpServer:
         host: str = "127.0.0.1",
         port: int = 0,
         *,
-        router: Optional[TaskRouter] = None,
-        store: Optional[Any] = None,
+        router: TaskRouter | None = None,
+        store: Any | None = None,
     ) -> None:
         self.host = host
         self.port = int(port)
@@ -359,12 +366,12 @@ class A2AHttpServer:
         else:
             self._store = store if store is not None else TaskManager()
             self._router = TaskRouter(store=self._store)
-        self._httpd: Optional[ThreadingHTTPServer] = None
-        self._thread: Optional[threading.Thread] = None
+        self._httpd: ThreadingHTTPServer | None = None
+        self._thread: threading.Thread | None = None
         self._started = False
 
     # -- lifecycle ---------------------------------------------------------
-    def start(self) -> "A2AHttpServer":
+    def start(self) -> A2AHttpServer:
         """Bind + start serving in a daemon thread. Returns self."""
         with self._lock:
             if self._started:
@@ -406,7 +413,8 @@ class A2AHttpServer:
     @property
     def base_url(self) -> str:
         if not self._started:
-            raise A2ATransportError("Server not started; call start() first")
+            msg = "Server not started; call start() first"
+            raise A2ATransportError(msg)
         return f"http://{self.host}:{self.port}"
 
     @property
@@ -431,7 +439,7 @@ class A2AHttpServer:
     def cancel_task(self, task_id: str) -> Task:
         return self._store.cancel(task_id)
 
-    def __enter__(self) -> "A2AHttpServer":
+    def __enter__(self) -> A2AHttpServer:
         return self.start()
 
     def __exit__(self, *exc: Any) -> None:
@@ -458,7 +466,7 @@ class A2AHttpClient:
         *,
         timeout: float = 5.0,
         max_retries: int = 1,
-        injector: Optional[MemoryFailureInjector] = None,
+        injector: MemoryFailureInjector | None = None,
     ) -> None:
         self.base_url = str(base_url).rstrip("/")
         self.timeout = float(timeout)
@@ -469,7 +477,7 @@ class A2AHttpClient:
     def _raw(self, method: str, path: str, payload: Any = None):
         url = self.base_url + path
         data = None
-        headers: Dict[str, str] = {"Accept": "application/json"}
+        headers: dict[str, str] = {"Accept": "application/json"}
         if payload is not None:
             data = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -484,10 +492,12 @@ class A2AHttpClient:
                 body = ""
             return exc.code, body
         except (urllib_error.URLError, OSError) as exc:
-            raise A2ATransportTimeout(f"Request to {url} failed: {exc}") from exc
+            msg = f"Request to {url} failed: {exc}"
+            raise A2ATransportTimeout(msg) from exc
 
-    def _request(self, method: str, path: str, payload: Any = None,
-                 expected_task_id: Optional[str] = None) -> Dict[str, Any]:
+    def _request(
+        self, method: str, path: str, payload: Any = None, expected_task_id: str | None = None
+    ) -> dict[str, Any]:
         """Issue one request with retry-once-then-surface semantics.
 
         Retryable faults are transport timeouts and out-of-order (stale)
@@ -501,9 +511,11 @@ class A2AHttpClient:
             inject = self.injector.intercept(method, path) if self.injector else None
             try:
                 if inject == _FailureFactory.DROP:
-                    raise A2ATransportTimeout(f"Dropped {method} {path}")
+                    msg = f"Dropped {method} {path}"
+                    raise A2ATransportTimeout(msg)
                 if inject == _FailureFactory.TIMEOUT:
-                    raise A2ATransportTimeout(f"Timed out {method} {path}")
+                    msg = f"Timed out {method} {path}"
+                    raise A2ATransportTimeout(msg)
                 # reorder (out-of-order): the real request still goes out, but
                 # the delivered response is a stale copy of the previous one.
                 stale = None
@@ -518,35 +530,34 @@ class A2AHttpClient:
 
                 data = json.loads(body) if body else {}
                 if not isinstance(data, dict):
-                    raise A2AError("Server returned a non-object JSON response")
+                    msg = "Server returned a non-object JSON response"
+                    raise A2AError(msg)
 
                 if code >= 400:
                     self._raise_http_error(code, data)
                 if "task" in data:
                     task = data["task"]
                     if expected_task_id is not None and task.get("taskId") != expected_task_id:
-                        raise OutOfOrderError(
+                        msg = (
                             f"Out-of-order response: got task "
                             f"{task.get('taskId')!r}, expected {expected_task_id!r}"
                         )
+                        raise OutOfOrderError(msg)
                 return data
             except (A2ATransportTimeout, OutOfOrderError) as retryable:
                 if attempt > self.max_retries:
-                    raise A2ATransportError(
-                        f"{method} {path} failed after {attempt} attempt(s): {retryable}"
-                    ) from retryable
+                    msg = f"{method} {path} failed after {attempt} attempt(s): {retryable}"
+                    raise A2ATransportError(msg) from retryable
                 _logger.debug("retrying %s %s (attempt %d)", method, path, attempt)
 
-    def _raise_http_error(self, code: int, data: Dict[str, Any]) -> None:
+    def _raise_http_error(self, code: int, data: dict[str, Any]) -> None:
         """Map an HTTP error status + JSON body to a typed module error."""
         error = data.get("error") or {}
-        if isinstance(error, dict):
-            message = error.get("message", f"HTTP {code}")
-        else:
-            message = str(error)
+        message = error.get("message", f"HTTP {code}") if isinstance(error, dict) else str(error)
         if code == 404:
             raise TaskNotFoundError(message)
-        raise A2AError(f"HTTP {code}: {message}")
+        msg = f"HTTP {code}: {message}"
+        raise A2AError(msg)
 
     # -- public operations ---------------------------------------------------
     def send_task(
@@ -554,10 +565,10 @@ class A2AHttpClient:
         agent_id: str,
         message: Any,
         *,
-        session_id: Optional[str] = None,
-        idempotency_key: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        session_id: str | None = None,
+        idempotency_key: str | None = None,
+        context: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> Task:
         """Submit a task to an agent; returns the created task (submitted)."""
         msg = _coerce_message(message)
@@ -579,10 +590,9 @@ class A2AHttpClient:
 
     def cancel_task(self, task_id: str) -> Task:
         """Cancel a task; returns the canceled task."""
-        data = self._request("POST", "/tasks/cancel", {"taskId": task_id},
-                             expected_task_id=task_id)
+        data = self._request("POST", "/tasks/cancel", {"taskId": task_id}, expected_task_id=task_id)
         return Task.from_dict(data["task"])
 
-    def health(self) -> Dict[str, Any]:
+    def health(self) -> dict[str, Any]:
         """Hit ``GET /health`` and return the parsed JSON body."""
         return self._request("GET", "/health")

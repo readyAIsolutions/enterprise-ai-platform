@@ -11,26 +11,37 @@ Version: 1.0.0
 __version__ = "1.0.0"
 __module__ = "innovation_rd"
 
-from .research import ResearchDomain, ResearchEntry, ResearchLibrary
 from .experiment import Experiment, ExperimentStatus, ExperimentTracker
-from .integrity import IntegrityCheck, IntegrityReport
-from .isolation import IsolationConfig, IsolationManager
-from .scouting import ScoutTarget, ScoutEntry, ScoutEngine
-from .ip import IPCategory, IPEntry, IPManager
-from .pipeline import InnovationPipeline, Opportunity, Hypothesis, ResearchResult
-from .pipeline import Assessment, ExperimentDesign, Prototype, MetricsSnapshot
-from .pipeline import Comparison, Decision, Documentation, TransferPackage
 from .experiments import (
+    AssessmentResult,
     Experiment as StatisticalExperiment,
     ExperimentRegistry,
     ExperimentRunner,
     HypothesisTest,
-    AssessmentResult,
     assess,
-    welch_t_test,
-    permutation_test,
     bootstrap_p_value,
+    permutation_test,
+    welch_t_test,
 )
+from .integrity import IntegrityCheck, IntegrityReport
+from .ip import IPCategory, IPEntry, IPManager
+from .isolation import IsolationConfig, IsolationManager
+from .pipeline import (
+    Assessment,
+    Comparison,
+    Decision,
+    Documentation,
+    ExperimentDesign,
+    Hypothesis,
+    InnovationPipeline,
+    MetricsSnapshot,
+    Opportunity,
+    Prototype,
+    ResearchResult,
+    TransferPackage,
+)
+from .research import ResearchDomain, ResearchEntry, ResearchLibrary
+from .scouting import ScoutEngine, ScoutEntry, ScoutTarget
 
 __all__ = [
     "__version__",
@@ -91,16 +102,15 @@ __all__ = [
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio
+import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 
-from .pipeline import InnovationPipeline
 
 _logger = logging.getLogger("enterprise.innovation_rd")
 
@@ -115,7 +125,7 @@ class InnovationRDModule(Module):
     UNHEALTHY rather than crashing the platform.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._lock = threading.RLock()
         self._component = None
@@ -151,6 +161,6 @@ class InnovationRDModule(Module):
             self._init_error = None
 
 
-def create_innovation_rd_module(config: Optional[Dict[str, Any]] = None) -> InnovationRDModule:
+def create_innovation_rd_module(config: dict[str, Any] | None = None) -> InnovationRDModule:
     """Factory: create a innovation_rd module instance."""
     return InnovationRDModule(config)

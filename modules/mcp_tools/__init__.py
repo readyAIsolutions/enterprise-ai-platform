@@ -122,9 +122,7 @@ class MCPToolGatewayModule(Module):
         with self._lock:
             self._status = HealthStatus.STARTING
 
-        _logger.info(
-            "MCP tools initializing (max_tools=%s, tags=%s)", self._max_tools, self._tags
-        )
+        _logger.info("MCP tools initializing (max_tools=%s, tags=%s)", self._max_tools, self._tags)
         try:
             registry = ToolRegistry(max_tools=self._max_tools)
             registry.initialize()
@@ -223,9 +221,7 @@ class MCPToolGatewayModule(Module):
         )
         return result
 
-    async def call_tool_async(
-        self, name: str, arguments: dict[str, Any] | None = None
-    ) -> Any:
+    async def call_tool_async(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
         """Asynchronously execute the tool named ``name`` with ``arguments``."""
         registry = self._require_registry()
         result = await registry.acall(name, arguments=arguments)
@@ -255,7 +251,8 @@ class MCPToolGatewayModule(Module):
         """Return the active registry or raise if not initialized."""
         registry = self.registry
         if registry is None:
-            raise RuntimeError("mcp_tools module is not initialized")
+            msg = "mcp_tools module is not initialized"
+            raise RuntimeError(msg)
         return registry
 
     def _emit(self, topic: str, payload: dict[str, Any]) -> None:

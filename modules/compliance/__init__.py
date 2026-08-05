@@ -19,10 +19,10 @@ import logging
 from typing import Any, Dict, List, Optional  # noqa: F401  (re-exported API types)
 
 from enterprise.platform_kernel import (
-    EventBus,
-    HealthStatus,
-    Module,
-    module,
+    EventBus,  # noqa: F401
+    HealthStatus,  # noqa: F401
+    Module,  # noqa: F401
+    module,  # noqa: F401
 )
 
 from .compliance import (
@@ -36,18 +36,17 @@ from .compliance import (
     STATUS_NOT_APPLICABLE,
     STATUS_PARTIAL,
     VALID_STATUSES,
+    CompControl,
     ComplianceEvaluator,
     ComplianceFacade,
     ComplianceModule,
     ComplianceReport,
-    CompControl,
     Control,
     ControlEvaluation,
     EvaluationResult,
     GapAnalyzer,
     controls_for_framework,
 )
-
 from .evidence import (
     ControlEvidence,
     EvidenceRegister,

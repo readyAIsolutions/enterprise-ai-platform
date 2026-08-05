@@ -14,105 +14,98 @@ Modules:
 - quality_gates: Pre-execution checks to block/warn on quality issues
 """
 
-from .prompt_registry import (
-    # Core
-    PromptRegistry,
-    PromptRegistryError,
-    PromptNotFoundError,
-    VersionNotFoundError,
-    InvalidTransitionError,
-    RollbackError,
-    # Data models
-    PromptStatus,
-    ChangeType,
-    MetricName,
-    ChangelogEntry,
-    PerformanceMetric,
-    PromptVersion,
-    PromptRecord,
-    # Utilities
-    SemanticVersion,
-    PromptIDGenerator,
-    detect_template_issues,
-)
-
 from .context_manager import (
+    ContextBlock,
     # Core
     ContextManager,
     ContextManagerError,
     ContextNotFoundError,
-    ContextWindowExceededError,
+    ContextPriority,
+    ContextSnapshot,
+    ContextSource,
     # Data models
     ContextType,
-    ContextPriority,
-    ContextSource,
-    ContextBlock,
-    ContextSnapshot,
     ContextWindow,
+    ContextWindowExceededError,
 )
-
+from .evaluator import (
+    EvalGrade,
+    # Data models
+    EvalMetric,
+    EvalScore,
+    EvalSummary,
+    EvaluationResult,
+    EvaluatorError,
+    HallucinationCheck,
+    # Core
+    PromptEvaluator,
+)
 from .optimizer import (
     # Core
     ContextOptimizer,
-    OptimizerError,
-    # Data models
-    OptimizationStrategy,
-    OptimizerPreset,
     OptimizationAction,
     OptimizationResult,
+    # Data models
+    OptimizationStrategy,
     OptimizerConfig,
+    OptimizerError,
+    OptimizerPreset,
 )
-
-from .token_budget import (
+from .persistence import (
+    ABOptimizer,
+    PromptNotFoundError as StorePromptNotFoundError,
+    PromptStore,
+    PromptStoreError,
+    VariantStats,
+)
+from .prompt_registry import (
+    ChangelogEntry,
+    ChangeType,
+    InvalidTransitionError,
+    MetricName,
+    PerformanceMetric,
+    PromptIDGenerator,
+    PromptNotFoundError,
+    PromptRecord,
     # Core
-    TokenBudgetManager,
-    TokenBudgetError,
-    BudgetExceededError,
+    PromptRegistry,
+    PromptRegistryError,
     # Data models
-    TruncationStrategy,
-    BudgetAllocation,
-    CacheStrategy,
-    TokenBudget,
-    CacheEntry,
-    BudgetReport,
-    ModelRoute,
+    PromptStatus,
+    PromptVersion,
+    RollbackError,
+    # Utilities
+    SemanticVersion,
+    VersionNotFoundError,
+    detect_template_issues,
 )
-
-from .evaluator import (
-    # Core
-    PromptEvaluator,
-    EvaluatorError,
-    # Data models
-    EvalMetric,
-    EvalGrade,
-    EvalScore,
-    EvaluationResult,
-    EvalSummary,
-    HallucinationCheck,
-)
-
 from .quality_gates import (
-    # Core
-    QualityGates,
-    QualityGateError,
-    QualityGateBlockedError,
+    GateCategory,
+    GateCheck,
+    GateConfig,
     # Data models
     GateSeverity,
     GateStatus,
-    GateCategory,
-    GateCheck,
+    QualityGateBlockedError,
+    QualityGateError,
     QualityGateResult,
-    GateConfig,
+    # Core
+    QualityGates,
 )
-
-from .persistence import (
-    PromptStore,
-    PromptStoreError,
-    PromptNotFoundError as StorePromptNotFoundError,
-    VariantStats,
-    ABOptimizer,
+from .token_budget import (
+    BudgetAllocation,
+    BudgetExceededError,
+    BudgetReport,
+    CacheEntry,
+    CacheStrategy,
+    ModelRoute,
+    TokenBudget,
+    TokenBudgetError,
+    # Core
+    TokenBudgetManager,
+    # Data models
+    TruncationStrategy,
 )
-
 
 __all__ = [
     # Registry
@@ -203,16 +196,15 @@ __description__ = "Prompt & Context Management OS - Enterprise-grade prompt life
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio
+import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 
-from .prompt_registry import PromptRegistry
 
 _logger = logging.getLogger("enterprise.prompt_context")
 
@@ -227,7 +219,7 @@ class PromptContextModule(Module):
     UNHEALTHY rather than crashing the platform.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._lock = threading.RLock()
         self._component = None
@@ -264,6 +256,6 @@ class PromptContextModule(Module):
             self._init_error = None
 
 
-def create_prompt_context_module(config: Optional[Dict[str, Any]] = None) -> PromptContextModule:
+def create_prompt_context_module(config: dict[str, Any] | None = None) -> PromptContextModule:
     """Factory: create a prompt_context module instance."""
     return PromptContextModule(config)

@@ -13,19 +13,20 @@ remains functional, HEALTHY, and fully testable even when TriadForge is absent.
 
 Version: 1.0.0
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
+import json  # noqa: F401
 import logging
 import os
 import re
 import sys
 import threading
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass, field  # noqa: F401
+from datetime import UTC, datetime, timezone  # noqa: F401
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401
 
 from enterprise.platform_kernel import EventBus, HealthStatus, Module, module
 
@@ -38,14 +39,14 @@ logger = logging.getLogger("enterprise.triadforge")
 
 __version__ = "1.0.0"
 
-_IMPORT_ERROR: Optional[str] = None
+_IMPORT_ERROR: str | None = None
 try:
     from triadforge.db import Store  # noqa: F401
     from triadforge.engine import persist_findings  # noqa: F401
-    from triadforge.engines.web import WebEngine  # noqa: F401
-    from triadforge.engines.source import SourceEngine  # noqa: F401
-    from triadforge.engines.llm import LlmEngine  # noqa: F401
     from triadforge.engines.adversary import AdversaryEngine  # noqa: F401
+    from triadforge.engines.llm import LlmEngine  # noqa: F401
+    from triadforge.engines.source import SourceEngine  # noqa: F401
+    from triadforge.engines.web import WebEngine  # noqa: F401
     from triadforge.models import Target, TargetMode  # noqa: F401
     from triadforge.remediation import export_sarif, fix_snippet  # noqa: F401
 
@@ -64,7 +65,7 @@ SCANCORE_AVAILABLE = True
 
 # Heuristic rule catalog. Each rule produces findings with a stable rule_id,
 # severity, message template, and (optional) remediation snippet.
-_RULES: Dict[str, Dict[str, Any]] = {
+_RULES: dict[str, dict[str, Any]] = {
     "insecure-http": {
         "severity": "warning",
         "message": "Target uses cleartext HTTP transport; TLS should be enforced.",
@@ -103,12 +104,15 @@ _RULES: Dict[str, Dict[str, Any]] = {
 }
 
 # Secret-shaped patterns for the source scanner (stdlib-only, no external deps).
-_SECRET_PATTERNS: List[Dict[str, str]] = [
-    {"rule": "hardcoded-secret", "pattern": r"(?i)(api[_-]?key|secret|password|token)\s*[=:]\s*['\"][A-Za-z0-9_\-]{8,}['\"]"},
+_SECRET_PATTERNS: list[dict[str, str]] = [
+    {
+        "rule": "hardcoded-secret",
+        "pattern": r"(?i)(api[_-]?key|secret|password|token)\s*[=:]\s*['\"][A-Za-z0-9_\-]{8,}['\"]",
+    },
     {"rule": "weak-regex", "pattern": r"(?i)\b([a-z0-9_]+)\s*[=:]\s*re\.(match|search|findall)\("},
 ]
 
-_LLM_INJECTION_MARKERS: List[str] = [
+_LLM_INJECTION_MARKERS: list[str] = [
     "ignore previous instructions",
     "ignore all previous",
     "system:",
@@ -118,7 +122,7 @@ _LLM_INJECTION_MARKERS: List[str] = [
 
 
 def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @dataclass
@@ -129,10 +133,10 @@ class ScanFinding:
     message: str
     severity: str = "medium"
     location: str = "n/a"
-    line: Optional[int] = None
-    fix: Optional[str] = None
+    line: int | None = None
+    fix: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "rule_id": self.rule_id,
             "message": self.message,
@@ -152,11 +156,11 @@ class ScanCore:
     standalone TriadForge package is unavailable, and as the offline test surface.
     """
 
-    def __init__(self, db_path: Optional[Path] = None) -> None:
+    def __init__(self, db_path: Path | None = None) -> None:
         self._db_path = db_path or Path(":memory:")
-        self._targets: Dict[int, Dict[str, Any]] = {}
-        self._scans: Dict[int, Dict[str, Any]] = {}
-        self._findings: Dict[int, List[ScanFinding]] = {}
+        self._targets: dict[int, dict[str, Any]] = {}
+        self._scans: dict[int, dict[str, Any]] = {}
+        self._findings: dict[int, list[ScanFinding]] = {}
         self._next_target_id = 1
         self._next_scan_id = 1
         self._lock = threading.RLock()
@@ -186,12 +190,12 @@ class ScanCore:
             self._targets[tid] = rec
             return tid
 
-    def get_target(self, target_id: int) -> Optional[Dict[str, Any]]:
+    def get_target(self, target_id: int) -> dict[str, Any] | None:
         with self._lock:
             rec = self._targets.get(target_id)
             return dict(rec) if rec else None
 
-    def list_targets(self) -> List[Dict[str, Any]]:
+    def list_targets(self) -> list[dict[str, Any]]:
         with self._lock:
             return [dict(t) for t in self._targets.values()]
 
@@ -201,15 +205,20 @@ class ScanCore:
             sid = self._next_scan_id
             self._next_scan_id += 1
             self._scans[sid] = {
-                "id": sid, "target_id": target_id, "kind": kind, "mode": mode,
-                "status": "pending", "message": None,
+                "id": sid,
+                "target_id": target_id,
+                "kind": kind,
+                "mode": mode,
+                "status": "pending",
+                "message": None,
                 "created_at": _utcnow(),
             }
             self._findings[sid] = []
             return sid
 
-    def update_scan(self, scan_id: int, status: Optional[str] = None,
-                    message: Optional[str] = None) -> None:
+    def update_scan(
+        self, scan_id: int, status: str | None = None, message: str | None = None
+    ) -> None:
         with self._lock:
             rec = self._scans.get(scan_id)
             if rec is None:
@@ -219,22 +228,23 @@ class ScanCore:
             if message is not None:
                 rec["message"] = message
 
-    def get_scan(self, scan_id: int) -> Optional[Dict[str, Any]]:
+    def get_scan(self, scan_id: int) -> dict[str, Any] | None:
         with self._lock:
             rec = self._scans.get(scan_id)
             return dict(rec) if rec else None
 
     # ── Findings ────────────────────────────────────────────────────────────
-    def persist_findings(self, scan_id: int, findings: List[ScanFinding]) -> int:
+    def persist_findings(self, scan_id: int, findings: list[ScanFinding]) -> int:
         with self._lock:
             cur = self._findings.setdefault(scan_id, [])
             cur.extend(findings)
             return len(cur)
 
-    def list_findings(self, scan_id: Optional[int] = None,
-                      severity: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_findings(
+        self, scan_id: int | None = None, severity: str | None = None
+    ) -> list[dict[str, Any]]:
         with self._lock:
-            out: List[Dict[str, Any]] = []
+            out: list[dict[str, Any]] = []
             for sid, items in self._findings.items():
                 if scan_id is not None and sid != scan_id:
                     continue
@@ -246,7 +256,7 @@ class ScanCore:
             return out
 
     # ── Scan orchestration (real, deterministic, offline) ──────────────────
-    def run_scan(self, target_id: int) -> Dict[str, Any]:
+    def run_scan(self, target_id: int) -> dict[str, Any]:
         """Synchronously run a scan on a target; aggregate findings; return summary."""
         target = self.get_target(target_id)
         if not target:
@@ -263,61 +273,71 @@ class ScanCore:
             self.update_scan(sid, status="error", message=str(e))
             return {"scan_id": sid, "error": str(e), "target_id": target_id}
 
-    def _scan_target(self, kind: str, target: Dict[str, Any]) -> List[ScanFinding]:
+    def _scan_target(self, kind: str, target: dict[str, Any]) -> list[ScanFinding]:
         if kind == "web":
             return self._scan_web(target)
         if kind == "source":
             return self._scan_source(target)
         if kind == "llm":
             return self._scan_llm(target)
-        return [ScanFinding(
-            rule_id="unknown-kind",
-            message=_RULES["unknown-kind"]["message"],
-            severity="info",
-            location=target.get("name", "n/a"),
-        )]
+        return [
+            ScanFinding(
+                rule_id="unknown-kind",
+                message=_RULES["unknown-kind"]["message"],
+                severity="info",
+                location=target.get("name", "n/a"),
+            )
+        ]
 
-    def _scan_web(self, target: Dict[str, Any]) -> List[ScanFinding]:
+    def _scan_web(self, target: dict[str, Any]) -> list[ScanFinding]:
         url = target.get("url") or ""
         name = target.get("name", url)
-        findings: List[ScanFinding] = []
+        findings: list[ScanFinding] = []
         if url.startswith("http://"):
-            findings.append(ScanFinding(
-                rule_id="insecure-http",
-                message=_RULES["insecure-http"]["message"],
-                severity=_RULES["insecure-http"]["severity"],
-                location=url,
-                fix=_RULES["insecure-http"]["fix"],
-            ))
+            findings.append(
+                ScanFinding(
+                    rule_id="insecure-http",
+                    message=_RULES["insecure-http"]["message"],
+                    severity=_RULES["insecure-http"]["severity"],
+                    location=url,
+                    fix=_RULES["insecure-http"]["fix"],
+                )
+            )
         if url and not re.search(r":\d{2,5}(/|$)", url):
-            findings.append(ScanFinding(
-                rule_id="missing-port",
-                message=_RULES["missing-port"]["message"],
-                severity=_RULES["missing-port"]["severity"],
-                location=url,
-                fix=_RULES["missing-port"]["fix"],
-            ))
+            findings.append(
+                ScanFinding(
+                    rule_id="missing-port",
+                    message=_RULES["missing-port"]["message"],
+                    severity=_RULES["missing-port"]["severity"],
+                    location=url,
+                    fix=_RULES["missing-port"]["fix"],
+                )
+            )
         if target.get("auth_token"):
-            findings.append(ScanFinding(
-                rule_id="auth-token-in-url",
-                message=_RULES["auth-token-in-url"]["message"],
-                severity=_RULES["auth-token-in-url"]["severity"],
-                location=url,
-                fix=_RULES["auth-token-in-url"]["fix"],
-            ))
+            findings.append(
+                ScanFinding(
+                    rule_id="auth-token-in-url",
+                    message=_RULES["auth-token-in-url"]["message"],
+                    severity=_RULES["auth-token-in-url"]["severity"],
+                    location=url,
+                    fix=_RULES["auth-token-in-url"]["fix"],
+                )
+            )
         if not findings:
-            findings.append(ScanFinding(
-                rule_id="weak-regex",
-                message="Web target scanned with no high-confidence issues.",
-                severity="info",
-                location=name,
-            ))
+            findings.append(
+                ScanFinding(
+                    rule_id="weak-regex",
+                    message="Web target scanned with no high-confidence issues.",
+                    severity="info",
+                    location=name,
+                )
+            )
         return findings
 
-    def _scan_source(self, target: Dict[str, Any]) -> List[ScanFinding]:
+    def _scan_source(self, target: dict[str, Any]) -> list[ScanFinding]:
         source_dir = Path(target.get("source_dir") or "")
         name = target.get("name", str(source_dir))
-        findings: List[ScanFinding] = []
+        findings: list[ScanFinding] = []
         if source_dir.exists() and source_dir.is_dir():
             scanned = 0
             for root, _dirs, files in os.walk(source_dir):
@@ -332,51 +352,61 @@ class ScanCore:
                         for lineno, line in enumerate(text.splitlines(), 1):
                             for pat in _SECRET_PATTERNS:
                                 if re.search(pat["pattern"], line):
-                                    findings.append(ScanFinding(
-                                        rule_id=pat["rule"],
-                                        message=_RULES[pat["rule"]]["message"],
-                                        severity=_RULES[pat["rule"]]["severity"],
-                                        location=str(fp),
-                                        line=lineno,
-                                        fix=_RULES[pat["rule"]]["fix"],
-                                    ))
+                                    findings.append(
+                                        ScanFinding(
+                                            rule_id=pat["rule"],
+                                            message=_RULES[pat["rule"]]["message"],
+                                            severity=_RULES[pat["rule"]]["severity"],
+                                            location=str(fp),
+                                            line=lineno,
+                                            fix=_RULES[pat["rule"]]["fix"],
+                                        )
+                                    )
             if not findings:
-                findings.append(ScanFinding(
-                    rule_id="weak-regex",
-                    message=f"Source scan of {scanned} files found no obvious secrets.",
-                    severity="info",
-                    location=name,
-                ))
+                findings.append(
+                    ScanFinding(
+                        rule_id="weak-regex",
+                        message=f"Source scan of {scanned} files found no obvious secrets.",
+                        severity="info",
+                        location=name,
+                    )
+                )
         else:
-            findings.append(ScanFinding(
-                rule_id="unknown-kind",
-                message="Source directory does not exist or is not a directory.",
-                severity="warning",
-                location=name,
-            ))
+            findings.append(
+                ScanFinding(
+                    rule_id="unknown-kind",
+                    message="Source directory does not exist or is not a directory.",
+                    severity="warning",
+                    location=name,
+                )
+            )
         return findings
 
-    def _scan_llm(self, target: Dict[str, Any]) -> List[ScanFinding]:
+    def _scan_llm(self, target: dict[str, Any]) -> list[ScanFinding]:
         notes = target.get("notes") or ""
         name = target.get("name", "llm-target")
-        findings: List[ScanFinding] = []
+        findings: list[ScanFinding] = []
         lowered = notes.lower()
         for marker in _LLM_INJECTION_MARKERS:
             if marker.lower() in lowered:
-                findings.append(ScanFinding(
-                    rule_id="prompt-injection",
-                    message=_RULES["prompt-injection"]["message"],
-                    severity=_RULES["prompt-injection"]["severity"],
-                    location=name,
-                    fix=_RULES["prompt-injection"]["fix"],
-                ))
+                findings.append(
+                    ScanFinding(
+                        rule_id="prompt-injection",
+                        message=_RULES["prompt-injection"]["message"],
+                        severity=_RULES["prompt-injection"]["severity"],
+                        location=name,
+                        fix=_RULES["prompt-injection"]["fix"],
+                    )
+                )
         if not findings:
-            findings.append(ScanFinding(
-                rule_id="weak-regex",
-                message="LLM prompt scan found no injection markers.",
-                severity="info",
-                location=name,
-            ))
+            findings.append(
+                ScanFinding(
+                    rule_id="weak-regex",
+                    message="LLM prompt scan found no injection markers.",
+                    severity="info",
+                    location=name,
+                )
+            )
         return findings
 
     # ── Remediation / reporting ─────────────────────────────────────────────
@@ -384,51 +414,71 @@ class ScanCore:
         rule = _RULES.get(rule_id)
         return rule["fix"] if rule else f"No remediation known for rule '{rule_id}'."
 
-    def export_sarif(self, scan_id: Optional[int] = None) -> Dict[str, Any]:
+    def export_sarif(self, scan_id: int | None = None) -> dict[str, Any]:
         """Export findings as well-formed SARIF 2.1.0 JSON."""
         findings = self.list_findings(scan_id=scan_id)
         rules = [
-            {"id": rid, "shortDescription": {"text": rule["message"]},
-             "help": {"text": rule.get("fix", "")}, "defaultConfiguration": {"level": rule["severity"]}}
+            {
+                "id": rid,
+                "shortDescription": {"text": rule["message"]},
+                "help": {"text": rule.get("fix", "")},
+                "defaultConfiguration": {"level": rule["severity"]},
+            }
             for rid, rule in _RULES.items()
         ]
         results = []
         for f in findings:
-            level = "note" if f["severity"] == "info" else ("warning" if f["severity"] == "warning" else "error")
+            level = (
+                "note"
+                if f["severity"] == "info"
+                else ("warning" if f["severity"] == "warning" else "error")
+            )
             loc = f.get("location") or ""
-            result: Dict[str, Any] = {
+            result: dict[str, Any] = {
                 "ruleId": f["rule_id"],
                 "level": level,
                 "message": {"text": f["message"]},
-                "locations": [{
-                    "physicalLocation": {
-                        "artifactLocation": {"uri": loc},
-                        **({"region": {"startLine": f["line"]}} if f.get("line") else {}),
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": loc},
+                            **({"region": {"startLine": f["line"]}} if f.get("line") else {}),
+                        }
                     }
-                }],
+                ],
             }
             if f.get("fix"):
-                result["fixes"] = [{
-                    "description": {"text": f["fix"]},
-                    "artifactChanges": [{"artifactLocation": {"uri": loc}}],
-                }]
+                result["fixes"] = [
+                    {
+                        "description": {"text": f["fix"]},
+                        "artifactChanges": [{"artifactLocation": {"uri": loc}}],
+                    }
+                ]
             results.append(result)
 
         return {
             "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
             "version": "2.1.0",
-            "runs": [{
-                "tool": {"driver": {"name": "TriadForge/ScanCore", "version": __version__,
-                                    "informationUri": "https://github.com/Enterprise-Network-Intelligence",
-                                    "rules": rules}},
-                "results": results,
-            }],
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": "TriadForge/ScanCore",
+                            "version": __version__,
+                            "informationUri": "https://github.com/Enterprise-Network-Intelligence",
+                            "rules": rules,
+                        }
+                    },
+                    "results": results,
+                }
+            ],
         }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Kernel module
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 @module(name="triadforge", version=__version__)
 class TriadForgeModule(Module):
@@ -438,11 +488,11 @@ class TriadForgeModule(Module):
     store when offline), export SARIF, and drive the remediation funnel.
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._lock = threading.RLock()
-        self._event_bus: Optional[EventBus] = None
-        self._store: Optional[Any] = None
+        self._event_bus: EventBus | None = None
+        self._store: Any | None = None
         self._engine: str = "external" if TRIADFORGE_AVAILABLE else "internal"
         # Health is HEALTHY when EITHER engine is available.
         self._runnable: bool = TRIADFORGE_AVAILABLE or SCANCORE_AVAILABLE
@@ -459,7 +509,9 @@ class TriadForgeModule(Module):
                 return
             if self._store is None:
                 if TRIADFORGE_AVAILABLE:
-                    db_path = cfg.get("db_path") or str(Path(_TRIADFORGE) / "enterprise_triadforge.db")
+                    db_path = cfg.get("db_path") or str(
+                        Path(_TRIADFORGE) / "enterprise_triadforge.db"
+                    )
                     self._store = Store(Path(db_path))
                     self._engine = "external"
                 else:
@@ -488,24 +540,40 @@ class TriadForgeModule(Module):
         self._event_bus = event_bus
 
     # ── Facade: scanning ────────────────────────────────────────────────────
-    def add_web_target(self, name: str, url: str, mode: str = "black",
-                       auth_token: Optional[str] = None) -> int:
-        return self._add_target({
-            "name": name, "kind": "web", "mode": mode, "url": url,
-            "auth_token": auth_token, "scope_ok": True,
-        })
+    def add_web_target(
+        self, name: str, url: str, mode: str = "black", auth_token: str | None = None
+    ) -> int:
+        return self._add_target(
+            {
+                "name": name,
+                "kind": "web",
+                "mode": mode,
+                "url": url,
+                "auth_token": auth_token,
+                "scope_ok": True,
+            }
+        )
 
     def add_source_target(self, name: str, source_dir: str) -> int:
-        return self._add_target({
-            "name": name, "kind": "source", "mode": "white",
-            "source_dir": source_dir, "scope_ok": True,
-        })
+        return self._add_target(
+            {
+                "name": name,
+                "kind": "source",
+                "mode": "white",
+                "source_dir": source_dir,
+                "scope_ok": True,
+            }
+        )
 
-    def add_adversary_target(self, name: str, url: str,
-                             profile: str = "balanced",
-                             auth_path: Optional[str] = None,
-                             model_path: Optional[str] = None,
-                             content_path: Optional[str] = None) -> int:
+    def add_adversary_target(
+        self,
+        name: str,
+        url: str,
+        profile: str = "balanced",
+        auth_path: str | None = None,
+        model_path: str | None = None,
+        content_path: str | None = None,
+    ) -> int:
         """Register a live site to attack with AI/agent vectors (deployed-gate test)."""
         notes = f"profile={profile}"
         if auth_path:
@@ -514,25 +582,35 @@ class TriadForgeModule(Module):
             notes += f",model_path={model_path}"
         if content_path:
             notes += f",content_path={content_path}"
-        return self._add_target({
-            "name": name, "kind": "adversary", "mode": "black", "url": url,
-            "notes": notes, "scope_ok": True,
-        })
+        return self._add_target(
+            {
+                "name": name,
+                "kind": "adversary",
+                "mode": "black",
+                "url": url,
+                "notes": notes,
+                "scope_ok": True,
+            }
+        )
 
     def _add_target(self, t: Any) -> int:
         self._require()
         if self._engine == "external":
             # External TriadForge store expects a Target model object.
             tgt = Target(
-                name=t.get("name"), kind=t.get("kind", "web"),
-                mode=TargetMode(t.get("mode", "black")), url=t.get("url"),
-                source_dir=t.get("source_dir"), auth_token=t.get("auth_token"),
-                notes=t.get("notes"), scope_ok=t.get("scope_ok", True),
+                name=t.get("name"),
+                kind=t.get("kind", "web"),
+                mode=TargetMode(t.get("mode", "black")),
+                url=t.get("url"),
+                source_dir=t.get("source_dir"),
+                auth_token=t.get("auth_token"),
+                notes=t.get("notes"),
+                scope_ok=t.get("scope_ok", True),
             )
             return self._store.add_target(tgt)
         return self._store.add_target(t)
 
-    def run_scan(self, target_id: int) -> Dict[str, Any]:
+    def run_scan(self, target_id: int) -> dict[str, Any]:
         """Synchronously run a scan on a target; returns a summary dict."""
         self._require()
         target = self._store.get_target(target_id)
@@ -545,8 +623,12 @@ class TriadForgeModule(Module):
             return self._store.run_scan(target_id)
 
         # External TriadForge engine path (unchanged behaviour).
-        engine_cls = {"web": WebEngine, "source": SourceEngine,
-                      "llm": LlmEngine, "adversary": AdversaryEngine}.get(kind)
+        engine_cls = {
+            "web": WebEngine,
+            "source": SourceEngine,
+            "llm": LlmEngine,
+            "adversary": AdversaryEngine,
+        }.get(kind)
         if engine_cls is None:
             return {"error": f"unknown target kind {kind}"}
         scan_id = self._store.create_scan(target_id, kind, target.get("mode", "black"))
@@ -561,7 +643,8 @@ class TriadForgeModule(Module):
             engine = engine_cls(self._store, t)
             coro = engine.run(scan_id, {})
             import concurrent.futures
-            out: List[Any] = []
+
+            out: list[Any] = []
 
             def _run() -> None:
                 out.append(asyncio.run(coro))
@@ -576,39 +659,52 @@ class TriadForgeModule(Module):
             return {"scan_id": scan_id, "error": str(e), "target_id": target_id}
 
     # ── High-level facade routing (route to the active engine) ──────────────
-    def scan_web(self, name: str, url: str, mode: str = "black",
-                 auth_token: Optional[str] = None) -> Dict[str, Any]:
+    def scan_web(
+        self, name: str, url: str, mode: str = "black", auth_token: str | None = None
+    ) -> dict[str, Any]:
         """Add a web target and run a scan on it in one step; returns summary."""
         target_id = self.add_web_target(name, url, mode=mode, auth_token=auth_token)
         return self.run_scan(target_id)
 
-    def scan_source(self, name: str, source_dir: str) -> Dict[str, Any]:
+    def scan_source(self, name: str, source_dir: str) -> dict[str, Any]:
         """Add a source target and run a scan on it in one step; returns summary."""
         target_id = self.add_source_target(name, source_dir)
         return self.run_scan(target_id)
 
-    def scan_llm(self, name: str, prompt_or_notes: str,
-                 url: Optional[str] = None) -> Dict[str, Any]:
+    def scan_llm(self, name: str, prompt_or_notes: str, url: str | None = None) -> dict[str, Any]:
         """Add an LLM target (prompt/content via notes) and run a scan."""
         self._require()
         if self._engine == "internal":
-            target_id = self._store.add_target({
-                "name": name, "kind": "llm", "mode": "black",
-                "url": url or "", "notes": prompt_or_notes, "scope_ok": True,
-            })
+            target_id = self._store.add_target(
+                {
+                    "name": name,
+                    "kind": "llm",
+                    "mode": "black",
+                    "url": url or "",
+                    "notes": prompt_or_notes,
+                    "scope_ok": True,
+                }
+            )
             return self._store.run_scan(target_id)
-        target_id = self._add_target({
-            "name": name, "kind": "llm", "mode": "black",
-            "url": url or "", "notes": prompt_or_notes, "scope_ok": True,
-        })
+        target_id = self._add_target(
+            {
+                "name": name,
+                "kind": "llm",
+                "mode": "black",
+                "url": url or "",
+                "notes": prompt_or_notes,
+                "scope_ok": True,
+            }
+        )
         return self.run_scan(target_id)
 
-    def list_findings(self, scan_id: Optional[int] = None,
-                      severity: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_findings(
+        self, scan_id: int | None = None, severity: str | None = None
+    ) -> list[dict[str, Any]]:
         self._require()
         return self._store.list_findings(scan_id=scan_id, severity=severity)
 
-    def export_sarif(self, scan_id: Optional[int] = None) -> Dict[str, Any]:
+    def export_sarif(self, scan_id: int | None = None) -> dict[str, Any]:
         self._require()
         if self._engine == "internal":
             return self._store.export_sarif(scan_id=scan_id)
@@ -623,14 +719,21 @@ class TriadForgeModule(Module):
     def _require(self) -> None:
         if not self._available or self._store is None:
             raise RuntimeError(
-                "TriadForge module not available/initialized (%s)" % (_IMPORT_ERROR or "uninitialized"))
+                "TriadForge module not available/initialized (%s)"
+                % (_IMPORT_ERROR or "uninitialized")
+            )
 
 
-def create_triadforge_module(config: Optional[Dict[str, Any]] = None) -> TriadForgeModule:
+def create_triadforge_module(config: dict[str, Any] | None = None) -> TriadForgeModule:
     return TriadForgeModule(config)
 
 
 __all__ = [
-    "TriadForgeModule", "create_triadforge_module", "TRIADFORGE_AVAILABLE",
-    "SCANCORE_AVAILABLE", "ScanCore", "ScanFinding", "__version__",
+    "TriadForgeModule",
+    "create_triadforge_module",
+    "TRIADFORGE_AVAILABLE",
+    "SCANCORE_AVAILABLE",
+    "ScanCore",
+    "ScanFinding",
+    "__version__",
 ]

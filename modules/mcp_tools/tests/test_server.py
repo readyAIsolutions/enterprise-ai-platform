@@ -11,15 +11,12 @@ Run with:
 
 from __future__ import annotations
 
-import asyncio
 import http.client
 import io
 import json
-import threading
 from typing import Any
 
 import pytest
-
 from enterprise.modules.mcp_tools import ToolServer
 from enterprise.modules.mcp_tools.server import (
     MCPServer,
@@ -57,7 +54,7 @@ def _make_server() -> ToolServer:
 
 
 class TestHTTPServer:
-    @pytest.fixture()
+    @pytest.fixture
     def mcp(self) -> MCPServer:
         tool_server = _make_server()
         server = MCPServer(tool_server, name="http-mcp")
@@ -70,7 +67,9 @@ class TestHTTPServer:
         try:
             body = json.dumps(payload).encode("utf-8")
             conn.request(
-                "POST", "/mcp", body=body,
+                "POST",
+                "/mcp",
+                body=body,
                 headers={"Content-Type": "application/json"},
             )
             resp = conn.getresponse()
@@ -80,7 +79,8 @@ class TestHTTPServer:
             conn.close()
 
     def test_start_binds_ephemeral_port(self, mcp: MCPServer) -> None:
-        assert mcp.port is not None and mcp.port > 0
+        assert mcp.port is not None
+        assert mcp.port > 0
         assert mcp.port <= 65535
 
     def test_serves_tools_list_over_http(self, mcp: MCPServer) -> None:
@@ -95,8 +95,12 @@ class TestHTTPServer:
     def test_tools_call_sync_tool_over_http(self, mcp: MCPServer) -> None:
         status, resp = self._post(
             mcp,
-            {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-             "params": {"name": "add", "arguments": {"a": 2, "b": 3}}},
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "add", "arguments": {"a": 2, "b": 3}},
+            },
         )
         assert status == 200
         assert resp["result"]["content"][0]["text"] == "5"
@@ -105,8 +109,12 @@ class TestHTTPServer:
     def test_tools_call_async_tool_over_http(self, mcp: MCPServer) -> None:
         status, resp = self._post(
             mcp,
-            {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-             "params": {"name": "upper", "arguments": {"text": "abc"}}},
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "upper", "arguments": {"text": "abc"}},
+            },
         )
         assert status == 200
         assert resp["result"]["content"][0]["text"] == "ABC"
@@ -114,8 +122,12 @@ class TestHTTPServer:
     def test_unknown_tool_returns_jsonrpc_error(self, mcp: MCPServer) -> None:
         status, resp = self._post(
             mcp,
-            {"jsonrpc": "2.0", "id": 4, "method": "tools/call",
-             "params": {"name": "nope", "arguments": {}}},
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {"name": "nope", "arguments": {}},
+            },
         )
         assert status == 200
         assert resp["error"]["code"] == -32602
@@ -123,7 +135,9 @@ class TestHTTPServer:
     def test_malformed_json_returns_parse_error(self, mcp: MCPServer) -> None:
         conn = http.client.HTTPConnection("127.0.0.1", mcp.port, timeout=5)
         try:
-            conn.request("POST", "/mcp", body="{not-json", headers={"Content-Type": "application/json"})
+            conn.request(
+                "POST", "/mcp", body="{not-json", headers={"Content-Type": "application/json"}
+            )
             resp = conn.getresponse()
             data = json.loads(resp.read().decode("utf-8"))
             assert resp.status == 400
@@ -136,9 +150,7 @@ class TestHTTPServer:
         assert resp["error"]["code"] == -32600
 
     def test_unknown_method_returns_32601(self, mcp: MCPServer) -> None:
-        status, resp = self._post(
-            mcp, {"jsonrpc": "2.0", "id": 5, "method": "bogus/method"}
-        )
+        status, resp = self._post(mcp, {"jsonrpc": "2.0", "id": 5, "method": "bogus/method"})
         assert resp["error"]["code"] == -32601
 
     def test_health_endpoint(self, mcp: MCPServer) -> None:
@@ -189,13 +201,14 @@ class TestServeHelper:
         tool_server = _make_server()
         server = serve(tool_server, port=0, name="served")
         try:
-            assert server.port and server.port > 0
+            assert server.port
+            assert server.port > 0
             conn = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
             try:
                 conn.request(
-                    "POST", "/mcp", body=json.dumps(
-                        {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
-                    ).encode(),
+                    "POST",
+                    "/mcp",
+                    body=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).encode(),
                     headers={"Content-Type": "application/json"},
                 )
                 resp = conn.getresponse()
@@ -217,7 +230,7 @@ class TestSSETransport:
         frame = SSETransport.format_event({"a": 1}, event="message")
         text = frame.decode("utf-8")
         assert "event: message" in text
-        assert "data: {\"a\": 1}" in text
+        assert 'data: {"a": 1}' in text
         assert text.endswith("\n\n")
 
     def test_format_and_parse_roundtrip(self) -> None:
@@ -231,9 +244,7 @@ class TestSSETransport:
     def test_sse_streams_tools_list(self) -> None:
         mcp = MCPServer(_make_server())
         transport = SSETransport(mcp)
-        frames = b"".join(
-            transport.stream({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
-        )
+        frames = b"".join(transport.stream({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}))
         events = SSETransport.parse_events(frames)
         assert any(json.loads(e["data"]).get("result") for e in events)
 
@@ -242,8 +253,12 @@ class TestSSETransport:
         transport = SSETransport(mcp)
         frames = b"".join(
             transport.stream(
-                {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                 "params": {"name": "upper", "arguments": {"text": "x"}}}
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {"name": "upper", "arguments": {"text": "x"}},
+                }
             )
         )
         events = SSETransport.parse_events(frames)
@@ -256,14 +271,20 @@ class TestSSETransport:
         transport = SSETransport(mcp)
         frames = b"".join(
             transport.stream(
-                {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-                 "params": {"name": "add", "arguments": {"a": 1, "b": 2}}}
+                {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "tools/call",
+                    "params": {"name": "add", "arguments": {"a": 1, "b": 2}},
+                }
             )
         )
         events = SSETransport.parse_events(frames)
         assert events[0]["event"] == "start"
 
-    def test_sse_http_endpoint_streams_event_stream(self, ) -> None:
+    def test_sse_http_endpoint_streams_event_stream(
+        self,
+    ) -> None:
         tool_server = _make_server()
         server = MCPServer(tool_server)
         server.start(port=0)
@@ -271,9 +292,15 @@ class TestSSETransport:
             conn = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
             try:
                 conn.request(
-                    "POST", "/sse", body=json.dumps(
-                        {"jsonrpc": "2.0", "id": 7, "method": "tools/call",
-                         "params": {"name": "greet", "arguments": {"name": "Zoe"}}}
+                    "POST",
+                    "/sse",
+                    body=json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": 7,
+                            "method": "tools/call",
+                            "params": {"name": "greet", "arguments": {"name": "Zoe"}},
+                        }
                     ).encode(),
                     headers={"Content-Type": "application/json"},
                 )
@@ -306,8 +333,12 @@ class TestStdioServer:
         assert len(parsed["result"]["tools"]) == 3
 
     def test_stdio_roundtrip_sync_call(self) -> None:
-        request = {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                   "params": {"name": "add", "arguments": {"a": 10, "b": 5}}}
+        request = {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "add", "arguments": {"a": 10, "b": 5}},
+        }
         stdin = io.StringIO(json.dumps(request) + "\n")
         stdout = io.StringIO()
         stdio = StdioServer(MCPServer(_make_server()), stdin=stdin, stdout=stdout)
@@ -317,14 +348,21 @@ class TestStdioServer:
         assert parsed["result"]["content"][0]["text"] == "15"
 
     def test_stdio_multi_request_stream(self) -> None:
-        requests = "\n".join(
-            json.dumps(r)
-            for r in [
-                {"jsonrpc": "2.0", "id": "a", "method": "tools/list"},
-                {"jsonrpc": "2.0", "id": "b", "method": "tools/call",
-                 "params": {"name": "upper", "arguments": {"text": "hey"}}},
-            ]
-        ) + "\n"
+        requests = (
+            "\n".join(
+                json.dumps(r)
+                for r in [
+                    {"jsonrpc": "2.0", "id": "a", "method": "tools/list"},
+                    {
+                        "jsonrpc": "2.0",
+                        "id": "b",
+                        "method": "tools/call",
+                        "params": {"name": "upper", "arguments": {"text": "hey"}},
+                    },
+                ]
+            )
+            + "\n"
+        )
         stdin = io.StringIO(requests)
         stdout = io.StringIO()
         stdio = StdioServer(MCPServer(_make_server()), stdin=stdin, stdout=stdout)
@@ -337,8 +375,12 @@ class TestStdioServer:
         assert second["result"]["content"][0]["text"] == "HEY"
 
     def test_stdio_unknown_tool_returns_error(self) -> None:
-        request = {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-                   "params": {"name": "missing", "arguments": {}}}
+        request = {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "missing", "arguments": {}},
+        }
         stdin = io.StringIO(json.dumps(request) + "\n")
         stdout = io.StringIO()
         stdio = StdioServer(MCPServer(_make_server()), stdin=stdin, stdout=stdout)
@@ -347,8 +389,12 @@ class TestStdioServer:
         assert parsed["error"]["code"] == -32602
 
     def test_stdio_serve_once_roundtrip(self) -> None:
-        request = {"jsonrpc": "2.0", "id": 4, "method": "tools/call",
-                   "params": {"name": "greet", "arguments": {"name": "Bob"}}}
+        request = {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {"name": "greet", "arguments": {"name": "Bob"}},
+        }
         stdin = io.StringIO(json.dumps(request) + "\n")
         stdout = io.StringIO()
         stdio = StdioServer(MCPServer(_make_server()), stdin=stdin, stdout=stdout)
@@ -379,16 +425,24 @@ class TestMCPServerDispatch:
     def test_process_message_sync_call(self) -> None:
         mcp = MCPServer(_make_server())
         resp = mcp.process_message(
-            {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-             "params": {"name": "add", "arguments": {"a": 1, "b": 1}}}
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "add", "arguments": {"a": 1, "b": 1}},
+            }
         )
         assert resp["result"]["content"][0]["text"] == "2"
 
     def test_process_message_async_call(self) -> None:
         mcp = MCPServer(_make_server())
         resp = mcp.process_message(
-            {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-             "params": {"name": "upper", "arguments": {"text": "hi"}}}
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "upper", "arguments": {"text": "hi"}},
+            }
         )
         assert resp["result"]["content"][0]["text"] == "HI"
 

@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
-import tempfile
 from pathlib import Path
 
 # Ensure project root is importable for `enterprise` package.
@@ -41,10 +40,10 @@ from enterprise.modules.kb_bridge.sources import (  # noqa: E402
     score_text,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def file_dir(tmp_path: Path) -> Path:
@@ -96,8 +95,12 @@ def json_file(tmp_path: Path) -> Path:
     path.write_text(
         json.dumps(
             [
-                {"id": "j1", "text": "kubernetes scaling tips", "source": "manual",
-                 "metadata": {"section": "scaling"}},
+                {
+                    "id": "j1",
+                    "text": "kubernetes scaling tips",
+                    "source": "manual",
+                    "metadata": {"section": "scaling"},
+                },
                 {"id": "j2", "text": "fresh pasta recipe", "score": 4.0},
                 {"id": "j3", "text": "kubernetes security hardening", "score": 7.0},
             ]
@@ -111,8 +114,9 @@ def json_file(tmp_path: Path) -> Path:
 # FileSourceAdapter
 # ---------------------------------------------------------------------------
 
+
 class TestFileSourceAdapter:
-    def test_query_returns_matching_docs(self, file_dir: Path):
+    def test_query_returns_matching_docs(self, file_dir: Path) -> None:
         adapter = FileSourceAdapter(str(file_dir), source_id="files")
         docs = adapter.query("kubernetes")
         assert docs
@@ -120,7 +124,7 @@ class TestFileSourceAdapter:
         assert {d.id for d in docs} == {"a.md", "notes/c.md"}
         adapter.close()
 
-    def test_query_reranked_by_relevance(self, file_dir: Path):
+    def test_query_reranked_by_relevance(self, file_dir: Path) -> None:
         adapter = FileSourceAdapter(str(file_dir))
         docs = adapter.query("kubernetes")
         # a.md contains "kubernetes" twice -> higher score than notes/c.md.
@@ -128,7 +132,7 @@ class TestFileSourceAdapter:
         assert docs[0].score > docs[-1].score
         adapter.close()
 
-    def test_list_docs_returns_all_docs(self, file_dir: Path):
+    def test_list_docs_returns_all_docs(self, file_dir: Path) -> None:
         adapter = FileSourceAdapter(str(file_dir))
         docs = adapter.list_docs()
         # .md/.txt only; the ignored.py file is excluded.
@@ -136,20 +140,20 @@ class TestFileSourceAdapter:
         assert all("path" in d.metadata for d in docs)
         adapter.close()
 
-    def test_list_docs_honors_limit(self, file_dir: Path):
+    def test_list_docs_honors_limit(self, file_dir: Path) -> None:
         adapter = FileSourceAdapter(str(file_dir))
         docs = adapter.list_docs(limit=2)
         assert len(docs) == 2
         adapter.close()
 
-    def test_query_path_filter(self, file_dir: Path):
+    def test_query_path_filter(self, file_dir: Path) -> None:
         adapter = FileSourceAdapter(str(file_dir))
         target = str(file_dir / "a.md")
         docs = adapter.query("", filters={"path": target})
         assert [d.id for d in docs] == ["a.md"]
         adapter.close()
 
-    def test_missing_directory_raises(self, tmp_path: Path):
+    def test_missing_directory_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             FileSourceAdapter(str(tmp_path / "nope"))
 
@@ -158,21 +162,22 @@ class TestFileSourceAdapter:
 # SqliteSourceAdapter
 # ---------------------------------------------------------------------------
 
+
 class TestSqliteSourceAdapter:
-    def test_query_returns_matching_docs(self, sqlite_db: Path):
+    def test_query_returns_matching_docs(self, sqlite_db: Path) -> None:
         adapter = SqliteSourceAdapter(str(sqlite_db), source_id="db1")
         docs = adapter.query("kubernetes")
         assert {d.id for d in docs} == {"d1", "d3"}
         adapter.close()
 
-    def test_list_docs_returns_all(self, sqlite_db: Path):
+    def test_list_docs_returns_all(self, sqlite_db: Path) -> None:
         adapter = SqliteSourceAdapter(str(sqlite_db))
         docs = adapter.list_docs()
         assert {d.id for d in docs} == {"d1", "d2", "d3"}
         assert len(docs) == 3
         adapter.close()
 
-    def test_metadata_round_trip(self, sqlite_db: Path):
+    def test_metadata_round_trip(self, sqlite_db: Path) -> None:
         adapter = SqliteSourceAdapter(str(sqlite_db))
         docs = adapter.list_docs()
         d1 = next(d for d in docs if d.id == "d1")
@@ -180,13 +185,13 @@ class TestSqliteSourceAdapter:
         assert d1.score == 9.0
         adapter.close()
 
-    def test_query_source_filter(self, sqlite_db: Path):
+    def test_query_source_filter(self, sqlite_db: Path) -> None:
         adapter = SqliteSourceAdapter(str(sqlite_db))
         docs = adapter.query("kubernetes", filters={"source": "ops"})
         assert {d.id for d in docs} == {"d1", "d3"}
         adapter.close()
 
-    def test_query_min_score_filter(self, sqlite_db: Path):
+    def test_query_min_score_filter(self, sqlite_db: Path) -> None:
         adapter = SqliteSourceAdapter(str(sqlite_db))
         docs = adapter.query("kubernetes", filters={"min_score": 7.0})
         # d1 (9.0) and d3 (6.0) match text; d1 survives min_score.
@@ -198,14 +203,15 @@ class TestSqliteSourceAdapter:
 # JsonSourceAdapter
 # ---------------------------------------------------------------------------
 
+
 class TestJsonSourceAdapter:
-    def test_query_returns_matching_docs(self, json_file: Path):
+    def test_query_returns_matching_docs(self, json_file: Path) -> None:
         adapter = JsonSourceAdapter(str(json_file), source_id="json1")
         docs = adapter.query("kubernetes")
         assert {d.id for d in docs} == {"j1", "j3"}
         adapter.close()
 
-    def test_list_docs_returns_all(self, json_file: Path):
+    def test_list_docs_returns_all(self, json_file: Path) -> None:
         adapter = JsonSourceAdapter(str(json_file))
         docs = adapter.list_docs()
         assert {d.id for d in docs} == {"j1", "j2", "j3"}
@@ -214,11 +220,11 @@ class TestJsonSourceAdapter:
         assert j1.source == adapter.id
         adapter.close()
 
-    def test_missing_file_raises(self, tmp_path: Path):
+    def test_missing_file_raises(self, tmp_path: Path) -> None:
         with pytest.raises(FileNotFoundError):
             JsonSourceAdapter(str(tmp_path / "missing.json"))
 
-    def test_invalid_structure_raises(self, tmp_path: Path):
+    def test_invalid_structure_raises(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.json"
         bad.write_text('{"not": "an array"}', encoding="utf-8")
         adapter = JsonSourceAdapter(str(bad))
@@ -231,8 +237,9 @@ class TestJsonSourceAdapter:
 # SourceRegistry
 # ---------------------------------------------------------------------------
 
+
 class TestSourceRegistry:
-    def test_register_get_list(self, file_dir: Path, sqlite_db: Path):
+    def test_register_get_list(self, file_dir: Path, sqlite_db: Path) -> None:
         reg = SourceRegistry()
         fa = reg.register(FileSourceAdapter(str(file_dir), source_id="files"))
         sa = reg.register(SqliteSourceAdapter(str(sqlite_db), source_id="db"))
@@ -242,14 +249,14 @@ class TestSourceRegistry:
         assert len(reg.adapters()) == 2
         reg.close()
 
-    def test_duplicate_register_raises(self, file_dir: Path):
+    def test_duplicate_register_raises(self, file_dir: Path) -> None:
         reg = SourceRegistry()
         reg.register(FileSourceAdapter(str(file_dir), source_id="dup"))
         with pytest.raises(ValueError):
             reg.register(FileSourceAdapter(str(file_dir), source_id="dup"))
         reg.close()
 
-    def test_get_missing_raises(self):
+    def test_get_missing_raises(self) -> None:
         reg = SourceRegistry()
         with pytest.raises(KeyError):
             reg.get("nope")
@@ -261,10 +268,9 @@ class TestSourceRegistry:
 # KbMerger
 # ---------------------------------------------------------------------------
 
+
 class TestKbMerger:
-    def test_merges_and_reranks_across_sources(
-        self, file_dir: Path, json_file: Path
-    ):
+    def test_merges_and_reranks_across_sources(self, file_dir: Path, json_file: Path) -> None:
         reg = SourceRegistry()
         reg.register(FileSourceAdapter(str(file_dir), source_id="files"))
         reg.register(JsonSourceAdapter(str(json_file), source_id="json"))
@@ -276,7 +282,7 @@ class TestKbMerger:
         assert scores == sorted(scores, reverse=True)
         merger.close()
 
-    def test_dedupes_by_id_keeps_highest_score(self):
+    def test_dedupes_by_id_keeps_highest_score(self) -> None:
         reg = SourceRegistry()
         merger = KbMerger(reg)
 
@@ -293,7 +299,7 @@ class TestKbMerger:
             def list_docs(self, limit=None):
                 return []
 
-            def close(self):
+            def close(self) -> None:
                 pass
 
         class Fake2(Fake):
@@ -311,7 +317,7 @@ class TestKbMerger:
         assert d1.source == "fake2"
         merger.close()
 
-    def test_limit_applied(self, json_file: Path):
+    def test_limit_applied(self, json_file: Path) -> None:
         reg = SourceRegistry()
         reg.register(JsonSourceAdapter(str(json_file), source_id="json"))
         merger = KbMerger(reg)
@@ -320,7 +326,7 @@ class TestKbMerger:
         assert docs[0].id == "j3"  # highest score for 'kubernetes'
         merger.close()
 
-    def test_source_ids_subset(self, file_dir: Path, json_file: Path):
+    def test_source_ids_subset(self, file_dir: Path, json_file: Path) -> None:
         reg = SourceRegistry()
         reg.register(FileSourceAdapter(str(file_dir), source_id="files"))
         reg.register(JsonSourceAdapter(str(json_file), source_id="json"))
@@ -329,7 +335,7 @@ class TestKbMerger:
         assert all(doc.source == "json" for doc in docs)
         merger.close()
 
-    def test_empty_source_returns_empty(self):
+    def test_empty_source_returns_empty(self) -> None:
         reg = SourceRegistry()
         merger = KbMerger(reg)
         assert merger.query("anything") == []
@@ -340,8 +346,9 @@ class TestKbMerger:
 # KbQueryBridge facade
 # ---------------------------------------------------------------------------
 
+
 class TestKbQueryBridge:
-    def test_cross_source_facade(self, file_dir: Path, json_file: Path):
+    def test_cross_source_facade(self, file_dir: Path, json_file: Path) -> None:
         bridge = KbQueryBridge()
         bridge.register(FileSourceAdapter(str(file_dir), source_id="files"))
         bridge.register(JsonSourceAdapter(str(json_file), source_id="json"))
@@ -351,9 +358,7 @@ class TestKbQueryBridge:
         assert all(isinstance(d, KbDoc) for d in docs)
         bridge.close()
 
-    def test_facade_limit_and_source_subset(
-        self, file_dir: Path, sqlite_db: Path
-    ):
+    def test_facade_limit_and_source_subset(self, file_dir: Path, sqlite_db: Path) -> None:
         bridge = KbQueryBridge()
         bridge.register(FileSourceAdapter(str(file_dir), source_id="files"))
         bridge.register(SqliteSourceAdapter(str(sqlite_db), source_id="db"))
@@ -362,7 +367,7 @@ class TestKbQueryBridge:
         assert all(doc.source == "files" for doc in docs)
         bridge.close()
 
-    def test_lifecycle_close_releases(self, file_dir: Path, sqlite_db: Path):
+    def test_lifecycle_close_releases(self, file_dir: Path, sqlite_db: Path) -> None:
         bridge = KbQueryBridge()
         bridge.register(FileSourceAdapter(str(file_dir), source_id="files"))
         bridge.register(SqliteSourceAdapter(str(sqlite_db), source_id="db"))
@@ -374,8 +379,9 @@ class TestKbQueryBridge:
 # Utility
 # ---------------------------------------------------------------------------
 
+
 class TestScoring:
-    def test_score_text_case_insensitive(self):
+    def test_score_text_case_insensitive(self) -> None:
         assert score_text("Kubernetes deploy", "kubernetes") > 0
         assert score_text("pasta", "kubernetes") == 0
         assert score_text("", "query") == 0

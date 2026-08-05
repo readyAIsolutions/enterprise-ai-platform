@@ -66,7 +66,7 @@ def _run(coro):
 # ── 1. Round-trips ─────────────────────────────────────────────────────────
 
 
-def test_binary_codecs_round_trip_bytes():
+def test_binary_codecs_round_trip_bytes() -> None:
     for codec in _BINARY_CODECS:
         assert codec.decode(codec.encode(REPETITIVE)) == REPETITIVE
         assert codec.decode(codec.encode(b"")) == b""
@@ -74,19 +74,19 @@ def test_binary_codecs_round_trip_bytes():
     assert XZCodec().ratio(REPETITIVE) > 1.0
 
 
-def test_binary_codecs_round_trip_str():
+def test_binary_codecs_round_trip_str() -> None:
     for codec in _BINARY_CODECS:
         assert codec.decode(codec.encode(TEXT)) == TEXT.encode("utf-8")
 
 
-def test_noop_is_identity():
+def test_noop_is_identity() -> None:
     noop = NOOPCodec()
     assert noop.decode(noop.encode(RANDOM)) == RANDOM
     assert len(noop.encode(RANDOM)) == len(RANDOM)
     assert noop.ratio(RANDOM) == pytest.approx(1.0)
 
 
-def test_json_codec_round_trip_structured():
+def test_json_codec_round_trip_structured() -> None:
     jc = JsonCodec()
     assert jc.decode(jc.encode(STRUCTURED)) == STRUCTURED
     assert jc.decode(jc.encode([1, 2, "three"])) == [1, 2, "three"]
@@ -96,17 +96,20 @@ def test_json_codec_round_trip_structured():
 # ── 2. Codec metadata & ABC ────────────────────────────────────────────────
 
 
-def test_codec_names_and_mimes():
+def test_codec_names_and_mimes() -> None:
     assert {"xz", "gzip", "bz2", "json", "noop"} == {
-        XZCodec().name, GzipCodec().name, Bz2Codec().name,
-        JsonCodec().name, NOOPCodec().name,
+        XZCodec().name,
+        GzipCodec().name,
+        Bz2Codec().name,
+        JsonCodec().name,
+        NOOPCodec().name,
     }
     assert XZCodec().mime == "application/x-xz"
     assert GzipCodec().mime == "application/gzip"
     assert NOOPCodec().mime == "application/octet-stream"
 
 
-def test_codec_abc_abstract_not_instantiable():
+def test_codec_abc_abstract_not_instantiable() -> None:
     with pytest.raises(TypeError):
         Codec()
 
@@ -114,20 +117,20 @@ def test_codec_abc_abstract_not_instantiable():
 # ── 3. Registry API ────────────────────────────────────────────────────────
 
 
-def test_registry_default_builtins():
+def test_registry_default_builtins() -> None:
     reg = CodecRegistry()
     assert {c.name for c in reg.list()} == {"xz", "gzip", "bz2", "json", "noop"}
     assert len(reg) == 5
 
 
-def test_registry_get_and_unknown_keyerror():
+def test_registry_get_and_unknown_keyerror() -> None:
     reg = CodecRegistry()
     assert reg.get("xz").name == "xz"
     with pytest.raises(KeyError):
         reg.get("nope")
 
 
-def test_registry_register_custom_and_forms():
+def test_registry_register_custom_and_forms() -> None:
     class UpperCodec(Codec):
         name = "upper"
         mime = "text/plain"
@@ -139,14 +142,15 @@ def test_registry_register_custom_and_forms():
             return data.decode("utf-8").lower()
 
     reg = CodecRegistry(codecs=[])
-    inst_class = reg.register_codec(XZCodec)      # class form → instantiated
+    inst_class = reg.register_codec(XZCodec)  # class form → instantiated
     assert isinstance(inst_class, XZCodec)
-    reg.register_codec(UpperCodec())               # instance form
-    assert "upper" in reg and reg.get("upper").name == "upper"
+    reg.register_codec(UpperCodec())  # instance form
+    assert "upper" in reg
+    assert reg.get("upper").name == "upper"
     assert len(reg) == 2
 
 
-def test_registry_duplicate_name_raises_valueerror():
+def test_registry_duplicate_name_raises_valueerror() -> None:
     reg = CodecRegistry()
     with pytest.raises(ValueError):
         reg.register_codec(XZCodec())  # "xz" already registered
@@ -155,7 +159,7 @@ def test_registry_duplicate_name_raises_valueerror():
 # ── 4. best_codec negotiation ──────────────────────────────────────────────
 
 
-def test_best_codec_lossless_for_repetitive_and_deterministic():
+def test_best_codec_lossless_for_repetitive_and_deterministic() -> None:
     reg = CodecRegistry()
     best = reg.best_codec(REPETITIVE)
     assert best.name in {"xz", "gzip", "bz2"}  # a real compressor, NOT noop
@@ -164,12 +168,12 @@ def test_best_codec_lossless_for_repetitive_and_deterministic():
     assert CodecRegistry().best_codec(REPETITIVE).name == best.name
 
 
-def test_best_codec_noop_for_random():
+def test_best_codec_noop_for_random() -> None:
     reg = CodecRegistry()
     assert reg.best_codec(RANDOM).name == "noop"
 
 
-def test_best_codec_structured_not_noop():
+def test_best_codec_structured_not_noop() -> None:
     # Negotiation is size-based; JSON text is highly compressible so a real
     # compressor (NOT noop) is selected. JsonCodec is the type-preserving
     # fallback and is covered separately.
@@ -180,11 +184,15 @@ def test_best_codec_structured_not_noop():
 # ── 5. negotiate_ratio ─────────────────────────────────────────────────────
 
 
-def test_negotiate_ratio_reports_saved_bytes():
+def test_negotiate_ratio_reports_saved_bytes() -> None:
     result = negotiate_ratio(REPETITIVE)
     assert set(result) >= {
-        "codec", "mime", "ratio", "original_size",
-        "compressed_size", "saved_bytes",
+        "codec",
+        "mime",
+        "ratio",
+        "original_size",
+        "compressed_size",
+        "saved_bytes",
     }
     assert result["saved_bytes"] == result["original_size"] - result["compressed_size"]
     assert result["saved_bytes"] > 0
@@ -192,7 +200,7 @@ def test_negotiate_ratio_reports_saved_bytes():
     assert result["lossless"] is True
 
 
-def test_negotiate_ratio_noop_for_random():
+def test_negotiate_ratio_noop_for_random() -> None:
     result = negotiate_ratio(RANDOM)
     assert result["codec"] == "noop"
     assert result["saved_bytes"] <= 0
@@ -201,7 +209,7 @@ def test_negotiate_ratio_noop_for_random():
 # ── 6. Bridge integration ──────────────────────────────────────────────────
 
 
-def test_bridge_registry_and_compress_auto_best():
+def test_bridge_registry_and_compress_auto_best() -> None:
     bridge = CompressionBridge()
     assert isinstance(bridge.codec_registry, CodecRegistry)
     assert len(bridge.codec_registry) == 5
@@ -214,10 +222,11 @@ def test_bridge_registry_and_compress_auto_best():
     assert result.compressed_size < result.original_size
 
     best = bridge.compress_best(REPETITIVE)
-    assert best.success is True and best.metadata["codec"] != "noop"
+    assert best.success is True
+    assert best.metadata["codec"] != "noop"
 
 
-def test_bridge_explicit_codec_and_select_unknown():
+def test_bridge_explicit_codec_and_select_unknown() -> None:
     bridge = CompressionBridge()
     result = bridge.compress(TEXT.encode(), codec="xz")
     assert result.success is True
@@ -235,17 +244,20 @@ def test_bridge_explicit_codec_and_select_unknown():
         bridge.select_codec(TEXT, codec="bogus")
 
 
-def test_bridge_codec_lifecycle_and_factory():
+def test_bridge_codec_lifecycle_and_factory() -> None:
     import compression_bridge
 
     bridge = CompressionBridge()
     _run(bridge.initialize())
     assert len(bridge.codec_registry) == 5
     assert bridge.compress_best(REPETITIVE).success is True
-    assert bridge.negotiate_ratio(REPETITIVE)["saved_bytes"] == \
-        negotiate_ratio(REPETITIVE)["saved_bytes"]
+    assert (
+        bridge.negotiate_ratio(REPETITIVE)["saved_bytes"]
+        == negotiate_ratio(REPETITIVE)["saved_bytes"]
+    )
     _run(bridge.shutdown())
 
     assert compression_bridge.__version__
     mod = compression_bridge.create_compression_bridge_module(config={})
-    assert mod is not None and mod.bridge is None
+    assert mod is not None
+    assert mod.bridge is None

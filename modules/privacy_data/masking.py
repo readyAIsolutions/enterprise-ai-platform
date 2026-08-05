@@ -25,20 +25,18 @@ Policy layer:
 Everything here uses the Python standard library only (hmac, hashlib, re,
 sqlite3, secrets, threading, dataclasses, typing).
 """
+
 from __future__ import annotations
 
 import hashlib
 import hmac
 import os
 import re
-import secrets
 import sqlite3
 import threading
-import uuid
-from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from enum import StrEnum
+from typing import Any
 
 __all__ = [
     "MaskType",
@@ -61,8 +59,10 @@ __all__ = [
 
 # ─── Mask types ───────────────────────────────────────────────────────────────
 
-class MaskType(str, Enum):
+
+class MaskType(StrEnum):
     """Declarative mask types understood by MaskingPolicy & the facade."""
+
     EMAIL = "email"
     PHONE = "phone"
     SSN = "ssn"
@@ -80,6 +80,7 @@ class MaskType(str, Enum):
 # We then assert idempotency at the end of every masker so the invariant is
 # enforced by construction, not just by convention.
 
+
 def _is_already_masked(value: str, mask_char: str = "*") -> bool:
     """Heuristic: a value made only of mask chars + separators is already masked."""
     if not value:
@@ -90,6 +91,7 @@ def _is_already_masked(value: str, mask_char: str = "*") -> bool:
 
 class Masker:
     """Base masker. Subclasses implement `_mask` for a plaintext string."""
+
     kind: str = "generic"
 
     def mask(self, value: Any) -> Any:
@@ -112,6 +114,7 @@ class Masker:
 
 class GenericMasker(Masker):
     """Replace every char with '*' preserving length & non-alphanumeric separators."""
+
     kind = MaskType.GENERIC
 
     def _mask(self, value: str) -> str:
@@ -120,6 +123,7 @@ class GenericMasker(Masker):
 
 class EmailMasker(Masker):
     """Keep the domain, mask the local part (keep first + last char)."""
+
     kind = MaskType.EMAIL
     _RE = re.compile(r"^([^@]+)@([^@]+)$")
 
@@ -135,6 +139,7 @@ class EmailMasker(Masker):
 
 class PhoneMasker(Masker):
     """Keep the last 4 digits, mask everything else (format preserved)."""
+
     kind = MaskType.PHONE
 
     def _mask(self, value: str) -> str:
@@ -143,6 +148,7 @@ class PhoneMasker(Masker):
 
 class SsnMasker(Masker):
     """XXX-XX-#### (keeps last 4).  Tolerates dashes or bare digits."""
+
     kind = MaskType.SSN
 
     def _mask(self, value: str) -> str:
@@ -150,12 +156,13 @@ class SsnMasker(Masker):
         if len(digits) == 9:
             return "XXX-XX-" + digits[-4:]
         # Not a 9-digit SSN -> generic mask an 11-char 'XXX-XX-####' shape.
-        body = _zeros_mask_for_shape(value)
+        _zeros_mask_for_shape(value)
         return _mask_digits_keep_last(value, keep=4)
 
 
 class CreditCardMasker(Masker):
     """Keep the last 4 digits, preserve the grouping/spacing, mask the rest."""
+
     kind = MaskType.CREDIT_CARD
 
     def _mask(self, value: str) -> str:
@@ -164,6 +171,7 @@ class CreditCardMasker(Masker):
 
 class NameMasker(Masker):
     """Keep initials of first + last words, mask the remainder (deterministic)."""
+
     kind = MaskType.NAME
 
     def _mask(self, value: str) -> str:
@@ -194,8 +202,8 @@ def _partial_mask_preserve(value: str, show_first: int, show_last: int) -> str:
         return _mask_preserve_alnum(value)
     return (
         value[:show_first]
-        + _mask_preserve_alnum(value[show_first:len(value) - show_last])
-        + value[len(value) - show_last:]
+        + _mask_preserve_alnum(value[show_first : len(value) - show_last])
+        + value[len(value) - show_last :]
     )
 
 
@@ -209,7 +217,7 @@ def _mask_digits_keep_last(value: str, keep: int) -> str:
     digits = re.sub(r"\D", "", value)
     if not digits:
         return _mask_preserve_alnum(value)
-    kept = digits[-keep:]
+    digits[-keep:]
     out = []
     # walk original, replacing digits in order, from the end we keep the tail.
     all_digit_indices = [i for i, ch in enumerate(value) if ch.isdigit()]
@@ -223,7 +231,7 @@ def _mask_digits_keep_last(value: str, keep: int) -> str:
 
 
 # registry for policy-driven dispatch
-MASKER_REGISTRY: Dict[MaskType, Masker] = {
+MASKER_REGISTRY: dict[MaskType, Masker] = {
     MaskType.EMAIL: EmailMasker(),
     MaskType.PHONE: PhoneMasker(),
     MaskType.SSN: SsnMasker(),
@@ -234,6 +242,7 @@ MASKER_REGISTRY: Dict[MaskType, Masker] = {
 
 
 # ─── MaskingPolicy ────────────────────────────────────────────────────────────
+
 
 class MaskingPolicy:
     """
@@ -255,37 +264,38 @@ class MaskingPolicy:
 
     def __init__(
         self,
-        rules: Optional[Dict[str, Union[MaskType, str, Masker]]] = None,
-        default: Optional[Union[MaskType, str]] = None,
-    ):
-        self._rules: Dict[str, Masker] = {}
+        rules: dict[str, MaskType | str | Masker] | None = None,
+        default: MaskType | str | None = None,
+    ) -> None:
+        self._rules: dict[str, Masker] = {}
         for key, mtype in (rules or {}).items():
             self._rules[key] = _coerce_masker(mtype)
         if default is not None:
-            self._default: Optional[Masker] = _coerce_masker(default)
+            self._default: Masker | None = _coerce_masker(default)
         else:
             self._default = None
 
     @property
-    def rules(self) -> Dict[str, str]:
-        return {k: m.kind if isinstance(m.kind, str) else m.kind.value
-                for k, m in self._rules.items()}
+    def rules(self) -> dict[str, str]:
+        return {
+            k: m.kind if isinstance(m.kind, str) else m.kind.value for k, m in self._rules.items()
+        }
 
     @property
-    def default_masker(self) -> Optional[Masker]:
+    def default_masker(self) -> Masker | None:
         return self._default
 
     def apply(self, record: Any) -> Any:
         return _apply_policy(self, record, _depth=0)
 
-    def rules_for(self, field: str) -> Optional[Masker]:
+    def rules_for(self, field: str) -> Masker | None:
         return self._rules.get(field)
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<MaskingPolicy {self.rules}>"
 
 
-def _coerce_masker(mtype: Union[MaskType, str, Masker]) -> Masker:
+def _coerce_masker(mtype: MaskType | str | Masker) -> Masker:
     if isinstance(mtype, Masker):
         return mtype
     if isinstance(mtype, MaskType):
@@ -293,14 +303,15 @@ def _coerce_masker(mtype: Union[MaskType, str, Masker]) -> Masker:
     try:
         return MASKER_REGISTRY[MaskType(str(mtype))]
     except (KeyError, ValueError):
-        raise ValueError(f"Unknown mask type: {mtype!r}")
+        msg = f"Unknown mask type: {mtype!r}"
+        raise ValueError(msg)
 
 
 def _apply_policy(policy: MaskingPolicy, node: Any, _depth: int) -> Any:
     if _depth > 100:
         return node  # guard against pathological nesting
     if isinstance(node, dict):
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for key, val in node.items():
             masker = policy.rules_for(key)
             if masker is None and policy.default_masker is not None and isinstance(val, str):
@@ -319,6 +330,7 @@ def _apply_policy(policy: MaskingPolicy, node: Any, _depth: int) -> Any:
 
 # ─── Vault (token<->plaintext) ────────────────────────────────────────────────
 
+
 class Vault:
     """
     Reversible token<->plaintext mapping store.  This is the *only* place a
@@ -328,13 +340,13 @@ class Vault:
       * SQLiteVault    -- sqlite3-backed, durable (thread-safe).
     """
 
-    def put(self, token: str, plaintext: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def put(self, token: str, plaintext: str, metadata: dict[str, Any] | None = None) -> None:
         raise NotImplementedError
 
-    def get(self, token: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+    def get(self, token: str) -> tuple[str, dict[str, Any]] | None:
         raise NotImplementedError
 
-    def reverse(self, plaintext: str) -> Optional[str]:
+    def reverse(self, plaintext: str) -> str | None:
         raise NotImplementedError
 
     def __contains__(self, token: str) -> bool:
@@ -345,21 +357,21 @@ class Vault:
 
 
 class InMemoryVault(Vault):
-    def __init__(self):
-        self._fwd: Dict[str, Tuple[str, Dict[str, Any]]] = {}
-        self._rev: Dict[str, str] = {}
+    def __init__(self) -> None:
+        self._fwd: dict[str, tuple[str, dict[str, Any]]] = {}
+        self._rev: dict[str, str] = {}
         self._lock = threading.Lock()
 
-    def put(self, token: str, plaintext: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def put(self, token: str, plaintext: str, metadata: dict[str, Any] | None = None) -> None:
         with self._lock:
             self._fwd[token] = (plaintext, metadata or {})
             self._rev[plaintext] = token
 
-    def get(self, token: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+    def get(self, token: str) -> tuple[str, dict[str, Any]] | None:
         with self._lock:
             return self._fwd.get(token)
 
-    def reverse(self, plaintext: str) -> Optional[str]:
+    def reverse(self, plaintext: str) -> str | None:
         with self._lock:
             return self._rev.get(plaintext)
 
@@ -377,7 +389,7 @@ class SQLiteVault(Vault):
     same engine can be shared across threads without SQLite locking errors.
     """
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None) -> None:
         self._path = db_path or ":memory:"
         self._local = threading.local()
         self._lock = threading.Lock()
@@ -413,18 +425,17 @@ class SQLiteVault(Vault):
         # touch schema for the calling thread
         self._create_table(self._conn())
 
-    def put(self, token: str, plaintext: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def put(self, token: str, plaintext: str, metadata: dict[str, Any] | None = None) -> None:
         conn = self._conn()
         with self._lock:
             conn.execute(
                 "INSERT OR REPLACE INTO vault (token, plaintext, metadata, created_at) "
                 "VALUES (?, ?, ?, ?)",
-                (token, plaintext, json_dumps(metadata or {}),
-                 datetime.utcnow().isoformat()),
+                (token, plaintext, json_dumps(metadata or {}), datetime.utcnow().isoformat()),
             )
             conn.commit()
 
-    def get(self, token: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+    def get(self, token: str) -> tuple[str, dict[str, Any]] | None:
         conn = self._conn()
         cur = conn.execute("SELECT plaintext, metadata FROM vault WHERE token = ?", (token,))
         row = cur.fetchone()
@@ -432,7 +443,7 @@ class SQLiteVault(Vault):
             return None
         return row["plaintext"], json_loads(row["metadata"])
 
-    def reverse(self, plaintext: str) -> Optional[str]:
+    def reverse(self, plaintext: str) -> str | None:
         conn = self._conn()
         cur = conn.execute("SELECT token FROM vault WHERE plaintext = ?", (plaintext,))
         row = cur.fetchone()
@@ -452,11 +463,13 @@ class SQLiteVault(Vault):
 
 def json_dumps(obj: Any) -> str:
     import json
+
     return json.dumps(obj, sort_keys=True)
 
 
 def json_loads(s: str) -> Any:
     import json
+
     try:
         return json.loads(s)
     except Exception:
@@ -464,6 +477,7 @@ def json_loads(s: str) -> Any:
 
 
 # ─── TokenizationEngine ───────────────────────────────────────────────────────
+
 
 class TokenizationEngine:
     """
@@ -490,23 +504,24 @@ class TokenizationEngine:
 
     def __init__(
         self,
-        secret: Optional[bytes] = None,
-        vault: Optional[Vault] = None,
+        secret: bytes | None = None,
+        vault: Vault | None = None,
         format_preserving: bool = True,
-    ):
+    ) -> None:
         self._secret = secret or os.urandom(32)
         self._vault = vault if vault is not None else InMemoryVault()
         self._format_preserving = format_preserving
         if len(self._secret) < 16:
-            raise ValueError("Tokenization secret must be at least 16 bytes")
+            msg = "Tokenization secret must be at least 16 bytes"
+            raise ValueError(msg)
 
     # -- public API -----------------------------------------------------------
 
     def tokenize(
         self,
         value: Any,
-        metadata: Optional[Dict[str, Any]] = None,
-        tokenize_map: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
+        tokenize_map: dict[str, Any] | None = None,
     ) -> str:
         """
         Return a stable, format-preserving token for ``value``.
@@ -517,7 +532,8 @@ class TokenizationEngine:
         guaranteed by HMAC alone).
         """
         if value is None:
-            raise ValueError("Cannot tokenize None")
+            msg = "Cannot tokenize None"
+            raise ValueError(msg)
         plaintext = str(value)
         token = self._build_token(plaintext)
         if token not in self._vault:
@@ -535,26 +551,28 @@ class TokenizationEngine:
         or was never recorded -- a token is NOT reversible without the vault.
         """
         if not isinstance(token, str):
-            raise ValueError("token must be a string")
+            msg = "token must be a string"
+            raise ValueError(msg)
         entry = self._vault.get(token)
         if entry is None:
-            raise ValueError(f"Unknown token: cannot detokenize (not in vault)")
+            msg = "Unknown token: cannot detokenize (not in vault)"
+            raise ValueError(msg)
         return entry[0]
 
     def is_token(self, token: str) -> bool:
         """True if the caller-supplied token came from this engine & is in the vault."""
         return isinstance(token, str) and token in self._vault
 
-    def reverse(self, value: Any) -> Optional[str]:
+    def reverse(self, value: Any) -> str | None:
         """Return the token for a previously-tokenized value, or None."""
         return self._vault.reverse(str(value))
 
     def tokenize_record(
         self,
-        record: Dict[str, Any],
-        fields: List[str],
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        record: dict[str, Any],
+        fields: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         result = dict(record)
         for field in fields:
             if field in result and result[field] is not None:
@@ -617,6 +635,7 @@ def _format_preserve_token(plaintext: str, secret: bytes) -> str:
 
 # ─── DataMasker facade ────────────────────────────────────────────────────────
 
+
 class DataMasker:
     """
     Facade: apply a MaskingPolicy to a record (structurally / type-preserving).
@@ -630,18 +649,20 @@ class DataMasker:
         masked = DataMasker.apply(policy, record)
     """
 
-    def __init__(self, policy: Optional[MaskingPolicy] = None):
+    def __init__(self, policy: MaskingPolicy | None = None) -> None:
         self._policy = policy
 
-    def apply(self, record: Any, policy: Optional[MaskingPolicy] = None) -> Any:
+    def apply(self, record: Any, policy: MaskingPolicy | None = None) -> Any:
         pol = policy or self._policy
         if pol is None:
-            raise ValueError("No MaskingPolicy supplied (construct with one or pass policy=)")
+            msg = "No MaskingPolicy supplied (construct with one or pass policy=)"
+            raise ValueError(msg)
         return pol.apply(record)
 
     @staticmethod
     def apply_policy(policy, record):
         """Facade-style: DataMasker.apply_policy(policy, record) -> masked record."""
         if not isinstance(policy, MaskingPolicy):
-            raise TypeError("apply_policy expects a MaskingPolicy")
+            msg = "apply_policy expects a MaskingPolicy"
+            raise TypeError(msg)
         return policy.apply(record)

@@ -63,9 +63,12 @@ import secrets
 import sqlite3
 import threading
 import time
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from .secret_rotation import hash_secret
+
+if TYPE_CHECKING:
+    import builtins
 
 logger = logging.getLogger("enterprise.secret_rotation.vault")
 
@@ -94,16 +97,14 @@ class SecretNotFoundError(VaultError, KeyError):
 
 
 def derive_keys(
-    master_key: Union[str, bytes],
+    master_key: str | bytes,
     salt: bytes,
     iterations: int = DEFAULT_PBKDF2_ITERATIONS,
 ) -> tuple[bytes, bytes]:
     """Derive ``(enc_key, mac_key)`` from ``master_key`` + ``salt`` via PBKDF2."""
     if isinstance(master_key, str):
         master_key = master_key.encode("utf-8")
-    dk = hashlib.pbkdf2_hmac(
-        "sha256", master_key, salt, iterations, dklen=64
-    )
+    dk = hashlib.pbkdf2_hmac("sha256", master_key, salt, iterations, dklen=64)
     return dk[:32], dk[32:]
 
 
@@ -112,9 +113,7 @@ def _stream_xor(enc_key: bytes, iv: bytes, data: bytes) -> bytes:
     out = bytearray()
     block = 0
     while len(out) < len(data):
-        ks = hashlib.sha256(
-            enc_key + iv + block.to_bytes(8, "big")
-        ).digest()
+        ks = hashlib.sha256(enc_key + iv + block.to_bytes(8, "big")).digest()
         for i, b in enumerate(ks):
             idx = block * 32 + i
             if idx >= len(data):
@@ -125,13 +124,12 @@ def _stream_xor(enc_key: bytes, iv: bytes, data: bytes) -> bytes:
 
 
 def _authenticate(mac_key: bytes, salt: bytes, iv: bytes, cipher: bytes) -> bytes:
-    return hmac.new(
-        mac_key, BLOB_VERSION + salt + iv + cipher, hashlib.sha256
-    ).digest()
+    return hmac.new(mac_key, BLOB_VERSION + salt + iv + cipher, hashlib.sha256).digest()
 
 
-def encrypt_blob(secret: bytes, master_key: Union[str, bytes],
-                 iterations: int = DEFAULT_PBKDF2_ITERATIONS) -> bytes:
+def encrypt_blob(
+    secret: bytes, master_key: str | bytes, iterations: int = DEFAULT_PBKDF2_ITERATIONS
+) -> bytes:
     """Encrypt ``secret`` into an authenticated blob (no plaintext stored)."""
     salt = os.urandom(16)
     iv = os.urandom(16)
@@ -141,15 +139,17 @@ def encrypt_blob(secret: bytes, master_key: Union[str, bytes],
     return BLOB_VERSION + salt + iv + cipher + mac
 
 
-def decrypt_blob(blob: bytes, master_key: Union[str, bytes],
-                 iterations: int = DEFAULT_PBKDF2_ITERATIONS) -> bytes:
+def decrypt_blob(
+    blob: bytes, master_key: str | bytes, iterations: int = DEFAULT_PBKDF2_ITERATIONS
+) -> bytes:
     """Decrypt + MAC-verify an authenticated blob.
 
     Raises :class:`VaultIntegrityError` on a wrong master key or tampered
     ciphertext (the MAC will not verify).
     """
     if not blob or blob[0:1] != BLOB_VERSION:
-        raise VaultIntegrityError("unknown blob version")
+        msg = "unknown blob version"
+        raise VaultIntegrityError(msg)
     salt = blob[1:17]
     iv = blob[17:33]
     cipher = blob[33:-32]
@@ -157,13 +157,12 @@ def decrypt_blob(blob: bytes, master_key: Union[str, bytes],
     enc_key, mac_key = derive_keys(master_key, salt, iterations)
     expect = _authenticate(mac_key, salt, iv, cipher)
     if not hmac.compare_digest(expect, mac):
-        raise VaultIntegrityError(
-            "MAC verification failed (wrong master key or tampered blob)"
-        )
+        msg = "MAC verification failed (wrong master key or tampered blob)"
+        raise VaultIntegrityError(msg)
     return _stream_xor(enc_key, iv, cipher)
 
 
-def _coerce_secret(secret: Union[str, bytes]) -> bytes:
+def _coerce_secret(secret: str | bytes) -> bytes:
     return secret.encode("utf-8") if isinstance(secret, str) else bytes(secret)
 
 
@@ -177,8 +176,8 @@ class SecretVault:
 
     def __init__(
         self,
-        db_path: Union[str, os.PathLike],
-        master_key: Union[str, bytes],
+        db_path: str | os.PathLike,
+        master_key: str | bytes,
         iterations: int = DEFAULT_PBKDF2_ITERATIONS,
     ) -> None:
         self._db_path = str(db_path)
@@ -202,14 +201,14 @@ class SecretVault:
     # -- low-level --------------------------------------------------------
 
     @property
-    def master_key(self) -> Union[str, bytes]:
+    def master_key(self) -> str | bytes:
         return self._master_key
 
     @property
     def path(self) -> str:
         return self._db_path
 
-    def _resolve_key(self, master_key: Optional[Union[str, bytes]]):
+    def _resolve_key(self, master_key: str | bytes | None):
         return self._master_key if master_key is None else master_key
 
     # -- CRUD -------------------------------------------------------------
@@ -217,22 +216,20 @@ class SecretVault:
     def put(
         self,
         name: str,
-        secret: Union[str, bytes],
-        master_key: Optional[Union[str, bytes]] = None,
+        secret: str | bytes,
+        master_key: str | bytes | None = None,
         kind: str = "plain",
-        now: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        now: float | None = None,
+    ) -> dict[str, Any]:
         """Store ``secret`` encrypted-at-rest under ``name``."""
         ts = now if now is not None else time.time()
         payload = secret
         if kind == "hash":
-            s = (
-                secret.decode("utf-8")
-                if isinstance(secret, bytes) else secret
-            )
+            s = secret.decode("utf-8") if isinstance(secret, bytes) else secret
             payload = hash_secret(s)
         blob = encrypt_blob(
-            _coerce_secret(payload), self._resolve_key(master_key),
+            _coerce_secret(payload),
+            self._resolve_key(master_key),
             self._iterations,
         )
         with self._lock:
@@ -256,7 +253,7 @@ class SecretVault:
     def get(
         self,
         name: str,
-        master_key: Optional[Union[str, bytes]] = None,
+        master_key: str | bytes | None = None,
     ) -> str:
         """Decrypt + MAC-verify ``name`` and return the plaintext string.
 
@@ -264,23 +261,19 @@ class SecretVault:
         :class:`VaultIntegrityError` on a wrong master key / tampered blob.
         """
         with self._lock:
-            row = self._conn.execute(
-                "SELECT blob FROM secrets WHERE name=?", (name,)
-            ).fetchone()
+            row = self._conn.execute("SELECT blob FROM secrets WHERE name=?", (name,)).fetchone()
         if row is None:
             raise SecretNotFoundError(name)
-        plain = decrypt_blob(
-            bytes(row[0]), self._resolve_key(master_key), self._iterations
-        )
+        plain = decrypt_blob(bytes(row[0]), self._resolve_key(master_key), self._iterations)
         return plain.decode("utf-8")
 
     def rotate(
         self,
         name: str,
-        new_secret: Optional[Union[str, bytes]] = None,
-        master_key: Optional[Union[str, bytes]] = None,
-        now: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        new_secret: str | bytes | None = None,
+        master_key: str | bytes | None = None,
+        now: float | None = None,
+    ) -> dict[str, Any]:
         """Store a freshly generated random secret for ``name``.
 
         If ``new_secret`` is not provided, one is generated with
@@ -288,49 +281,34 @@ class SecretVault:
         is the SHA-256 of the secret (hash-only mode).
         """
         with self._lock:
-            row = self._conn.execute(
-                "SELECT kind FROM secrets WHERE name=?", (name,)
-            ).fetchone()
+            row = self._conn.execute("SELECT kind FROM secrets WHERE name=?", (name,)).fetchone()
         if row is None:
             raise SecretNotFoundError(name)
         kind = row[0]
         if new_secret is None:
             new_secret = secrets.token_urlsafe(DEFAULT_ROTATION_BYTES)
-        candidate = (
-            new_secret.decode("utf-8")
-            if isinstance(new_secret, bytes) else new_secret
-        )
-        payload: Union[str, bytes] = (
-            hash_secret(candidate) if kind == "hash" else candidate
-        )
+        candidate = new_secret.decode("utf-8") if isinstance(new_secret, bytes) else new_secret
+        payload: str | bytes = hash_secret(candidate) if kind == "hash" else candidate
         return self.put(name, payload, master_key=master_key, kind=kind, now=now)
 
-    def list(self) -> List[Dict[str, Any]]:
+    def list(self) -> builtins.list[dict[str, Any]]:
         """Return metadata for every stored secret (no plaintext)."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT name, kind, created_at, updated_at FROM secrets "
-                "ORDER BY name"
+                "SELECT name, kind, created_at, updated_at FROM secrets ORDER BY name"
             ).fetchall()
-        return [
-            {"name": r[0], "kind": r[1], "created_at": r[2], "updated_at": r[3]}
-            for r in rows
-        ]
+        return [{"name": r[0], "kind": r[1], "created_at": r[2], "updated_at": r[3]} for r in rows]
 
     def has(self, name: str) -> bool:
         with self._lock:
             return (
-                self._conn.execute(
-                    "SELECT 1 FROM secrets WHERE name=?", (name,)
-                ).fetchone()
+                self._conn.execute("SELECT 1 FROM secrets WHERE name=?", (name,)).fetchone()
                 is not None
             )
 
-    def kind_of(self, name: str) -> Optional[str]:
+    def kind_of(self, name: str) -> str | None:
         with self._lock:
-            row = self._conn.execute(
-                "SELECT kind FROM secrets WHERE name=?", (name,)
-            ).fetchone()
+            row = self._conn.execute("SELECT kind FROM secrets WHERE name=?", (name,)).fetchone()
         return row[0] if row else None
 
     def delete(self, name: str) -> bool:
@@ -364,10 +342,11 @@ class RotationScheduler:
         self._conn.commit()
 
     def set_policy(
-        self, name: str, interval_secs: float, last_rotated: Optional[float] = None
+        self, name: str, interval_secs: float, last_rotated: float | None = None
     ) -> None:
         if interval_secs <= 0:
-            raise ValueError("interval_secs must be > 0")
+            msg = "interval_secs must be > 0"
+            raise ValueError(msg)
         ts = last_rotated if last_rotated is not None else time.time()
         with self._vault._lock:
             self._conn.execute(
@@ -382,19 +361,14 @@ class RotationScheduler:
             )
             self._conn.commit()
 
-    def policy(self, name: str) -> Optional[Dict[str, Any]]:
+    def policy(self, name: str) -> dict[str, Any] | None:
         with self._vault._lock:
             row = self._conn.execute(
-                "SELECT interval_secs, last_rotated FROM rotation_policies "
-                "WHERE name=?", (name,)
+                "SELECT interval_secs, last_rotated FROM rotation_policies WHERE name=?", (name,)
             ).fetchone()
-        return (
-            {"name": name, "interval_secs": row[0], "last_rotated": row[1]}
-            if row
-            else None
-        )
+        return {"name": name, "interval_secs": row[0], "last_rotated": row[1]} if row else None
 
-    def mark_rotated(self, name: str, now: Optional[float] = None) -> None:
+    def mark_rotated(self, name: str, now: float | None = None) -> None:
         ts = now if now is not None else time.time()
         with self._vault._lock:
             self._conn.execute(
@@ -403,7 +377,7 @@ class RotationScheduler:
             )
             self._conn.commit()
 
-    def due_for_rotation(self, name: str, now: Optional[float] = None) -> bool:
+    def due_for_rotation(self, name: str, now: float | None = None) -> bool:
         """True when ``name``'s rotation interval has elapsed."""
         ts = now if now is not None else time.time()
         pol = self.policy(name)
@@ -411,19 +385,17 @@ class RotationScheduler:
             last = ts
             interval = self._default_interval
         else:
-            last = (
-                pol["last_rotated"] if pol["last_rotated"] is not None else ts
-            )
+            last = pol["last_rotated"] if pol["last_rotated"] is not None else ts
             interval = pol["interval_secs"]
         return (ts - last) >= interval
 
     def rotate(
         self,
         name: str,
-        now: Optional[float] = None,
+        now: float | None = None,
         generator=None,
-        master_key: Optional[Union[str, bytes]] = None,
-    ) -> Dict[str, Any]:
+        master_key: str | bytes | None = None,
+    ) -> dict[str, Any]:
         """Generate a new random secret for ``name`` and store it via the vault.
 
         Returns a dict with ``name``, ``new_secret`` (the plaintext candidate,
@@ -431,16 +403,12 @@ class RotationScheduler:
         """
         ts = now if now is not None else time.time()
         pol = self.policy(name)
-        interval = (
-            pol["interval_secs"] if pol is not None else self._default_interval
-        )
+        interval = pol["interval_secs"] if pol is not None else self._default_interval
         if generator is not None:
             new_secret = generator()
         else:
             new_secret = secrets.token_urlsafe(DEFAULT_ROTATION_BYTES)
-        result = self._vault.rotate(
-            name, new_secret=new_secret, master_key=master_key, now=ts
-        )
+        result = self._vault.rotate(name, new_secret=new_secret, master_key=master_key, now=ts)
         # Preserve the configured interval; bump last_rotated to now.
         self.set_policy(name, interval, last_rotated=ts)
         result["new_secret"] = new_secret
@@ -485,15 +453,14 @@ class AccessAudit:
         self,
         secret_name: str,
         action: str,
-        ts: Optional[float] = None,
+        ts: float | None = None,
         actor: str = "system",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         now = ts if ts is not None else time.time()
         with self._vault._lock:
             prev = self._last_hash()
             payload = (
-                prev + "|" + secret_name + "|" + action
-                + "|" + repr(now) + "|" + actor
+                prev + "|" + secret_name + "|" + action + "|" + repr(now) + "|" + actor
             ).encode("utf-8")
             entry_hash = hashlib.sha256(payload).hexdigest()
             self._conn.execute(
@@ -506,11 +473,14 @@ class AccessAudit:
             )
             self._conn.commit()
         return {
-            "secret_name": secret_name, "action": action,
-            "ts": now, "actor": actor, "entry_hash": entry_hash,
+            "secret_name": secret_name,
+            "action": action,
+            "ts": now,
+            "actor": actor,
+            "entry_hash": entry_hash,
         }
 
-    def entries(self) -> List[Dict[str, Any]]:
+    def entries(self) -> list[dict[str, Any]]:
         with self._vault._lock:
             rows = self._conn.execute(
                 "SELECT id, secret_name, action, ts, actor, prev_hash, entry_hash "
@@ -518,8 +488,12 @@ class AccessAudit:
             ).fetchall()
         return [
             {
-                "id": r[0], "secret_name": r[1], "action": r[2],
-                "ts": r[3], "actor": r[4], "prev_hash": r[5],
+                "id": r[0],
+                "secret_name": r[1],
+                "action": r[2],
+                "ts": r[3],
+                "actor": r[4],
+                "prev_hash": r[5],
                 "entry_hash": r[6],
             }
             for r in rows
@@ -527,11 +501,9 @@ class AccessAudit:
 
     def count(self) -> int:
         with self._vault._lock:
-            return self._conn.execute(
-                "SELECT COUNT(*) FROM audit_log"
-            ).fetchone()[0]
+            return self._conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0]
 
-    def verify(self) -> Dict[str, Any]:
+    def verify(self) -> dict[str, Any]:
         """Replay the hash chain; report integrity.
 
         Returns ``{"valid": bool, "entries": n, "broken_at": int|None}``.
@@ -540,8 +512,15 @@ class AccessAudit:
         prev = hashlib.sha256(_CHAIN_SEED).hexdigest()
         for idx, e in enumerate(entries):
             payload = (
-                e["prev_hash"] + "|" + e["secret_name"] + "|" + e["action"]
-                + "|" + repr(e["ts"]) + "|" + e["actor"]
+                e["prev_hash"]
+                + "|"
+                + e["secret_name"]
+                + "|"
+                + e["action"]
+                + "|"
+                + repr(e["ts"])
+                + "|"
+                + e["actor"]
             ).encode("utf-8")
             expect = hashlib.sha256(payload).hexdigest()
             if e["prev_hash"] != prev or e["entry_hash"] != expect:
@@ -555,8 +534,8 @@ class VaultFacade:
 
     def __init__(
         self,
-        db_path: Union[str, os.PathLike],
-        master_key: Union[str, bytes],
+        db_path: str | os.PathLike,
+        master_key: str | bytes,
         iterations: int = DEFAULT_PBKDF2_ITERATIONS,
         actor: str = "system",
     ) -> None:
@@ -568,26 +547,29 @@ class VaultFacade:
     # -- vault ops (auto-audited) ----------------------------------------
 
     def put(
-        self, name: str, secret: Union[str, bytes], kind: str = "plain",
-        actor: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        self,
+        name: str,
+        secret: str | bytes,
+        kind: str = "plain",
+        actor: str | None = None,
+    ) -> dict[str, Any]:
         result = self.vault.put(name, secret, kind=kind)
         self.audit.log(name, "put", actor=actor or self._actor)
         return result
 
     store = put
 
-    def get(self, name: str, master_key=None, actor: Optional[str] = None) -> str:
+    def get(self, name: str, master_key=None, actor: str | None = None) -> str:
         value = self.vault.get(name, master_key=master_key)
         self.audit.log(name, "get", actor=actor or self._actor)
         return value
 
-    def rotate(self, name: str, actor: Optional[str] = None, **kw) -> Dict[str, Any]:
+    def rotate(self, name: str, actor: str | None = None, **kw) -> dict[str, Any]:
         result = self.scheduler.rotate(name, **kw)
         self.audit.log(name, "rotate", actor=actor or self._actor)
         return result
 
-    def delete(self, name: str, actor: Optional[str] = None) -> bool:
+    def delete(self, name: str, actor: str | None = None) -> bool:
         removed = self.vault.delete(name)
         if removed:
             self.audit.log(name, "delete", actor=actor or self._actor)
@@ -595,25 +577,26 @@ class VaultFacade:
 
     # -- scheduler passthrough -------------------------------------------
 
-    def set_policy(self, name: str, interval_secs: float,
-                   last_rotated: Optional[float] = None) -> None:
+    def set_policy(
+        self, name: str, interval_secs: float, last_rotated: float | None = None
+    ) -> None:
         self.scheduler.set_policy(name, interval_secs, last_rotated)
 
-    def due_for_rotation(self, name: str, now: Optional[float] = None) -> bool:
+    def due_for_rotation(self, name: str, now: float | None = None) -> bool:
         return self.scheduler.due_for_rotation(name, now)
 
-    def mark_rotated(self, name: str, now: Optional[float] = None) -> None:
+    def mark_rotated(self, name: str, now: float | None = None) -> None:
         self.scheduler.mark_rotated(name, now)
 
     # -- reporting -------------------------------------------------------
 
-    def list(self) -> List[Dict[str, Any]]:
+    def list(self) -> builtins.list[dict[str, Any]]:
         return self.vault.list()
 
-    def audit_entries(self) -> List[Dict[str, Any]]:
+    def audit_entries(self) -> builtins.list[dict[str, Any]]:
         return self.audit.entries()
 
-    def audit_verify(self) -> Dict[str, Any]:
+    def audit_verify(self) -> dict[str, Any]:
         return self.audit.verify()
 
     def close(self) -> None:

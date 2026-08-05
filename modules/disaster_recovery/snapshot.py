@@ -37,21 +37,18 @@ Integrity & crypto honesty
 
 from __future__ import annotations
 
-import gzip
 import hashlib
 import hmac
 import io
 import json
 import logging
 import os
-import shutil
 import tarfile
-import tempfile
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("enterprise.disaster_recovery.snapshot")
 
@@ -73,13 +70,13 @@ _OK_ABS_PREFIX = "_eni_ok_abs_prefix_foobar"
 class ManifestEntry:
     """A single file recorded in a snapshot manifest."""
 
-    path: str                 # relative path inside the archive/restored tree
-    size: int                 # REAL byte size on disk at snapshot time
-    sha256: str               # REAL digest of file bytes at snapshot time
+    path: str  # relative path inside the archive/restored tree
+    size: int  # REAL byte size on disk at snapshot time
+    sha256: str  # REAL digest of file bytes at snapshot time
     entry_type: str = "file"  # "file" | "dir"
-    chain: Optional[str] = None  # running hash-chain value after this entry
+    chain: str | None = None  # running hash-chain value after this entry
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "path": self.path,
             "size": self.size,
@@ -89,7 +86,7 @@ class ManifestEntry:
         }
 
     @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> "ManifestEntry":
+    def from_dict(cls, d: dict[str, Any]) -> ManifestEntry:
         return cls(
             path=d["path"],
             size=int(d["size"]),
@@ -105,11 +102,11 @@ class Snapshot:
 
     id: str
     name: str
-    path: str                # absolute path of the archive file on disk
-    size: int                # REAL size of the archive file on disk (bytes)
-    n_files: int             # REAL number of files recorded in the manifest
-    manifest: Dict[str, Any]  # the full manifest dict
-    created_at: str          # ISO timestamp
+    path: str  # absolute path of the archive file on disk
+    size: int  # REAL size of the archive file on disk (bytes)
+    n_files: int  # REAL number of files recorded in the manifest
+    manifest: dict[str, Any]  # the full manifest dict
+    created_at: str  # ISO timestamp
     encrypted: bool = False
 
     @property
@@ -124,13 +121,13 @@ class RestoreReport:
 
     snapshot_id: str
     dest_dir: str
-    restored: int = 0          # number of files extracted
-    verified: int = 0          # number of files whose sha256 matched
-    failed: int = 0            # number of files whose sha256 did NOT match
-    total_bytes: int = 0       # bytes across all restored/verified files
-    status: str = "pending"    # "ok" | "corrupt" | "failed"
+    restored: int = 0  # number of files extracted
+    verified: int = 0  # number of files whose sha256 matched
+    failed: int = 0  # number of files whose sha256 did NOT match
+    total_bytes: int = 0  # bytes across all restored/verified files
+    status: str = "pending"  # "ok" | "corrupt" | "failed"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "snapshot_id": self.snapshot_id,
             "dest_dir": self.dest_dir,
@@ -154,11 +151,12 @@ def _new_id() -> str:
 # Path-safety
 # --------------------------------------------------------------------------
 
-def _normalize_rel(arcname: str) -> Optional[str]:
+
+def _normalize_rel(arcname: str) -> str | None:
     """Return a normalized relative path, or None if it escapes the root."""
     arcname = arcname.replace("\\", "/")
     parts = arcname.split("/")
-    cleaned: List[str] = []
+    cleaned: list[str] = []
     for p in parts:
         if p in ("", "."):
             continue
@@ -175,13 +173,15 @@ def _safe_dest(path: str, dest_dir: str) -> str:
     """Join a trusted relative path onto dest_dir, guarding traversal."""
     rel = _normalize_rel(path)
     if rel is None:
-        raise ValueError(f"unsafe member path in archive: {path!r}")
+        msg = f"unsafe member path in archive: {path!r}"
+        raise ValueError(msg)
     return os.path.normpath(os.path.join(dest_dir, rel))
 
 
 # --------------------------------------------------------------------------
 # Keystream / integrity primitives
 # --------------------------------------------------------------------------
+
 
 def _derive(key: bytes, salt: bytes, length: int) -> bytes:
     """Derive a `length`-byte keystream via PBKDF2-HMAC-SHA256 key stretching."""
@@ -203,7 +203,7 @@ def _xor_transform(data: bytes, key: bytes, salt: bytes) -> bytes:
     docstring). Safe because each snapshot uses a fresh random ``salt``.
     """
     ks = _derive(key, salt, len(data))
-    return bytes(a ^ b for a, b in zip(data, ks))
+    return bytes(a ^ b for a, b in zip(data, ks, strict=False))
 
 
 def _hmac_tag(data: bytes, key: bytes) -> bytes:
@@ -215,7 +215,8 @@ def _hmac_tag(data: bytes, key: bytes) -> bytes:
 # Archive on-disk format
 # --------------------------------------------------------------------------
 
-def _write_archive(archive_bytes: bytes, target_path: str, key: Optional[bytes]) -> None:
+
+def _write_archive(archive_bytes: bytes, target_path: str, key: bytes | None) -> None:
     """Persist ``archive_bytes`` to ``target_path``; transform+tag if keyed."""
     if key is None:
         with open(target_path, "wb") as fh:
@@ -232,7 +233,7 @@ def _write_archive(archive_bytes: bytes, target_path: str, key: Optional[bytes])
         fh.write(payload)
 
 
-def _read_archive(archive_path: str, key: Optional[bytes]) -> bytes:
+def _read_archive(archive_path: str, key: bytes | None) -> bytes:
     """Read raw archive bytes, transparently de-transforming if encrypted.
 
     Raises ValueError if the file is encrypted but no key was supplied, or if
@@ -243,23 +244,26 @@ def _read_archive(archive_path: str, key: Optional[bytes]) -> bytes:
     if not blob.startswith(_ENCRYPTED_MAGIC):
         if key is not None:
             # Plain archive but a key was provided: appear corrupt.
-            raise ValueError("archive is not encrypted but an encrypt_key was provided")
+            msg = "archive is not encrypted but an encrypt_key was provided"
+            raise ValueError(msg)
         return blob
     # Encrypted on disk.
     if key is None:
-        raise ValueError("archive is encrypted; an encrypt_key is required")
+        msg = "archive is encrypted; an encrypt_key is required"
+        raise ValueError(msg)
     pos = _ENCRYPTED_MAGIC_LEN
     salt_len = blob[pos]
     pos += 1
-    salt = blob[pos:pos + salt_len]
+    salt = blob[pos : pos + salt_len]
     pos += salt_len
-    stored_tag = blob[pos:pos + _HMAC_LEN]
+    stored_tag = blob[pos : pos + _HMAC_LEN]
     pos += _HMAC_LEN
     payload = blob[pos:]
     archive_bytes = _xor_transform(payload, key, salt)
     calc_tag = _hmac_tag(archive_bytes, key)
     if not hmac.compare_digest(stored_tag, calc_tag):
-        raise ValueError("snapshot integrity check failed: HMAC tag mismatch (corrupt or wrong key)")
+        msg = "snapshot integrity check failed: HMAC tag mismatch (corrupt or wrong key)"
+        raise ValueError(msg)
     return archive_bytes
 
 
@@ -267,7 +271,8 @@ def _read_archive(archive_path: str, key: Optional[bytes]) -> bytes:
 # Manifest building
 # --------------------------------------------------------------------------
 
-def _build_manifest(entries: List[ManifestEntry], meta: Dict[str, Any]) -> Dict[str, Any]:
+
+def _build_manifest(entries: list[ManifestEntry], meta: dict[str, Any]) -> dict[str, Any]:
     """Attach the hash-chain to entries and materialize the manifest dict."""
     running = hashlib.sha256(b"ENI-SNAPSHOT-CHAIN-v1").digest()
     for e in entries:
@@ -275,7 +280,7 @@ def _build_manifest(entries: List[ManifestEntry], meta: Dict[str, Any]) -> Dict[
             running + e.sha256.encode() + str(e.size).encode() + e.path.encode()
         ).digest()
         e.chain = running.hex()
-    manifest: Dict[str, Any] = {
+    manifest: dict[str, Any] = {
         "snapshot_id": meta["snapshot_id"],
         "name": meta["name"],
         "created_at": meta["created_at"],
@@ -288,7 +293,7 @@ def _build_manifest(entries: List[ManifestEntry], meta: Dict[str, Any]) -> Dict[
     return manifest
 
 
-def _load_manifest(archive_bytes: bytes) -> Dict[str, Any]:
+def _load_manifest(archive_bytes: bytes) -> dict[str, Any]:
     """Read the manifest member out of in-memory tar.gz bytes."""
     with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as tf:
         member = tf.getmember(_MANIFEST_MEMBER)
@@ -300,6 +305,7 @@ def _load_manifest(archive_bytes: bytes) -> Dict[str, Any]:
 # The engine
 # --------------------------------------------------------------------------
 
+
 class SnapshotEngine:
     """Create, list, verify and restore real filesystem snapshots.
 
@@ -308,7 +314,7 @@ class SnapshotEngine:
     statement.
     """
 
-    def __init__(self, key: Optional[bytes] = None) -> None:
+    def __init__(self, key: bytes | None = None) -> None:
         self._default_key = key
 
     # ------------------------------------------------------------------
@@ -318,8 +324,8 @@ class SnapshotEngine:
         self,
         source_dir: str,
         target_dir: str,
-        name: Optional[str] = None,
-        encrypt_key: Optional[bytes] = None,
+        name: str | None = None,
+        encrypt_key: bytes | None = None,
     ) -> Snapshot:
         """Archive ``source_dir`` into a real snapshot under ``target_dir``.
 
@@ -333,7 +339,8 @@ class SnapshotEngine:
         """
         source_dir = os.path.abspath(source_dir)
         if not os.path.isdir(source_dir):
-            raise ValueError(f"source_dir does not exist or is not a directory: {source_dir}")
+            msg = f"source_dir does not exist or is not a directory: {source_dir}"
+            raise ValueError(msg)
         os.makedirs(target_dir, exist_ok=True)
 
         key = encrypt_key if encrypt_key is not None else self._default_key
@@ -342,7 +349,7 @@ class SnapshotEngine:
         if name is None:
             name = f"snapshot-{created_at[:10]}"
 
-        entries: List[ManifestEntry] = []
+        entries: list[ManifestEntry] = []
         total_size = 0
 
         for root, dirs, files in os.walk(source_dir):
@@ -418,14 +425,17 @@ class SnapshotEngine:
         )
         logger.info(
             "Created snapshot %s: %d files, %d original bytes, %d archive bytes",
-            snapshot_id, snap.n_files, snap.total_size, snap.size,
+            snapshot_id,
+            snap.n_files,
+            snap.total_size,
+            snap.size,
         )
         return snap
 
     # ------------------------------------------------------------------
     # List
     # ------------------------------------------------------------------
-    def list_snapshots(self, target_dir: str) -> List[Snapshot]:
+    def list_snapshots(self, target_dir: str) -> list[Snapshot]:
         """Return all snapshots stored under ``target_dir`` (newest first).
 
         Reads each archive, extracts its manifest, and repopulates a real
@@ -435,7 +445,7 @@ class SnapshotEngine:
         """
         if not os.path.isdir(target_dir):
             return []
-        snaps: List[Snapshot] = []
+        snaps: list[Snapshot] = []
         for fname in sorted(os.listdir(target_dir)):
             if not (fname.endswith(".tar.gz") or fname.endswith(".eni")):
                 continue
@@ -447,7 +457,7 @@ class SnapshotEngine:
         snaps.sort(key=lambda s: s.created_at, reverse=True)
         return snaps
 
-    def load(self, archive_path: str, key: Optional[bytes] = None) -> Snapshot:
+    def load(self, archive_path: str, key: bytes | None = None) -> Snapshot:
         """Load a :class:`Snapshot` from an archive file (manifest only, no extract)."""
         archive_path = os.path.abspath(archive_path)
         k = key if key is not None else self._default_key
@@ -467,7 +477,7 @@ class SnapshotEngine:
     # ------------------------------------------------------------------
     # Verify
     # ------------------------------------------------------------------
-    def verify(self, snapshot: Snapshot, key: Optional[bytes] = None) -> Dict[str, Any]:
+    def verify(self, snapshot: Snapshot, key: bytes | None = None) -> dict[str, Any]:
         """Recompute every file's sha256 inside the archive and replay the chain.
 
         Returns ``{"status": "ok"|"corrupt", "checked": n, "matches": n,
@@ -529,7 +539,7 @@ class SnapshotEngine:
         self,
         snapshot: Snapshot,
         dest_dir: str,
-        key: Optional[bytes] = None,
+        key: bytes | None = None,
     ) -> RestoreReport:
         """Extract a snapshot archive into ``dest_dir`` and verify every file.
 
@@ -552,11 +562,13 @@ class SnapshotEngine:
                     continue
                 rel = _normalize_rel(member.name)
                 if rel is None:
-                    raise ValueError(f"unsafe member path in archive: {member.name!r}")
+                    msg = f"unsafe member path in archive: {member.name!r}"
+                    raise ValueError(msg)
                 full = os.path.normpath(os.path.join(dest_dir, rel))
                 # guard against escaping dest_dir
                 if os.path.commonpath([dest_dir, full]) != dest_dir:
-                    raise ValueError(f"member escapes destination: {member.name!r}")
+                    msg = f"member escapes destination: {member.name!r}"
+                    raise ValueError(msg)
                 if member.isdir():
                     os.makedirs(full, exist_ok=True)
                     continue
@@ -576,7 +588,9 @@ class SnapshotEngine:
                 else:
                     report.failed += 1
 
-        report.status = "ok" if report.failed == 0 and report.verified == report.restored else "corrupt"
+        report.status = (
+            "ok" if report.failed == 0 and report.verified == report.restored else "corrupt"
+        )
         # Recreate empty / directory-only entries from the manifest so the
         # restored tree structurally matches the source.
         for e in manifest["entries"]:
@@ -586,8 +600,14 @@ class SnapshotEngine:
             if rel is None:
                 continue
             os.makedirs(_safe_dest(rel, dest_dir), exist_ok=True)
-        logger.info("Restored snapshot %s -> %s: %d files, %d verified, %d failed",
-                    snapshot.id, dest_dir, report.restored, report.verified, report.failed)
+        logger.info(
+            "Restored snapshot %s -> %s: %d files, %d verified, %d failed",
+            snapshot.id,
+            dest_dir,
+            report.restored,
+            report.verified,
+            report.failed,
+        )
         return report
 
 
@@ -600,7 +620,7 @@ def _file_sha256(path: str) -> str:
     return h.hexdigest()
 
 
-def snapshot_to_dict(snapshot: Snapshot) -> Dict[str, Any]:
+def snapshot_to_dict(snapshot: Snapshot) -> dict[str, Any]:
     """Serialize a Snapshot (minus the bulky entries) for reporting."""
     return {
         "id": snapshot.id,

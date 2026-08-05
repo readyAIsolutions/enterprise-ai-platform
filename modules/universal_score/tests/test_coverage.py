@@ -16,12 +16,11 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 import pytest
-
 from enterprise.modules.universal_score.coverage_fleet import (
     CoverageError,
     CoverageProbe,
@@ -29,10 +28,10 @@ from enterprise.modules.universal_score.coverage_fleet import (
     _Proc,
     run_fleet_coverage,
 )
-from enterprise.modules.universal_score.universal_score import UniversalBuildScore
 from enterprise.modules.universal_score.tests.test_universal_score import (
     make_good_project,
 )
+from enterprise.modules.universal_score.universal_score import UniversalBuildScore
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "covproj"
 
@@ -40,7 +39,7 @@ FIXTURE = Path(__file__).resolve().parent / "fixtures" / "covproj"
 # ---------------------------------------------------------------------------
 # Canned coverage JSON (shape of `coverage report --format=json`)
 # ---------------------------------------------------------------------------
-def _summary(percent: float, stmts: int, covered: int) -> Dict[str, Any]:
+def _summary(percent: float, stmts: int, covered: int) -> dict[str, Any]:
     return {
         "percent_covered": percent,
         "num_statements": stmts,
@@ -52,7 +51,7 @@ def _summary(percent: float, stmts: int, covered: int) -> Dict[str, Any]:
     }
 
 
-def _payload(total_pct: float = 75.0) -> Dict[str, Any]:
+def _payload(total_pct: float = 75.0) -> dict[str, Any]:
     return {
         "meta": {"format": 2, "version": "7.15.3"},
         "files": {
@@ -72,7 +71,7 @@ class FakeRunner:
     """Injectable subprocess runner: returns canned JSON for the report step,
     a no-op for the pytest/run step. Records every command it saw."""
 
-    def __init__(self, payload: Dict[str, Any], rc: int = 0) -> None:
+    def __init__(self, payload: dict[str, Any], rc: int = 0) -> None:
         self.payload = payload
         self.rc = rc
         self.calls: list = []
@@ -128,7 +127,7 @@ class TestCoverageProbe:
 # CoverageReport aggregation + grade
 # ---------------------------------------------------------------------------
 class TestCoverageReport:
-    def _report(self, payload: Dict[str, Any]) -> CoverageReport:
+    def _report(self, payload: dict[str, Any]) -> CoverageReport:
         probe = CoverageProbe(FIXTURE, runner=FakeRunner(payload))
         return CoverageReport(probe, payload)
 
@@ -171,8 +170,12 @@ class TestCoverageReport:
     def test_to_dict_shape(self) -> None:
         d = self._report(_payload()).to_dict()
         assert set(d) == {
-            "global_pct", "grade", "per_package", "bottom_files",
-            "n_files", "tests_exit_code",
+            "global_pct",
+            "grade",
+            "per_package",
+            "bottom_files",
+            "n_files",
+            "tests_exit_code",
         }
 
 
@@ -182,16 +185,17 @@ class TestCoverageReport:
 class TestCoveragePctSlotIn:
     def test_zero_coverage_slots_into_score(self) -> None:
         s = UniversalBuildScore()
-        result = s.score(make_good_project(Path(__import__("tempfile").mkdtemp())),
-                         run_tests=False, coverage_pct=0.0)
+        result = s.score(
+            make_good_project(Path(__import__("tempfile").mkdtemp())),
+            run_tests=False,
+            coverage_pct=0.0,
+        )
         assert result["coverage_pct"] == 0.0
 
     def test_higher_coverage_raises_test_quality(self, tmp_path) -> None:
         s = UniversalBuildScore()
-        low = s.score(make_good_project(tmp_path / "a"), run_tests=False,
-                      coverage_pct=5.0)
-        high = s.score(make_good_project(tmp_path / "b"), run_tests=False,
-                       coverage_pct=95.0)
+        low = s.score(make_good_project(tmp_path / "a"), run_tests=False, coverage_pct=5.0)
+        high = s.score(make_good_project(tmp_path / "b"), run_tests=False, coverage_pct=95.0)
         low_d4 = low["dimensions"]["test_quality"]["score"]
         high_d4 = high["dimensions"]["test_quality"]["score"]
         assert high_d4 > low_d4
@@ -231,9 +235,7 @@ class TestRunFleetCoverage:
 class TestFleetScriptRealSmoke:
     def test_real_tiny_fixture_coverage(self, tmp_path) -> None:
         pytest.importorskip("coverage")
-        probe = CoverageProbe(
-            FIXTURE, python_bin=sys.executable, source_dirs=("app",), timeout=120
-        )
+        probe = CoverageProbe(FIXTURE, python_bin=sys.executable, source_dirs=("app",), timeout=120)
         out = tmp_path / "COVERAGE_REPORT.md"
         try:
             rep = run_fleet_coverage(root=FIXTURE, report_path=out, probe=probe)

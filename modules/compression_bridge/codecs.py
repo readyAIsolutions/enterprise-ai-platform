@@ -224,19 +224,23 @@ class CodecRegistry:
         """
         instance = codec() if isinstance(codec, type) else codec
         if not isinstance(instance, Codec):
-            raise TypeError(f"{codec!r} is not a Codec instance or subclass")
+            msg = f"{codec!r} is not a Codec instance or subclass"
+            raise TypeError(msg)
         name = instance.name
         if not name:
-            raise ValueError("Cannot register a codec without a non-empty name")
+            msg = "Cannot register a codec without a non-empty name"
+            raise ValueError(msg)
         if name in self._codecs:
-            raise ValueError(f"Codec {name!r} is already registered")
+            msg = f"Codec {name!r} is already registered"
+            raise ValueError(msg)
         self._codecs[name] = instance
         return instance
 
     def get(self, name: str) -> Codec:
         """Fetch a codec by name. Raises ``KeyError`` if unknown."""
         if name not in self._codecs:
-            raise KeyError(f"No codec named {name!r}; registered: {sorted(self._codecs)}")
+            msg = f"No codec named {name!r}; registered: {sorted(self._codecs)}"
+            raise KeyError(msg)
         return self._codecs[name]
 
     def list(self) -> list[Codec]:
@@ -303,10 +307,10 @@ def negotiate_ratio(source_payload: Any) -> dict[str, Any]:
             {
                 "codec": codec.name,
                 "mime": codec.mime,
-                "ratio": float,          # original_size / compressed_size
+                "ratio": float,  # original_size / compressed_size
                 "original_size": int,
                 "compressed_size": int,
-                "saved_bytes": int,      # original_size - compressed_size
+                "saved_bytes": int,  # original_size - compressed_size
                 "lossless": bool,
             }
     """

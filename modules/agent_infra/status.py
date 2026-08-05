@@ -26,15 +26,15 @@ from __future__ import annotations
 import json
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from enterprise.platform_kernel import HealthStatus
 
 # Core components that collectively define the module's health. Ordered for
 # deterministic iteration.
-CORE_COMPONENTS: Tuple[str, ...] = (
+CORE_COMPONENTS: tuple[str, ...] = (
     "tui",
     "server",
     "plugin_system",
@@ -47,6 +47,7 @@ CORE_COMPONENTS: Tuple[str, ...] = (
 # =============================================================================
 # ComponentState
 # =============================================================================
+
 
 class ComponentState(Enum):
     """Lifecycle / health state of a single component."""
@@ -67,6 +68,7 @@ class ComponentState(Enum):
 # ComponentStatus
 # =============================================================================
 
+
 @dataclass
 class ComponentStatus:
     """Per-component health record tracked inside the registry."""
@@ -77,7 +79,7 @@ class ComponentStatus:
     last_check: str = ""  # ISO-8601 UTC timestamp of the most recent update
     message: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Deterministic, ordered dict representation (JSON-safe)."""
         return {
             "name": self.name,
@@ -89,10 +91,11 @@ class ComponentStatus:
 
     @staticmethod
     def _now_iso() -> str:
-        return datetime.now(timezone.utc).isoformat(timespec="seconds")
+        return datetime.now(UTC).isoformat(timespec="seconds")
 
-    def update(self, *, ok: bool, state: Optional[ComponentState] = None,
-               message: Optional[str] = None) -> "ComponentStatus":
+    def update(
+        self, *, ok: bool, state: ComponentState | None = None, message: str | None = None
+    ) -> ComponentStatus:
         """Refresh this component's status in place and stamp last_check."""
         self.ok = bool(ok)
         if state is not None:
@@ -109,6 +112,7 @@ class ComponentStatus:
 # InfraStatus facade + registry
 # =============================================================================
 
+
 class InfraStatus:
     """Unified status facade + registry for the agent_infra module.
 
@@ -119,12 +123,12 @@ class InfraStatus:
 
     def __init__(
         self,
-        core: Tuple[str, ...] = CORE_COMPONENTS,
+        core: tuple[str, ...] = CORE_COMPONENTS,
         module_name: str = "agent_infra",
     ) -> None:
         self._module_name = module_name
-        self._core: Tuple[str, ...] = tuple(core)
-        self._components: Dict[str, ComponentStatus] = {
+        self._core: tuple[str, ...] = tuple(core)
+        self._components: dict[str, ComponentStatus] = {
             name: ComponentStatus(name=name) for name in self._core
         }
         self._lock = threading.RLock()
@@ -132,7 +136,7 @@ class InfraStatus:
     # -- registry access ---------------------------------------------------
 
     @property
-    def components(self) -> Dict[str, ComponentStatus]:
+    def components(self) -> dict[str, ComponentStatus]:
         """All registered components, keyed by name. Deterministic order."""
         with self._lock:
             return dict(self._components)
@@ -147,7 +151,7 @@ class InfraStatus:
                 self._components[name] = ComponentStatus(name=name)
             return self._components[name]
 
-    def component(self, name: str) -> Optional[ComponentStatus]:
+    def component(self, name: str) -> ComponentStatus | None:
         """Accessor: get a single component's status, or None if unknown."""
         with self._lock:
             return self._components.get(name)
@@ -157,8 +161,8 @@ class InfraStatus:
         name: str,
         *,
         ok: bool,
-        state: Optional[ComponentState] = None,
-        message: Optional[str] = None,
+        state: ComponentState | None = None,
+        message: str | None = None,
     ) -> ComponentStatus:
         """Update the health record for one component and return it."""
         with self._lock:
@@ -171,8 +175,7 @@ class InfraStatus:
     def healthy(self) -> bool:
         """True only when every core component is OK."""
         with self._lock:
-            return all(c.ok for c in self._components.values()
-                       if c.name in self._core)
+            return all(c.ok for c in self._components.values() if c.name in self._core)
 
     def overall_status(self) -> HealthStatus:
         """Aggregate module health from core component health.
@@ -183,8 +186,7 @@ class InfraStatus:
           - no core component OK            -> UNHEALTHY
         """
         with self._lock:
-            core_statuses = [c for c in self._components.values()
-                             if c.name in self._core]
+            core_statuses = [c for c in self._components.values() if c.name in self._core]
             ok_count = sum(1 for c in core_statuses if c.ok)
             if ok_count == len(core_statuses):
                 return HealthStatus.HEALTHY
@@ -192,7 +194,7 @@ class InfraStatus:
                 return HealthStatus.UNHEALTHY
             return HealthStatus.DEGRADED
 
-    def status_report(self) -> Dict[str, Any]:
+    def status_report(self) -> dict[str, Any]:
         """Aggregate all components into one Deterministic JSON status dict.
 
         The returned dict has a fixed key order and is directly serialisable
@@ -200,27 +202,26 @@ class InfraStatus:
         """
         with self._lock:
             components = {
-                name: self._components[name].to_dict()
-                for name in sorted(self._components)
+                name: self._components[name].to_dict() for name in sorted(self._components)
             }
-            core_ok = all(c.ok for c in self._components.values()
-                          if c.name in self._core)
-            report = {
+            core_ok = all(c.ok for c in self._components.values() if c.name in self._core)
+            return {
                 "module": self._module_name,
                 "overall": self.overall_status().value,
                 "healthy": core_ok,
-                "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "checked_at": datetime.now(UTC).isoformat(timespec="seconds"),
                 "components": components,
             }
-        return report
 
     def to_json(self) -> str:
         """Serialise the status report as compact, deterministic JSON."""
         return json.dumps(self.status_report(), sort_keys=True)
 
     def __repr__(self) -> str:
-        return (f"<InfraStatus overall={self.overall_status().value} "
-                f"components={sorted(self._components)}>")
+        return (
+            f"<InfraStatus overall={self.overall_status().value} "
+            f"components={sorted(self._components)}>"
+        )
 
 
 __all__ = [

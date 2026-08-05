@@ -23,10 +23,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, List
+from typing import Any
 
 import pytest
-
 from enterprise.modules.a2a import (
     A2AModule,
     AgentCard,
@@ -39,9 +38,9 @@ from enterprise.modules.a2a import (
     MessageRole,
     NoAgentForCapabilityError,
     RouteResult,
+    TaskRouter,
     TaskState,
     TaskStore,
-    TaskRouter,
     create_a2a_module,
     decode_artifact,
     decode_message,
@@ -55,18 +54,16 @@ from enterprise.modules.a2a import (
 from enterprise.modules.a2a.a2a import (
     A2AError,
     TaskManager,
-    TaskNotFoundError,
     TaskStoreError,
 )
 from enterprise.platform_kernel import HealthStatus
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def card(name: str, capabilities: List[str], skills: List[str] | None = None) -> AgentCard:
+def card(name: str, capabilities: list[str], skills: list[str] | None = None) -> AgentCard:
     return AgentCard(
         name=name,
         description=f"{name} agent",
@@ -103,8 +100,13 @@ class TestTaskStateMachine:
         store = make_store()
         task = store.create_task("a")
         store.complete(task.task_id)
-        for target in (TaskState.WORKING, TaskState.INPUT_REQUIRED,
-                       TaskState.CANCELED, TaskState.FAILED, TaskState.SUBMITTED):
+        for target in (
+            TaskState.WORKING,
+            TaskState.INPUT_REQUIRED,
+            TaskState.CANCELED,
+            TaskState.FAILED,
+            TaskState.SUBMITTED,
+        ):
             assert not task.state.can_transition_to(target)
             with pytest.raises(InvalidTransitionError):
                 store.transition(task.task_id, target)
@@ -210,7 +212,8 @@ class TestTaskStorePersistence:
     def test_auto_generated_session_id(self) -> None:
         store = make_store()
         task = store.create_task("a")
-        assert task.session_id and str(task.session_id).startswith("sess-")
+        assert task.session_id
+        assert str(task.session_id).startswith("sess-")
 
     def test_in_memory_store_is_usable_without_disk(self) -> None:
         store = make_store()
@@ -361,7 +364,7 @@ class TestWireEncodeDecode:
         assert json.loads(json.dumps(data)) == {"taskId": "t1", "state": "working"}
 
     def test_sse_without_event_returns_none(self) -> None:
-        event, data = decode_sse("data: {\"a\": 1}\n\n")
+        event, data = decode_sse('data: {"a": 1}\n\n')
         assert event is None
         assert data == {"a": 1}
 

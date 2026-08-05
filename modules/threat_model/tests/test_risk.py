@@ -15,26 +15,25 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from enterprise.modules.threat_model.risk import (  # noqa: E402
+    STATUS_CLOSED,
+    STATUS_MITIGATED,
+    STATUS_OPEN,
+    STRIDE_MITIGATIONS,
     MitigationPlanner,
     Risk,
     RiskRegister,
     SeverityBand,
     SeverityScore,
-    STRIDE_MITIGATIONS,
-    STATUS_CLOSED,
-    STATUS_MITIGATED,
-    STATUS_OPEN,
     ThreatAssessment,
     ThreatEntry,
 )
-
 
 # ---------------------------------------------------------------------------
 # SeverityScore — formula bounds & bands
 # ---------------------------------------------------------------------------
 
 
-def test_score_minimum_and_maximum_bounds():
+def test_score_minimum_and_maximum_bounds() -> None:
     lo = SeverityScore(impact=0, likelihood=0).score()
     hi = SeverityScore(impact=10, likelihood=10).score()
     assert lo == pytest.approx(0.0)
@@ -43,39 +42,39 @@ def test_score_minimum_and_maximum_bounds():
     assert 0.0 <= hi <= 10.0
 
 
-def test_score_always_within_zero_to_ten():
+def test_score_always_within_zero_to_ten() -> None:
     for impact in (0, 2.5, 5, 7.5, 10, 99):
         for likelihood in (0, 3, 6, 9, 10):
             s = SeverityScore(impact=impact, likelihood=likelihood).score()
             assert 0.0 <= s <= 10.0
 
 
-def test_impact_dominates_score():
+def test_impact_dominates_score() -> None:
     high_impact = SeverityScore(impact=9, likelihood=3).score()
     low_impact = SeverityScore(impact=2, likelihood=3).score()
     assert high_impact > low_impact
 
 
-def test_likelihood_increases_score():
+def test_likelihood_increases_score() -> None:
     low_like = SeverityScore(impact=6, likelihood=2).score()
     high_like = SeverityScore(impact=6, likelihood=9).score()
     assert high_like > low_like
 
 
-def test_attack_vector_ordering():
+def test_attack_vector_ordering() -> None:
     network = SeverityScore(likelihood=8, attack_vector="network").score()
     local = SeverityScore(likelihood=8, attack_vector="local").score()
     physical = SeverityScore(likelihood=8, attack_vector="physical").score()
     assert network > local > physical
 
 
-def test_privilege_level_ordering():
+def test_privilege_level_ordering() -> None:
     no_priv = SeverityScore(likelihood=8, privilege_level="none").score()
     high_priv = SeverityScore(likelihood=8, privilege_level="high").score()
     assert no_priv > high_priv
 
 
-def test_band_boundaries():
+def test_band_boundaries() -> None:
     assert SeverityBand.from_score(9.5) is SeverityBand.CRITICAL
     assert SeverityBand.from_score(7.5) is SeverityBand.HIGH
     assert SeverityBand.from_score(4.5) is SeverityBand.MEDIUM
@@ -83,7 +82,7 @@ def test_band_boundaries():
     assert SeverityScore(impact=10, likelihood=10).band() is SeverityBand.CRITICAL
 
 
-def test_score_to_dict_is_serialisable():
+def test_score_to_dict_is_serialisable() -> None:
     d = SeverityScore(impact=8, likelihood=7).to_dict()
     assert set(d) >= {"score", "band", "impact", "likelihood"}
     assert isinstance(d["score"], float)
@@ -95,7 +94,7 @@ def test_score_to_dict_is_serialisable():
 # ---------------------------------------------------------------------------
 
 
-def test_register_add_and_get():
+def test_register_add_and_get() -> None:
     reg = RiskRegister()
     risk = reg.add("R-1", "Prompt injection", "Spoofing", 8.5, owner="alice")
     assert isinstance(risk, Risk)
@@ -110,14 +109,14 @@ def test_register_add_and_get():
     assert reg.get("missing") is None
 
 
-def test_register_rejects_duplicate_id():
+def test_register_rejects_duplicate_id() -> None:
     reg = RiskRegister()
     reg.add("R-1", "t", "Tampering", 5.0)
     with pytest.raises(ValueError):
         reg.add("R-1", "t2", "Tampering", 6.0)
 
 
-def test_register_update():
+def test_register_update() -> None:
     reg = RiskRegister()
     reg.add("R-1", "old", "Spoofing", 5.0, owner="a")
     updated = reg.update("R-1", title="new", severity=9.0, owner="b")
@@ -130,7 +129,7 @@ def test_register_update():
         reg.update("nope", title="x")
 
 
-def test_register_status_lifecycle():
+def test_register_status_lifecycle() -> None:
     reg = RiskRegister()
     reg.add("R-1", "t", "Spoofing", 6.0)
     assert reg.get("R-1").status == STATUS_OPEN
@@ -142,7 +141,7 @@ def test_register_status_lifecycle():
         reg.set_status("R-1", "bogus")
 
 
-def test_register_filter_by_status_and_severity():
+def test_register_filter_by_status_and_severity() -> None:
     reg = RiskRegister()
     reg.add("R-1", "a", "Spoofing", 9.0, status=STATUS_OPEN)
     reg.add("R-2", "b", "Tampering", 3.0, status=STATUS_CLOSED)
@@ -163,7 +162,7 @@ def test_register_filter_by_status_and_severity():
     assert [r.id for r in reg.list()] == ["R-1", "R-3", "R-2"]
 
 
-def test_register_persistence_across_reopen():
+def test_register_persistence_across_reopen() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         db = Path(tmp) / "risks.db"
         reg = RiskRegister(str(db))
@@ -179,7 +178,7 @@ def test_register_persistence_across_reopen():
         reg2.close_db()
 
 
-def test_register_delete_and_count():
+def test_register_delete_and_count() -> None:
     reg = RiskRegister()
     reg.add("R-1", "a", "Spoofing", 5.0)
     reg.add("R-2", "b", "Tampering", 5.0)
@@ -195,7 +194,7 @@ def test_register_delete_and_count():
 # ---------------------------------------------------------------------------
 
 
-def test_mitigation_suggestion_per_stride():
+def test_mitigation_suggestion_per_stride() -> None:
     planner = MitigationPlanner()
     spoof = planner.suggest("Spoofing")
     assert spoof
@@ -209,7 +208,7 @@ def test_mitigation_suggestion_per_stride():
     assert planner.suggest("Unknown Category") == []
 
 
-def test_mitigation_category_mapping_coverage():
+def test_mitigation_category_mapping_coverage() -> None:
     assert STRIDE_MITIGATIONS["spoofing"]
     assert STRIDE_MITIGATIONS["tampering"]
     assert STRIDE_MITIGATIONS["repudiation"]
@@ -218,7 +217,7 @@ def test_mitigation_category_mapping_coverage():
     assert STRIDE_MITIGATIONS["elevation_of_privilege"]
 
 
-def test_mitigation_plan_and_tracking():
+def test_mitigation_plan_and_tracking() -> None:
     planner = MitigationPlanner()
     suggested = planner.plan("R-1", "Spoofing")
     assert suggested
@@ -249,16 +248,19 @@ def make_assessment():
     )
 
 
-def test_assessment_prioritized_order():
+def test_assessment_prioritized_order() -> None:
     assess = make_assessment()
-    assess.assess([
-        ThreatEntry(name="Data exfil", category="Information Disclosure",
-                    impact=9, likelihood=8),
-        ThreatEntry(name="Prompt injection", category="Spoofing",
-                    impact=7, likelihood=6),
-        ThreatEntry(name="Minor leak", category="Information Disclosure",
-                    impact=2, likelihood=2),
-    ])
+    assess.assess(
+        [
+            ThreatEntry(
+                name="Data exfil", category="Information Disclosure", impact=9, likelihood=8
+            ),
+            ThreatEntry(name="Prompt injection", category="Spoofing", impact=7, likelihood=6),
+            ThreatEntry(
+                name="Minor leak", category="Information Disclosure", impact=2, likelihood=2
+            ),
+        ]
+    )
     ordered = assess.prioritized()
     assert [r["id"] for r in ordered] == [
         r["id"] for r in sorted(ordered, key=lambda r: r["severity"], reverse=True)
@@ -269,45 +271,49 @@ def test_assessment_prioritized_order():
     assert ordered[-1]["title"] == "Minor leak"
 
 
-def test_assessment_top_n():
+def test_assessment_top_n() -> None:
     assess = make_assessment()
-    assess.assess([
-        ThreatEntry(name="A", category="Spoofing", impact=8, likelihood=8),
-        ThreatEntry(name="B", category="Tampering", impact=5, likelihood=5),
-        ThreatEntry(name="C", category="Spoofing", impact=3, likelihood=3),
-    ])
+    assess.assess(
+        [
+            ThreatEntry(name="A", category="Spoofing", impact=8, likelihood=8),
+            ThreatEntry(name="B", category="Tampering", impact=5, likelihood=5),
+            ThreatEntry(name="C", category="Spoofing", impact=3, likelihood=3),
+        ]
+    )
     top2 = assess.top_n(2)
     assert len(top2) == 2
     assert top2[0]["severity"] >= top2[1]["severity"]
     assert assess.risk_count() == 3
 
 
-def test_assessment_enriches_with_mitigations():
+def test_assessment_enriches_with_mitigations() -> None:
     assess = make_assessment()
-    assess.assess([ThreatEntry(name="Spoof it", category="Spoofing",
-                               impact=8, likelihood=8)])
+    assess.assess([ThreatEntry(name="Spoof it", category="Spoofing", impact=8, likelihood=8)])
     risks = assess.prioritized()
-    assert risks and risks[0]["mitigations"]
+    assert risks
+    assert risks[0]["mitigations"]
     assert "coverage" in risks[0]
     # every risk is open by default
     assert risks[0]["status"] == STATUS_OPEN
 
 
-def test_assessment_overall_risk_score():
+def test_assessment_overall_risk_score() -> None:
     assess = make_assessment()
     # empty -> zero
     assert assess.overall_risk() == pytest.approx(0.0)
-    assess.assess([
-        ThreatEntry(name="low", category="Tampering", impact=2, likelihood=2),
-        ThreatEntry(name="high", category="Spoofing", impact=10, likelihood=10),
-    ])
+    assess.assess(
+        [
+            ThreatEntry(name="low", category="Tampering", impact=2, likelihood=2),
+            ThreatEntry(name="high", category="Spoofing", impact=10, likelihood=10),
+        ]
+    )
     overall = assess.overall_risk()
     # equals the worst single risk ceiling
     severities = [r["severity"] for r in assess.prioritized()]
     assert overall == pytest.approx(max(severities))
 
 
-def test_assessment_idempotent_reassessment():
+def test_assessment_idempotent_reassessment() -> None:
     assess = make_assessment()
     t = ThreatEntry(name="Re", category="Spoofing", impact=6, likelihood=6)
     assess.assess([t])
@@ -321,10 +327,11 @@ def test_assessment_idempotent_reassessment():
     )
 
 
-def test_full_risk_lifecycle_with_planner():
+def test_full_risk_lifecycle_with_planner() -> None:
     assess = make_assessment()
-    assess.assess([ThreatEntry(name="X", category="Elevation of Privilege",
-                               impact=8, likelihood=7)])
+    assess.assess(
+        [ThreatEntry(name="X", category="Elevation of Privilege", impact=8, likelihood=7)]
+    )
     risk = assess.register.get("x_any")
     assert risk is not None
     risk_id = risk.id

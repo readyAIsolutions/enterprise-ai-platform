@@ -37,9 +37,8 @@ import hashlib
 import logging
 import math
 import re
-import secrets
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
@@ -64,7 +63,9 @@ class SecretHit:
     entropy: float = 0.0
 
     def __repr__(self) -> str:  # pragma: no cover - debug only
-        return f"SecretHit(type={self.type!r}, span=({self.start},{self.end}), value={self.value!r})"
+        return (
+            f"SecretHit(type={self.type!r}, span=({self.start},{self.end}), value={self.value!r})"
+        )
 
 
 def _shannon_entropy(data: str) -> float:
@@ -97,23 +98,34 @@ class SecretDetector:
     # Well-known secret formats. Order matters: longest/most-specific first so
     # a generic later pattern doesn't swallow a more specific one (we pick the
     # leftmost, then longest match per region when assembling the final list).
-    _PATTERNS: List[tuple] = [
+    _PATTERNS: list[tuple] = [
         # (type, compiled regex)
         ("openai_api_key", re.compile(r"\b(?:sk|sk-[A-Za-z0-9])-[A-Za-z0-9]{20,}\b")),
         ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
-        ("aws_secret_key", re.compile(r"\b(?:aws_secret_access_key|AWS_SECRET_ACCESS_KEY)\s*=\s*['\"]?([A-Za-z0-9/+=]{40})['\"]?")),
+        (
+            "aws_secret_key",
+            re.compile(
+                r"\b(?:aws_secret_access_key|AWS_SECRET_ACCESS_KEY)\s*=\s*['\"]?([A-Za-z0-9/+=]{40})['\"]?"
+            ),
+        ),
         ("github_pat", re.compile(r"\bghp_[A-Za-z0-9]{36}\b")),
         ("github_fine_grained", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{22,}\b")),
         ("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
         ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b")),
         ("stripe_secret", re.compile(r"\bsk_live_[0-9a-zA-Z]{24,}\b")),
         ("stripe_publishable", re.compile(r"\bpk_live_[0-9a-zA-Z]{24,}\b")),
-        ("jwt_bearer", re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")),
+        (
+            "jwt_bearer",
+            re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"),
+        ),
         ("private_key_block", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
-        ("generic_key_value", re.compile(
-            r"\b(?:api[_-]?key|apikey|token|secret|password|passwd|client[_-]?secret|access[_-]?token)"
-            r"\s*[:=]\s*['\"]?([A-Za-z0-9_\-./+]{12,})['\"]?"
-        )),
+        (
+            "generic_key_value",
+            re.compile(
+                r"\b(?:api[_-]?key|apikey|token|secret|password|passwd|client[_-]?secret|access[_-]?token)"
+                r"\s*[:=]\s*['\"]?([A-Za-z0-9_\-./+]{12,})['\"]?"
+            ),
+        ),
         ("ssh_private_key", re.compile(r"\b-----BEGIN OPENSSH PRIVATE KEY-----")),
     ]
 
@@ -129,7 +141,7 @@ class SecretDetector:
 
     # -- public API -------------------------------------------------------- #
 
-    def detect(self, text: str) -> List[SecretHit]:
+    def detect(self, text: str) -> list[SecretHit]:
         """Scan ``text`` and return an ordered list of secret hits.
 
         Hits are sorted by start position (ascending) so a patterns can be
@@ -138,7 +150,7 @@ class SecretDetector:
         if not text:
             return []
 
-        hits: List[SecretHit] = []
+        hits: list[SecretHit] = []
 
         # 1) Regex recognisers.
         for secret_type, pattern in self._PATTERNS:
@@ -168,9 +180,7 @@ class SecretDetector:
 
         # 3) Never treat existing placeholder tokens as fresh secrets — this is
         #    what keeps re-detection (and thus re-substitution) idempotent.
-        placeholder_spans = [
-            (pm.start(), pm.end()) for pm in self._PLACEHOLDER_RE.finditer(text)
-        ]
+        placeholder_spans = [(pm.start(), pm.end()) for pm in self._PLACEHOLDER_RE.finditer(text)]
         if placeholder_spans:
             hits = [h for h in hits if not self._overlaps_any(h, placeholder_spans)]
 
@@ -187,11 +197,7 @@ class SecretDetector:
 
     @staticmethod
     def _overlaps_any(hit, spans) -> bool:
-        for (s, e) in spans:
-            # overlap if the placeholder token sits inside OR surrounding the hit
-            if hit.start < e and s < hit.end:
-                return True
-        return False
+        return any(hit.start < e and s < hit.end for s, e in spans)
 
     def contains_secret(self, text: str) -> bool:
         """Fast boolean: does this blob contain any detected secret?"""
@@ -199,9 +205,9 @@ class SecretDetector:
 
     # -- internals --------------------------------------------------------- #
 
-    def _entropy_scan(self, text: str) -> List[SecretHit]:
+    def _entropy_scan(self, text: str) -> list[SecretHit]:
         """Bareword entropy pass: flag long random-looking tokens."""
-        hits: List[SecretHit] = []
+        hits: list[SecretHit] = []
         # Barewords: alphanumeric runs that may include [-_./+=].
         word_re = re.compile(r"[A-Za-z0-9_\-./+]{16,}")
         for m in word_re.finditer(text):
@@ -220,10 +226,10 @@ class SecretDetector:
         return hits
 
     @staticmethod
-    def _dedupe(hits: List[SecretHit]) -> List[SecretHit]:
+    def _dedupe(hits: list[SecretHit]) -> list[SecretHit]:
         """Drop overlapping hits keeping the longest (most specific) one."""
         hits = sorted(hits, key=lambda h: (h.start, -(h.end - h.start)))
-        kept: List[SecretHit] = []
+        kept: list[SecretHit] = []
         # We want to keep non-overlapping spans. A greedy sweep over spans
         # sorted by start (longest first within same start) picks the maximal
         # non-overlapping set by start order but we then also drop any hit that
@@ -254,15 +260,15 @@ class PlaceholderSubstituter:
     SUFFIX = "__"
     _PLACEHOLDER_RE = re.compile(r"__SECRET_[0-9a-f]{12}__")
 
-    def __init__(self, detector: Optional[SecretDetector] = None) -> None:
+    def __init__(self, detector: SecretDetector | None = None) -> None:
         self.detector = detector or SecretDetector()
-        self._map: Dict[str, str] = {}  # placeholder -> secret
+        self._map: dict[str, str] = {}  # placeholder -> secret
 
     def placeholder_for(self, secret: str) -> str:
         digest = hashlib.sha256(secret.encode("utf-8")).hexdigest()[:12]
         return f"{self.PREFIX}{digest}{self.SUFFIX}"
 
-    def substitute(self, text: str) -> "SubstitutionResult":
+    def substitute(self, text: str) -> SubstitutionResult:
         """Return a substitute result dataclass.
 
         Implementation detail: for convenience we reuse ``SecretBroker.redact``'s
@@ -270,7 +276,7 @@ class PlaceholderSubstituter:
         """
         passes = 0
         working = text
-        placeholder_map: Dict[str, str] = {}
+        placeholder_map: dict[str, str] = {}
 
         # Iterate until a fixed point: substitution shrinks the surface of
         # secrets (placeholders are not secrets) so this terminates quickly.
@@ -293,7 +299,7 @@ class PlaceholderSubstituter:
     def is_placeholder(self, token: str) -> bool:
         return bool(self._PLACEHOLDER_RE.fullmatch(token))
 
-    def restore(self, redacted_text: str, mapping: Optional[Dict[str, str]] = None) -> str:
+    def restore(self, redacted_text: str, mapping: dict[str, str] | None = None) -> str:
         """Reverse the substitution using ``mapping`` (placeholder -> secret).
 
         If ``mapping`` is ``None`` the substituter's own internal map is used
@@ -311,7 +317,7 @@ class SubstitutionResult:
     """Result of a substitution: the redacted text and its reversible map."""
 
     redacted_text: str
-    map: Dict[str, str] = field(default_factory=dict)
+    map: dict[str, str] = field(default_factory=dict)
 
 
 # =============================================================================
@@ -345,8 +351,8 @@ class SecretBroker:
 
     def __init__(
         self,
-        detector: Optional[SecretDetector] = None,
-        substituter: Optional[PlaceholderSubstituter] = None,
+        detector: SecretDetector | None = None,
+        substituter: PlaceholderSubstituter | None = None,
         guard_mode: str = "raise",  # 'raise' | 'redact' | 'off'
     ) -> None:
         self.detector = detector or SecretDetector()
@@ -356,7 +362,7 @@ class SecretBroker:
 
     # -- redact / restore -------------------------------------------------- #
 
-    def redact(self, text: str) -> Dict[str, Any]:
+    def redact(self, text: str) -> dict[str, Any]:
         """Detect + substitute secrets in ``text``.
 
         Returns ``{"redacted_text": str, "map": {placeholder: secret}}``.
@@ -365,7 +371,7 @@ class SecretBroker:
         sub = self.substituter.substitute(text)
         return {"redacted_text": sub.redacted_text, "map": dict(sub.map)}
 
-    def restore(self, redacted_text: str, mapping: Optional[Dict[str, str]] = None) -> str:
+    def restore(self, redacted_text: str, mapping: dict[str, str] | None = None) -> str:
         """Reverse a prior :meth:`redact` using its map.
 
         Returns the original text (with secrets restored locally).
@@ -374,7 +380,9 @@ class SecretBroker:
 
     # -- outbound guard ---------------------------------------------------- #
 
-    def detect_outbound(self, text: str, known_secrets: Optional[Dict[str, str]] = None) -> List[SecretHit]:
+    def detect_outbound(
+        self, text: str, known_secrets: dict[str, str] | None = None
+    ) -> list[SecretHit]:
         """Find secrets that would be sent outbound.
 
         ``known_secrets`` is an optional ``{placeholder: secret}`` map (e.g. the
@@ -400,8 +408,8 @@ class SecretBroker:
     def guard_outbound(
         self,
         text: str,
-        known_secrets: Optional[Dict[str, str]] = None,
-        mode: Optional[str] = None,
+        known_secrets: dict[str, str] | None = None,
+        mode: str | None = None,
     ) -> str:
         """Guard a string destined for a remote model.
 
@@ -419,14 +427,12 @@ class SecretBroker:
         self._guard_count += 1
         if mode == "raise":
             leaked = ", ".join(sorted({h.type for h in hits}))
-            raise OutboundSecretLeakError(
-                f"refusing outbound send: {len(hits)} secret(s) found ({leaked})"
-            )
+            msg = f"refusing outbound send: {len(hits)} secret(s) found ({leaked})"
+            raise OutboundSecretLeakError(msg)
         # redact mode: strip the secrets (do not send them)
-        redacted = self.redact(text)["redacted_text"]
-        return redacted
+        return self.redact(text)["redacted_text"]
 
-    def assert_clean(self, text: str, known_secrets: Optional[Dict[str, str]] = None) -> None:
+    def assert_clean(self, text: str, known_secrets: dict[str, str] | None = None) -> None:
         """Raise if ``text`` contains a live secret (strict outbound guard)."""
         self.guard_outbound(text, known_secrets, mode="raise")
 
@@ -444,7 +450,7 @@ class SecretBroker:
 class SecretBrokerModule(Module):
     """Kernel-registered module exposing the SecretBroker to the platform."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
         self._config = config or {}
         self.broker = self._build_broker()
@@ -473,14 +479,16 @@ class SecretBrokerModule(Module):
         logger.info("Secret Broker Module shutdown complete.")
 
     # Convenience passthroughs for platform consumers.
-    def redact(self, text: str) -> Dict[str, Any]:
+    def redact(self, text: str) -> dict[str, Any]:
         return self.broker.redact(text)
 
-    def restore(self, redacted_text: str, mapping: Optional[Dict[str, str]] = None) -> str:
+    def restore(self, redacted_text: str, mapping: dict[str, str] | None = None) -> str:
         return self.broker.restore(redacted_text, mapping)
 
-    def guard_outbound(self, text: str, known_secrets: Optional[Dict[str, str]] = None, **kw: Any) -> str:
+    def guard_outbound(
+        self, text: str, known_secrets: dict[str, str] | None = None, **kw: Any
+    ) -> str:
         return self.broker.guard_outbound(text, known_secrets, **kw)
 
-    def detect(self, text: str) -> List[SecretHit]:
+    def detect(self, text: str) -> list[SecretHit]:
         return self.broker.detector.detect(text)

@@ -30,6 +30,7 @@ Version: 2.0.0
 
 from __future__ import annotations
 
+import contextlib
 import datetime as _dt
 import json
 import math
@@ -135,9 +136,7 @@ def _window_ok(since: float | None, until: float | None, ts: float) -> bool:
     """Return True if timestamp ``ts`` falls within the ``[since, until]`` window."""
     if since is not None and ts < since:
         return False
-    if until is not None and ts > until:
-        return False
-    return True
+    return not (until is not None and ts > until)
 
 
 def _exact_tokens(q_tokens: list[str], doc_tokens: list[str]) -> bool:
@@ -158,9 +157,7 @@ def _bucket_range(bucket: str) -> tuple[float, float]:
     name = (bucket or "day").lower()
     dst = -1  # let time.mktime resolve DST
     if name == "week":
-        start = time.mktime(
-            (lt.tm_year, lt.tm_mon, lt.tm_mday - lt.tm_wday, 0, 0, 0, 0, 0, dst)
-        )
+        start = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday - lt.tm_wday, 0, 0, 0, 0, 0, dst))
     elif name == "month":
         start = time.mktime((lt.tm_year, lt.tm_mon, 1, 0, 0, 0, 0, 0, dst))
     else:  # 'day' (default)
@@ -388,9 +385,8 @@ class HybridRetriever:
             low_imp = min_importance is not None and item["importance"] < float(min_importance)
             if not (stale and low_imp):
                 continue
-            if (
-                merge_threshold is not None
-                and self._redundant_with(rid, ranked, float(merge_threshold))
+            if merge_threshold is not None and self._redundant_with(
+                rid, ranked, float(merge_threshold)
             ):
                 merged.append(rid)
             else:
@@ -404,9 +400,7 @@ class HybridRetriever:
             "kept": self.count(),
         }
 
-    def _redundant_with(
-        self, row_id: str, ranked: list[dict[str, Any]], threshold: float
-    ) -> bool:
+    def _redundant_with(self, row_id: str, ranked: list[dict[str, Any]], threshold: float) -> bool:
         """True if ``row_id`` is a near-duplicate (hybrid sim >= threshold) of any retained doc."""
         doc = self._index.get(row_id)
         if doc is None:
@@ -919,9 +913,8 @@ class HybridSemanticMemory(SemanticMemory):
             low_imp = min_importance is not None and item["importance"] < float(min_importance)
             if not (stale and low_imp):
                 continue
-            if (
-                merge_threshold is not None
-                and self._redundant_with(rid, ranked, float(merge_threshold))
+            if merge_threshold is not None and self._redundant_with(
+                rid, ranked, float(merge_threshold)
             ):
                 merged.append(rid)
             else:
@@ -935,9 +928,7 @@ class HybridSemanticMemory(SemanticMemory):
             "kept": self.stats()["total"],
         }
 
-    def _redundant_with(
-        self, row_id: str, ranked: list[dict[str, Any]], threshold: float
-    ) -> bool:
+    def _redundant_with(self, row_id: str, ranked: list[dict[str, Any]], threshold: float) -> bool:
         """True if ``row_id`` is a near-duplicate (hybrid sim >= threshold) of any retained doc."""
         doc = self._index.get(row_id)
         if doc is None:
@@ -980,10 +971,7 @@ class HybridSemanticMemory(SemanticMemory):
         self._index.add(row_id, text, metadata)
         prev_user = self._user_ids.get(row_id)
         self._user_ids[row_id] = user_id if user_id is not None else prev_user
-        if keep_created:
-            created_at = self._created_at.get(row_id, now)
-        else:
-            created_at = now
+        created_at = self._created_at.get(row_id, now) if keep_created else now
         self._created_at[row_id] = created_at
         self._updated_at[row_id] = now
         self._persist(row_id, text, metadata, self._user_ids[row_id], created_at, now)
@@ -1050,7 +1038,7 @@ class HybridSemanticMemory(SemanticMemory):
         meta = dict(metadata or {})
         now = time.time()
         with self._lock:
-            existing = self._index.get(id)
+            self._index.get(id)
             created_at = self._created_at.get(id, now)
             self._index.add(id, text, meta)
             self._created_at.setdefault(id, created_at)
@@ -1086,7 +1074,5 @@ class HybridSemanticMemory(SemanticMemory):
                 self._conn = None
 
     def __del__(self) -> None:  # pragma: no cover - best-effort cleanup
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:
-            pass

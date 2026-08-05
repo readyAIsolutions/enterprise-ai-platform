@@ -23,14 +23,19 @@ seconds) so tests drive bursts, window slides and lockout expiry deterministical
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 import threading
 import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Deque, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import builtins
+    from collections.abc import Callable
 
 __all__ = [
     "SlidingWindowRateLimiter",
@@ -98,16 +103,18 @@ class SlidingWindowRateLimiter:
         clock: Callable[[], float] = DEFAULT_CLOCK,
     ) -> None:
         if limit < 1:
-            raise ValueError("limit must be >= 1")
+            msg = "limit must be >= 1"
+            raise ValueError(msg)
         if window <= 0:
-            raise ValueError("window must be > 0")
+            msg = "window must be > 0"
+            raise ValueError(msg)
         self.limit = int(limit)
         self.window = float(window)
         self.clock = clock
         self._lock = threading.Lock()
-        self._hits: Dict[str, Deque[float]] = defaultdict(deque)
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
 
-    def allow(self, key: str, cost: int = 1, now: Optional[float] = None) -> Tuple[bool, int, float]:
+    def allow(self, key: str, cost: int = 1, now: float | None = None) -> tuple[bool, int, float]:
         """Attempt to allow ``cost`` requests from ``key`` in the current window.
 
         Returns ``(allowed, remaining, reset_in)``:
@@ -134,7 +141,7 @@ class SlidingWindowRateLimiter:
             reset_in = (self.window - (now - dq[0])) if dq else 0.0
             return (True, remaining, max(0.0, reset_in))
 
-    def count(self, key: str, now: Optional[float] = None) -> int:
+    def count(self, key: str, now: float | None = None) -> int:
         """Current number of live (unexpired) hits for ``key``."""
         now = self.clock() if now is None else now
         with self._lock:
@@ -153,10 +160,10 @@ class SlidingWindowRateLimiter:
         with self._lock:
             self._hits.clear()
 
-    def snapshot(self) -> Dict[str, int]:
+    def snapshot(self) -> dict[str, int]:
         """Map of key -> live hit count (for monitoring / posture)."""
         now = self.clock()
-        out: Dict[str, int] = {}
+        out: dict[str, int] = {}
         with self._lock:
             for key, dq in self._hits.items():
                 cutoff = now - self.window
@@ -193,7 +200,7 @@ class AttackerStore:
     )
     """
 
-    def __init__(self, db_path: Optional[Any] = None) -> None:
+    def __init__(self, db_path: Any | None = None) -> None:
         self.db_path = None if db_path is None else str(db_path)
         if self.db_path and self.db_path != ":memory:":
             parent = Path(self.db_path).parent
@@ -210,10 +217,10 @@ class AttackerStore:
             self._conn.commit()
 
     # -- internal helpers ---------------------------------------------------
-    def _now(self, now: Optional[float]) -> float:
+    def _now(self, now: float | None) -> float:
         return time.time() if now is None else float(now)
 
-    def _read_flags(self, raw: str) -> List[str]:
+    def _read_flags(self, raw: str) -> builtins.list[str]:
         try:
             parsed = json.loads(raw or "[]")
             return list(parsed) if isinstance(parsed, list) else []
@@ -221,19 +228,19 @@ class AttackerStore:
             return []
 
     # -- record lifecycle ----------------------------------------------------
-    def get(self, key: str) -> Optional[Dict[str, Any]]:
+    def get(self, key: str) -> dict[str, Any] | None:
         """Return the stored record for ``key`` as a dict, or ``None``."""
         with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM attackers WHERE key = ?", (key,)
-            ).fetchone()
+            row = self._conn.execute("SELECT * FROM attackers WHERE key = ?", (key,)).fetchone()
         if row is None:
             return None
         rec = dict(row)
         rec["flags"] = self._read_flags(rec["flags"])
         return rec
 
-    def add_attempt(self, key: str, now: Optional[float] = None, flag: Optional[str] = None) -> Dict[str, Any]:
+    def add_attempt(
+        self, key: str, now: float | None = None, flag: str | None = None
+    ) -> dict[str, Any]:
         """Record one attempt for ``key`` (create the record on first sight).
 
         On first sight sets ``first_seen``; always bumps ``attempt_count`` and
@@ -263,7 +270,7 @@ class AttackerStore:
             self._conn.commit()
         return self.get(key) or {}
 
-    def bump(self, key: str, now: Optional[float] = None, flag: Optional[str] = None) -> Dict[str, Any]:
+    def bump(self, key: str, now: float | None = None, flag: str | None = None) -> dict[str, Any]:
         """Increment an existing record's attempt count (create at 0 if absent)."""
         now = self._now(now)
         with self._lock:
@@ -290,7 +297,7 @@ class AttackerStore:
         return self.get(key) or {}
 
     # -- blocking ------------------------------------------------------------
-    def block(self, key: str, until: float, flag: Optional[str] = None) -> Dict[str, Any]:
+    def block(self, key: str, until: float, flag: str | None = None) -> dict[str, Any]:
         """Set ``block_until`` for ``key`` (seconds epoch). Creates if absent."""
         now = time.time()
         with self._lock:
@@ -314,7 +321,7 @@ class AttackerStore:
             self._conn.commit()
         return self.get(key) or {}
 
-    def blocked(self, key: str, now: Optional[float] = None) -> bool:
+    def blocked(self, key: str, now: float | None = None) -> bool:
         """True if ``key`` is currently blocked (``block_until`` strictly in the future)."""
         now = self._now(now)
         with self._lock:
@@ -323,11 +330,11 @@ class AttackerStore:
             ).fetchone()
         return bool(row and row["block_until"] > now)
 
-    def is_blocked(self, key: str, now: Optional[float] = None) -> bool:
+    def is_blocked(self, key: str, now: float | None = None) -> bool:
         """Alias of :meth:`blocked`."""
         return self.blocked(key, now)
 
-    def block_remaining(self, key: str, now: Optional[float] = None) -> float:
+    def block_remaining(self, key: str, now: float | None = None) -> float:
         """Seconds until an active block expires (``0.0`` if not blocked)."""
         now = self._now(now)
         with self._lock:
@@ -341,13 +348,11 @@ class AttackerStore:
     def unblock(self, key: str) -> None:
         """Clear a key's block (sets ``block_until`` to 0)."""
         with self._lock:
-            self._conn.execute(
-                "UPDATE attackers SET block_until = 0 WHERE key = ?", (key,)
-            )
+            self._conn.execute("UPDATE attackers SET block_until = 0 WHERE key = ?", (key,))
             self._conn.commit()
 
     # -- listing / lifecycle -------------------------------------------------
-    def list(self, limit: int = 100, now: Optional[float] = None) -> List[Dict[str, Any]]:
+    def list(self, limit: int = 100, now: float | None = None) -> builtins.list[dict[str, Any]]:
         """All attacker records, most recently active first."""
         now = self._now(now)
         with self._lock:
@@ -364,11 +369,8 @@ class AttackerStore:
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
-        with self._lock:
-            try:
-                self._conn.close()
-            except sqlite3.Error:
-                pass
+        with self._lock, contextlib.suppress(sqlite3.Error):
+            self._conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -395,13 +397,14 @@ class ThrottleGate:
         window: float = 60.0,
         threshold: int = 50,
         block_seconds: float = 300.0,
-        db_path: Optional[Any] = None,
+        db_path: Any | None = None,
         clock: Callable[[], float] = DEFAULT_CLOCK,
-        limiter: Optional[SlidingWindowRateLimiter] = None,
-        store: Optional[AttackerStore] = None,
+        limiter: SlidingWindowRateLimiter | None = None,
+        store: AttackerStore | None = None,
     ) -> None:
         if threshold < 1:
-            raise ValueError("threshold must be >= 1")
+            msg = "threshold must be >= 1"
+            raise ValueError(msg)
         self.threshold = int(threshold)
         self.block_seconds = float(block_seconds)
         self.clock = clock
@@ -409,7 +412,7 @@ class ThrottleGate:
         self.store = store or AttackerStore(db_path)
         self._lock = threading.Lock()
 
-    def allow(self, key: str, cost: int = 1, now: Optional[float] = None) -> Allowance:
+    def allow(self, key: str, cost: int = 1, now: float | None = None) -> Allowance:
         """Evaluate one request from ``key`` against limit + attacker state."""
         now = self.clock() if now is None else float(now)
         if self.store.blocked(key, now):
@@ -431,7 +434,7 @@ class ThrottleGate:
             return Allowance(True, remaining, 0.0, blocked=False, reason="allowed")
         return Allowance(True, remaining, reset_in, blocked=False, reason="allowed")
 
-    def blocked(self, key: str, now: Optional[float] = None) -> bool:
+    def blocked(self, key: str, now: float | None = None) -> bool:
         """True if the key is currently blocked in the attacker store."""
         return self.store.blocked(key, now)
 
@@ -439,7 +442,7 @@ class ThrottleGate:
         rec = self.store.get(key)
         return rec["attempt_count"] if rec else 0
 
-    def record(self, key: str, flag: str = "manual", now: Optional[float] = None) -> None:
+    def record(self, key: str, flag: str = "manual", now: float | None = None) -> None:
         """Manually record an attempt (e.g. an auth failure) into attacker state."""
         self.store.add_attempt(key, now, flag=flag)
 

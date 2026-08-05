@@ -13,13 +13,13 @@ All components are stdlib-only with zero external dependencies.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
-    EventBus,
-    HealthStatus,
-    Module,
-    module,
+    EventBus,  # noqa: F401
+    HealthStatus,  # noqa: F401
+    Module,  # noqa: F401
+    module,  # noqa: F401
 )
 
 from .secret_rotation import (
@@ -70,7 +70,7 @@ __all__ = [
 ]
 
 
-def create_rotation_facade(config: Optional[Dict[str, Any]] = None) -> SecretRotationFacade:
+def create_rotation_facade(config: dict[str, Any] | None = None) -> SecretRotationFacade:
     """Create a standalone :class:`SecretRotationFacade`.
 
     If ``config`` contains ``policies`` (a list of :class:`RotationPolicy`
@@ -83,14 +83,13 @@ def create_rotation_facade(config: Optional[Dict[str, Any]] = None) -> SecretRot
         elif isinstance(entry, dict):
             policy_id = entry.get("policy_id")
             if not policy_id:
-                raise ValueError("each policy dict requires 'policy_id'")
+                msg = "each policy dict requires 'policy_id'"
+                raise ValueError(msg)
             facade.register_policy(
                 RotationPolicy(
                     policy_id=policy_id,
                     max_age_days=entry.get("max_age_days", DEFAULT_MAX_AGE_DAYS),
-                    alert_before_days=entry.get(
-                        "alert_before_days", DEFAULT_ALERT_BEFORE_DAYS
-                    ),
+                    alert_before_days=entry.get("alert_before_days", DEFAULT_ALERT_BEFORE_DAYS),
                     rotation_window=entry.get("rotation_window", 1),
                     tags=tuple(entry.get("tags", [])),
                 )
@@ -101,7 +100,7 @@ def create_rotation_facade(config: Optional[Dict[str, Any]] = None) -> SecretRot
 def create_vault_facade(
     db_path: str,
     master_key: str,
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> VaultFacade:
     """Create an encrypted-at-rest :class:`VaultFacade`.
 
@@ -117,7 +116,7 @@ def create_vault_facade(
 
 
 def create_secret_rotation_module(
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> SecretRotationModule:
     """Create (but do not initialize) a :class:`SecretRotationModule`.
 

@@ -30,8 +30,8 @@ Python: 3.10+
 
 from __future__ import annotations
 
-import sys as _sys
 import os as _os
+import sys as _sys
 
 __version__ = "2.0.0"
 
@@ -42,99 +42,91 @@ if _PARENT not in _sys.path:
     _sys.path.insert(0, _PARENT)
 
 try:
-    from enterprise.platform_kernel import Module, module, HealthStatus
+    from enterprise.platform_kernel import HealthStatus, Module, module
 except ImportError:
-    from platform_kernel import Module, module, HealthStatus
+    from platform_kernel import HealthStatus, Module, module
 
 # ── Core Engine ────────────────────────────────────────────────────────────
-from .query_engine import (
-    SuperiorQueryEngine,
-    QueryConfig,
-    QueryResult,
-    ModelRouter,
-    StreamingResponse,
-    ToolCallResult,
+import contextlib
+
+from .context_manager import (
+    CompressionEngine,
+    ContextTier,
+    EmbeddingCache,
+    SmartContext,
+    WindowManager,
+)
+from .coordinator import (
+    ExecutionDAG,
+    ExecutionNode,
+    ParallelDispatch,
+    SchedulePolicy,
+    TaskCoordinator,
+)
+from .hooks_engine import (
+    HookPlugin,
+    HookPriority,
+    HookResult,
+    HooksEngine,
+    HookType,
+    PluginManifest,
 )
 
 # ── Provider Transport & Model Backends ─────────────────────────────────────
 from .providers import (
-    ChatProvider,
-    ProviderResponse,
-    RetryPolicy,
-    OpenAICompatibleProvider,
     AnthropicProvider,
-    MockProvider,
+    ChatProvider,
     EchoProvider,
-    ResilientProvider,
+    MockProvider,
+    OpenAICompatibleProvider,
     ProviderRegistry,
+    ProviderResponse,
+    ResilientProvider,
+    RetryPolicy,
     get_provider,
 )
-
 from .query_engine import (
-    ModelBackend,
     AnthropicBackend,
+    ModelBackend,
+    ModelRouter,
     OpenAICompatibleBackend,
+    QueryConfig,
+    QueryResult,
     SimulationBackend,
+    StreamingResponse,
+    SuperiorQueryEngine,
+    ToolCallResult,
 )
-
-from .coordinator import (
-    TaskCoordinator,
-    ExecutionNode,
-    ExecutionDAG,
-    SchedulePolicy,
-    RetryPolicy,
-    ParallelDispatch,
-)
-
-from .task_system import (
-    Task,
-    TaskType,
-    TaskStatus,
-    BackgroundTask,
-    TaskScheduler,
-    SwarmTaskBridge,
-    TaskResult,
-)
-
-from .context_manager import (
-    SmartContext,
-    ContextTier,
-    EmbeddingCache,
-    CompressionEngine,
-    WindowManager,
-)
-
-from .hooks_engine import (
-    HooksEngine,
-    HookType,
-    HookPriority,
-    HookResult,
-    PluginManifest,
-    HookPlugin,
-)
-
-from .state_manager import (
-    StateManager,
-    CRDTStore,
-    StateVersion,
-    MergeStrategy,
-    DistributedLock,
-)
-
 from .services import (
-    ModelService,
-    ToolService,
-    MemoryService,
     AuthService,
-    ServiceRegistry,
-    ModelProvider,
-    ToolDefinition,
-    MemoryEntry,
     AuthToken,
+    MemoryEntry,
+    MemoryService,
+    ModelProvider,
+    ModelService,
+    ServiceRegistry,
+    ToolDefinition,
+    ToolService,
 )
-
+from .state_manager import (
+    CRDTStore,
+    DistributedLock,
+    MergeStrategy,
+    StateManager,
+    StateVersion,
+)
+from .task_system import (
+    BackgroundTask,
+    SwarmTaskBridge,
+    Task,
+    TaskResult,
+    TaskScheduler,
+    TaskStatus,
+    TaskType,
+)
 
 # ── Module class registered with the platform kernel ──────────────────────
+
 
 @module(name="agent_core", version="2.0.0")
 class ClaudeCodeModule(Module):
@@ -162,11 +154,11 @@ class ClaudeCodeModule(Module):
         cfg = self._config or {}
 
         self._engine = SuperiorQueryEngine()
-        if hasattr(self._engine, 'initialize'):
+        if hasattr(self._engine, "initialize"):
             await self._engine.initialize()
 
         self._coordinator = TaskCoordinator()
-        if hasattr(self._coordinator, 'initialize'):
+        if hasattr(self._coordinator, "initialize"):
             await self._coordinator.initialize()
 
         self._scheduler = TaskScheduler(config=cfg.get("scheduler", {}))
@@ -189,14 +181,17 @@ class ClaudeCodeModule(Module):
     async def health_check(self) -> HealthStatus:
         checks = []
         for name, obj in [
-            ("engine", self._engine), ("coordinator", self._coordinator),
-            ("scheduler", self._scheduler), ("context", self._ctx_mgr),
-            ("hooks", self._hooks), ("state", self._state),
+            ("engine", self._engine),
+            ("coordinator", self._coordinator),
+            ("scheduler", self._scheduler),
+            ("context", self._ctx_mgr),
+            ("hooks", self._hooks),
+            ("state", self._state),
             ("services", self._services),
         ]:
             try:
                 if obj is not None:
-                    if hasattr(obj, 'health_check'):
+                    if hasattr(obj, "health_check"):
                         ok = await obj.health_check()
                     else:
                         ok = True
@@ -214,14 +209,18 @@ class ClaudeCodeModule(Module):
 
     async def shutdown(self) -> None:
         self._status = HealthStatus.STOPPING
-        for obj in [self._services, self._state, self._hooks,
-                     self._ctx_mgr, self._scheduler, self._coordinator,
-                     self._engine]:
-            if obj is not None and hasattr(obj, 'shutdown'):
-                try:
+        for obj in [
+            self._services,
+            self._state,
+            self._hooks,
+            self._ctx_mgr,
+            self._scheduler,
+            self._coordinator,
+            self._engine,
+        ]:
+            if obj is not None and hasattr(obj, "shutdown"):
+                with contextlib.suppress(Exception):
                     await obj.shutdown()
-                except Exception:
-                    pass
         self._status = HealthStatus.UNKNOWN
 
     @property

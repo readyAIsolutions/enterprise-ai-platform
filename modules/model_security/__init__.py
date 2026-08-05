@@ -19,15 +19,16 @@ All components are stdlib-only, zero external dependencies.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
-    EventBus,
-    HealthStatus,
-    Module,
-    module,
+    EventBus,  # noqa: F401
+    HealthStatus,  # noqa: F401
+    Module,  # noqa: F401
+    module,  # noqa: F401
 )
 
+from .deployment_gate import DeploymentSecurityError, DeploymentSecurityGate  # noqa: F401
 from .model_security import (
     AuditEntry,
     AuditLogger,
@@ -41,38 +42,35 @@ from .model_security import (
     PipelineResult,
     PolicyEngine,
     PromptInjectionShield,
-    SecurityPipeline,
     SecretMatch,
+    SecurityPipeline,
     ThreatCategory,
 )
-
-from .security_gate import SecurityGate
-from .security_health import SecurityHealth
-from .redteam_bench import RedTeamBench
-from .deployment_gate import DeploymentSecurityGate, DeploymentSecurityError
-
 from .probe_detector import (
-    AttemptResult,
-    Detector,
-    DetectorResult,
-    GenericFlagDetector,
-    InjectionDetector,
-    JailbreakDetector,
-    JailbreakProbe,
-    PIILeakDetector,
-    PIILeakProbe,
-    PromptInjectionProbe,
-    Probe,
-    ScanReport,
-    SecurityScanner,
-    DataExfilProbe,
-    get_detector,
-    get_probe,
-    list_detectors,
-    list_probes,
-    register_detector,
-    register_probe,
+    AttemptResult,  # noqa: F401
+    DataExfilProbe,  # noqa: F401
+    Detector,  # noqa: F401
+    DetectorResult,  # noqa: F401
+    GenericFlagDetector,  # noqa: F401
+    InjectionDetector,  # noqa: F401
+    JailbreakDetector,  # noqa: F401
+    JailbreakProbe,  # noqa: F401
+    PIILeakDetector,  # noqa: F401
+    PIILeakProbe,  # noqa: F401
+    Probe,  # noqa: F401
+    PromptInjectionProbe,  # noqa: F401
+    ScanReport,  # noqa: F401
+    SecurityScanner,  # noqa: F401
+    get_detector,  # noqa: F401
+    get_probe,  # noqa: F401
+    list_detectors,  # noqa: F401
+    list_probes,  # noqa: F401
+    register_detector,  # noqa: F401
+    register_probe,  # noqa: F401
 )
+from .redteam_bench import RedTeamBench  # noqa: F401
+from .security_gate import SecurityGate  # noqa: F401
+from .security_health import SecurityHealth  # noqa: F401
 
 __version__ = "1.0.0"
 __module__ = "model_security"
@@ -102,7 +100,7 @@ _logger = logging.getLogger("enterprise.model_security")
 
 
 # Convenience function for external use
-def create_security_pipeline(config: Optional[Dict[str, Any]] = None) -> SecurityPipeline:
+def create_security_pipeline(config: dict[str, Any] | None = None) -> SecurityPipeline:
     """Create a SecurityPipeline with default or custom configuration."""
     default_config = {
         "audit_path": "data/model_security_audit.log",
