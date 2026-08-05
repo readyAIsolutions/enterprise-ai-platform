@@ -13,6 +13,10 @@ Covers:
   - ConfigurationLoader
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import asyncio
 import threading
 import time
@@ -23,7 +27,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from enterprise.platform_kernel import (
+from platform_kernel import (
     ConfigurationLoader,
     Event,
     EventBus,
@@ -194,7 +198,7 @@ class TestModuleDecorator:
             async def shutdown(self) -> None:
                 pass
 
-        from enterprise.platform_kernel import _MODULE_REGISTRY
+        from platform_kernel import _MODULE_REGISTRY
 
         assert "test_decorator_mod" in _MODULE_REGISTRY
         assert _MODULE_REGISTRY["test_decorator_mod"] is TestMod
