@@ -305,6 +305,42 @@ modules:
       default_likelihood: 3
       default_impact: 3
 
+  # ── Security: TRIAD FORGE hacker box (black/grey/white scans + funnel) ─────
+  triadforge:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 20
+    health_check_interval_sec: 120
+    config:
+      db_path: "/home/hunter/Desktop/TriadForge/enterprise_triadforge.db"
+      base_dir: "/home/hunter/Desktop/TriadForge"
+
+  # ── Security: AI Defense (defend against AI-driven / automated attackers) ──
+  ai_defense:
+    enabled: true
+    priority: 15
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      anomaly:
+        window_sec: 60
+        z_threshold: 4.0
+        flood_events_per_sec: 20.0
+      bot:
+        pacing_sd_threshold: 0.05
+        min_intervals: 6
+      extraction:
+        max_queries_per_window: 200
+        window_sec: 60
+        min_queries: 50
+        max_distinct_tokens: 3000
+      stuffing:
+        max_failures: 5
+        lockout_seconds: 300.0
+        per_ip_max_failures: 20
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
