@@ -20,6 +20,13 @@ from enterprise.platform_kernel import EventBus, HealthStatus, Module, module
 from .model_router import (
     AuthenticationError,
     BaseProviderAdapter,
+    CAT_AUTH,
+    CAT_OK,
+    CAT_PROTOCOL,
+    CAT_RATE_LIMIT,
+    CAT_TIMEOUT,
+    CAT_UNAVAILABLE,
+    CAT_UNKNOWN,
     CooldownCache,
     DeploymentModel,
     EchoAdapter,
@@ -35,6 +42,14 @@ from .model_router import (
     RouteResult,
     Router,
     ServiceUnavailableError,
+    classify_http_error,
+)
+
+from .live import (
+    LiveFailoverSmoke,
+    LiveProbe,
+    ProbeResult,
+    ping_local_free_router,
 )
 
 __version__ = "1.0.0"
@@ -63,6 +78,20 @@ __all__ = [
     "AuthenticationError",
     "ServiceUnavailableError",
     "NoDeploymentAvailableError",
+    # Classification / diagnosis
+    "classify_http_error",
+    "CAT_AUTH",
+    "CAT_RATE_LIMIT",
+    "CAT_UNAVAILABLE",
+    "CAT_TIMEOUT",
+    "CAT_PROTOCOL",
+    "CAT_UNKNOWN",
+    "CAT_OK",
+    # Live smoke / sanity
+    "LiveProbe",
+    "LiveFailoverSmoke",
+    "ProbeResult",
+    "ping_local_free_router",
 ]
 
 _logger = logging.getLogger("enterprise.model_router")

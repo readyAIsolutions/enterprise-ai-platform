@@ -63,6 +63,14 @@ from .a2a import (
     encode_task,
     handoff,
 )
+from .http_transport import (
+    A2AHttpClient,
+    A2AHttpServer,
+    A2ATransportError,
+    A2ATransportTimeout,
+    MemoryFailureInjector,
+    OutOfOrderError,
+)
 
 __version__ = "1.0.0"
 __module__ = "a2a"
@@ -77,6 +85,13 @@ __all__ = [
     "TaskRouter",
     "RouteResult",
     "InMemoryTransport",
+    # HTTP transport
+    "A2AHttpServer",
+    "A2AHttpClient",
+    "A2ATransportError",
+    "A2ATransportTimeout",
+    "MemoryFailureInjector",
+    "OutOfOrderError",
     # Core data primitives
     "AgentCard",
     "AgentKey",

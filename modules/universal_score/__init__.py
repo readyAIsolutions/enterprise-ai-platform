@@ -15,6 +15,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from enterprise.modules.universal_score.coverage_fleet import (
+    CoverageError,
+    CoverageProbe,
+    CoverageReport,
+    run_fleet_coverage,
+)
 from enterprise.modules.universal_score.universal_score import (
     CertificationLevel,
     DIMENSION_WEIGHTS,
@@ -44,6 +50,10 @@ __all__ = [
     "certification_for_score",
     "DIMENSION_WEIGHTS",
     "SECRET_PATTERNS",
+    "CoverageProbe",
+    "CoverageReport",
+    "CoverageError",
+    "run_fleet_coverage",
     "__version__",
     "__module_name__",
 ]

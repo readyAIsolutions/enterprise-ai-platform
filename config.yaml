@@ -152,8 +152,24 @@ modules:
     startup_timeout_sec: 15
     health_check_interval_sec: 60
     config:
-      channels: {}   # e.g. {ops: {type: telegram, token: ..., chat_id: ...}}
-      jobs: []       # e.g. [{id: nightly, kind: cron, expr: "0 2 * * *"}]
+      # channels: {ops: {type: telegram, token: ..., chat_id: ...}, ...}
+      # jobs: [{id: nightly, kind: cron, expr: "0 2 * * *", callback: ...}]
+      #
+      # Example (hermetic, non-destructive): a local echo webhook that the
+      # gateway's DeliveryResilience/ChannelConfigLoader/PushTest wiring can push
+      # to. Point it at your own http.server or echo endpoint; registering a
+      # channel is inert until something actually sends through it, and jobs are
+      # only registered (never auto-run) by this module.
+      channels:
+        local_echo:
+          type: webhook
+          url: "http://127.0.0.1:8099/gateway/echo"
+          headers: {"X-ENI": "gateway"}
+      jobs:
+        - id: daily_universal_score
+          kind: cron
+          expr: "0 9 * * *"
+          callback: "report_universal_score"
 
   # ── Upgrade: Semantic / vector memory retrieval (cognee-style) ─────────────
   semantic_memory:
@@ -390,6 +406,39 @@ modules:
         max_failures: 5
         lockout_seconds: 300.0
         per_ip_max_failures: 20
+
+  # ── Secret Broker: local-first secret handling ─────────────────────────────
+  # detect -> substitute -> call model -> reverse-substitute, so a secret never
+  # leaves the box to a remote model.
+  secret_broker:
+    enabled: true
+    priority: 8
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      guard_mode: "raise"  # raise | redact | off
+      detector:
+        min_entropy: 3.8
+        entropy_token_min_len: 16
+        max_results: 1000
+
+  # ── Prompt Guard: injection / jailbreak / policy guarding ──────────────────
+  # Chains injection + jailbreak + policy checks in short-circuit and audits
+  # every decision.
+  prompt_guard:
+    enabled: true
+    priority: 7
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      risk_threshold: 2.0
+      audit_capacity: 10000
+      injection:
+        injection_threshold: 1.0
+        jailbreak_threshold: 1.0
+        allowlist: []
 
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:

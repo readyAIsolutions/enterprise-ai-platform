@@ -42,6 +42,9 @@ from .mcp_tools import (
     tool,
 )
 
+# Real transport servers (HTTP / SSE / stdio) over the ToolServer.
+from .server import MCPServer, SSETransport, StdioServer, serve
+
 __version__ = "1.0.0"
 __module__ = "mcp_tools"
 
@@ -60,6 +63,11 @@ __all__ = [
     "Transport",
     "StdioTransport",
     "MemoryTransport",
+    # Real socket transport servers
+    "MCPServer",
+    "SSETransport",
+    "StdioServer",
+    "serve",
     # Factory
     "create_mcp_tools_module",
 ]

@@ -684,6 +684,94 @@ class TestHealthChecker:
         assert isinstance(d["response_time_ms"], float)
         assert "timestamp" in d
 
+    def test_functional_health_check_degrades_without_probe(self, mock_registry):
+        """Modules without a probe degrade gracefully to a structural report."""
+        checker = HealthChecker(mock_registry)
+        report = asyncio.run(checker.functional_health_check("healthy_mod"))
+        assert report is not None
+        # Structural status preserved.
+        assert report.status == HealthStatus.HEALTHY
+        assert report.details["check_mode"] == "functional"
+        functional = report.details["functional"]
+        assert functional["enabled"] is False
+        assert functional.get("reason") == "no_probe"
+        assert functional.get("result") is None
+
+    def test_functional_health_check_runs_real_probe(self, mock_registry):
+        """Modules exposing a probe get a real non-mutating functional result."""
+        @module(name="probe_mod", version="1.0.0")
+        class ProbeMod(Module):
+            async def initialize(self) -> None:
+                pass
+
+            async def health_check(self) -> HealthStatus:
+                return HealthStatus.HEALTHY
+
+            async def shutdown(self) -> None:
+                pass
+
+            async def probe(self) -> dict:
+                # Real, non-mutating capability check.
+                return {"capable": True, "depth": 3}
+
+        rec = ModuleRecord(
+            name="probe_mod", path=Path("/fake/probe_mod"), version="1.0.0",
+            instance=ProbeMod(),
+        )
+        registry = MagicMock(spec=ModuleRegistry)
+        registry.list_modules.return_value = [rec]
+        registry.get_instance = lambda name: rec.instance if name == "probe_mod" else None
+
+        checker = HealthChecker(registry)
+        report = asyncio.run(checker.functional_health_check("probe_mod"))
+        assert report.status == HealthStatus.HEALTHY
+        functional = report.details["functional"]
+        assert functional["enabled"] is True
+        assert functional["ok"] is True
+        assert functional["result"] == {"capable": True, "depth": 3}
+
+    def test_functional_health_check_probe_failure_flips_status(self, mock_registry):
+        """A probe that fails marks the module unhealthy (real capability loss)."""
+        @module(name="flaky_mod", version="1.0.0")
+        class FlakyMod(Module):
+            async def initialize(self) -> None:
+                pass
+
+            async def health_check(self) -> HealthStatus:
+                return HealthStatus.HEALTHY
+
+            async def shutdown(self) -> None:
+                pass
+
+            async def probe(self) -> dict:
+                raise RuntimeError("probe failed")
+
+        rec = ModuleRecord(
+            name="flaky_mod", path=Path("/fake/flaky_mod"), version="1.0.0",
+            instance=FlakyMod(),
+        )
+        registry = MagicMock(spec=ModuleRegistry)
+        registry.list_modules.return_value = [rec]
+        registry.get_instance = lambda name: rec.instance if name == "flaky_mod" else None
+
+        checker = HealthChecker(registry)
+        report = asyncio.run(checker.functional_health_check("flaky_mod"))
+        # Structural check said healthy, but the real functional probe failed =>
+        # health reflects real capability and is therefore UNHEALTHY.
+        assert report.status == HealthStatus.UNHEALTHY
+        functional = report.details["functional"]
+        assert functional["ok"] is False
+        assert "probe failed" in functional["error"]
+
+    def test_run_all_checks_functional_flag(self, mock_registry):
+        """run_all_checks(functional=True) still returns full report set."""
+        checker = HealthChecker(mock_registry)
+        reports = asyncio.run(checker.run_all_checks(functional=True))
+        assert len(reports) == 3  # 2 modules + platform aggregate
+        healthy = next(r for r in reports if r.module_name == "healthy_mod")
+        assert healthy.details.get("check_mode") == "functional"
+        assert healthy.details["functional"]["reason"] == "no_probe"
+
 
 # =============================================================================
 # Tests — Metrics Collector

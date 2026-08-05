@@ -916,6 +916,28 @@ class ModuleRegistry:
 # =============================================================================
 
 
+def _json_safe(value: Any, depth: int = 0) -> Any:
+    """Best-effort coercion of arbitrary probe/metric values to JSON types.
+
+    Used by functional health checks and status reporting so raw Python
+    objects (datetimes, enums, sets, nested structures) never break the
+    dashboard JSON resposnes. Deeply nested or opaque values are stringified.
+    """
+    if depth > 12:
+        return str(value)
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v, depth + 1) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_json_safe(v, depth + 1) for v in value]
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
 @dataclass
 class HealthReport:
     """Aggregate health report for a single module or the entire platform.
@@ -987,8 +1009,14 @@ class HealthChecker:
         self._failure_counts: Dict[str, int] = defaultdict(int)
         self._success_counts: Dict[str, int] = defaultdict(int)
 
-    async def run_all_checks(self) -> List[HealthReport]:
+    async def run_all_checks(self, functional: bool = False) -> List[HealthReport]:
         """Run health checks on all initialized modules.
+
+        Args:
+            functional: When True, also run a real (non-mutating) functional
+                probe on every module that exposes one, so health reflects
+                real capability rather than just successful construction.
+                Degrades gracefully for modules without a probe.
 
         Returns:
             List of HealthReports, one per module plus a platform aggregate.
@@ -1000,7 +1028,15 @@ class HealthChecker:
             if record.instance is None:
                 continue
 
-            report = await self._check_one(record.instance, record.name)
+            if functional:
+                report = await self.functional_health_check(record.name)
+                if report is None:
+                    # Extremely defensive: instance vanished between listing and
+                    # lookup. Fall back to a structural check so we never emit
+                    # a missing report into the stream.
+                    report = await self._check_one(record.instance, record.name)
+            else:
+                report = await self._check_one(record.instance, record.name)
             self._update_tracking(report)
             reports.append(report)
 
@@ -1026,6 +1062,87 @@ class HealthChecker:
         report = await self._check_one(instance, module_name)
         self._update_tracking(report)
         return report
+
+    # ── Functional Health ────────────────────────────────────────────────────
+
+    async def functional_health_check(
+        self,
+        module_name: str,
+        timeout_sec: Optional[float] = None,
+    ) -> Optional[HealthReport]:
+        """Run a structural + functional health check for a single module.
+
+        In addition to the structural ``health_check()`` (which only proves the
+        module was constructed), runs a real, non-mutating functional probe when
+        the module exposes one (``probe()`` or ``functional_probe()``) and folds
+        the result into the report details. Health therefore reflects real
+        capability, not just successful construction.
+
+        Degrades gracefully: modules without a probe return a purely structural
+        report with ``functional.reason == "no_probe"``; a probe that raises or
+        times out marks the module ``UNHEALTHY``. This method never mutates the
+        module and never updates the internal failure/success tracking (it is a
+        read-only inspection mode).
+
+        Args:
+            module_name: Name of the registered module to check.
+            timeout_sec: Optional per-call timeout, defaults to the checker's.
+
+        Returns:
+            A HealthReport enriched with functional details, or None if the
+            module is not registered.
+        """
+        instance = self._registry.get_instance(module_name)
+        if instance is None:
+            return None
+
+        timeout = self._timeout_sec if timeout_sec is None else timeout_sec
+        start = time.perf_counter()
+
+        # Structural check (unchanged semantics from _check_one).
+        try:
+            status = await asyncio.wait_for(instance.health_check(), timeout=timeout)
+        except asyncio.TimeoutError:
+            status = HealthStatus.UNHEALTHY
+        except Exception:
+            status = HealthStatus.UNHEALTHY
+
+        # Optional functional probe — real, non-mutating capability check.
+        functional: Dict[str, Any] = {"enabled": False, "reason": "no_probe"}
+        probe = getattr(instance, "probe", None)
+        if not callable(probe):
+            probe = getattr(instance, "functional_probe", None)
+        if callable(probe):
+            functional = {"enabled": True, "ran": True, "ok": None, "error": None}
+            try:
+                if asyncio.iscoroutinefunction(probe):
+                    raw = await asyncio.wait_for(probe(), timeout=timeout)
+                else:
+                    raw = await asyncio.wait_for(
+                        asyncio.to_thread(probe), timeout=timeout
+                    )
+                functional["ok"] = raw is not False and raw is not None
+                functional["result"] = _json_safe(raw)
+            except asyncio.TimeoutError:
+                functional.update({"ok": False, "error": "timeout"})
+                status = HealthStatus.UNHEALTHY
+            except Exception as exc:  # noqa: BLE001 - probe failure degrades health
+                functional.update({"ok": False, "error": str(exc)})
+                status = HealthStatus.UNHEALTHY
+
+        elapsed_ms = (time.perf_counter() - start) * 1000.0
+        return HealthReport(
+            module_name=module_name,
+            status=status,
+            response_time_ms=round(elapsed_ms, 2),
+            timestamp=datetime.now(timezone.utc),
+            details={
+                "module_id": instance.module_id,
+                "version": instance.version,
+                "check_mode": "functional",
+                "functional": functional,
+            },
+        )
 
     async def _check_one(self, instance: Module, module_name: str) -> HealthReport:
         """Run a single module health check with timeout."""

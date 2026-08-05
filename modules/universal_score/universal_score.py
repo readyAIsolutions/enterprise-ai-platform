@@ -563,8 +563,18 @@ class UniversalBuildScore:
                          round(score, 4),
                          f"test:{test_lines} src:{src_lines} (ratio {ratio:.2f})")
 
-    def _probe_coverage_heuristic(self, project: Path) -> SubSignal:
-        # If a coverage file exists, we can be more confident; otherwise heuristic
+    def _probe_coverage_heuristic(self, project: Path,
+                                  coverage_pct: Optional[float] = None) -> SubSignal:
+        # If a real measured coverage % is supplied (e.g. from CoverageProbe),
+        # fold it straight into D4 Test Quality — the anti-stub, measured path.
+        if coverage_pct is not None:
+            return SubSignal(
+                "coverage_heuristic", "Coverage",
+                round(min(1.0, float(coverage_pct) / 100.0), 4),
+                f"measured line coverage {coverage_pct:g}%",
+            )
+        # Otherwise fall back to the heuristic (coverage artifact present, else
+        # inferred from the test-to-source ratio).
         cov_files = [p for p in _iter_project_files(project)
                      if ".coverage" in p.name or p.name.endswith("coverage.xml")
                      or "coverage" in p.name.lower()]
@@ -726,7 +736,8 @@ class UniversalBuildScore:
     # ---------- Aggregation ---------------------------------------------
 
     def _dimension_probes(self, dimension: Dimension, project: Path,
-                          run_tests: bool) -> List[SubSignal]:
+                          run_tests: bool,
+                          coverage_pct: Optional[float] = None) -> List[SubSignal]:
         if dimension == Dimension.RELIABILITY:
             return [self._probe_builds_clean(project),
                     self._probe_error_handling(project),
@@ -744,7 +755,7 @@ class UniversalBuildScore:
             return [self._probe_tests_present(project),
                     self._probe_tests_pass(project, run_tests),
                     self._probe_test_to_source_ratio(project),
-                    self._probe_coverage_heuristic(project)]
+                    self._probe_coverage_heuristic(project, coverage_pct)]
         if dimension == Dimension.DELIVERY:
             return [self._probe_ci_config(project),
                     self._probe_packaging(project),
@@ -792,7 +803,8 @@ class UniversalBuildScore:
 
     # ---------- Main entry -----------------------------------------------
 
-    def score(self, project_path: Any, run_tests: bool = True) -> Dict[str, Any]:
+    def score(self, project_path: Any, run_tests: bool = True,
+              coverage_pct: Optional[float] = None) -> Dict[str, Any]:
         project = Path(project_path)
         if not project.exists():
             raise FileNotFoundError(f"Project path does not exist: {project}")
@@ -807,7 +819,7 @@ class UniversalBuildScore:
 
         # Recompute dimension probes (cheap, keeps code simple)
         for dim in Dimension:
-            sigs = self._dimension_probes(dim, project, run_tests)
+            sigs = self._dimension_probes(dim, project, run_tests, coverage_pct=coverage_pct)
             # override the ones we already computed so metrics are consistent
             override = {
                 "tests_pass": tests_pass,
@@ -844,6 +856,7 @@ class UniversalBuildScore:
             "any_hard_gate_failed": any_gate_fail,
             "dimensions": {d.value: r.to_dict() for d, r in dim_results.items()},
             "project": str(project),
+            "coverage_pct": coverage_pct,
         }
 
     def _compute_bonus(self, dim_results: Dict[Dimension, DimensionResult],
@@ -904,11 +917,12 @@ class UniversalScoreModule(Module):
         logger.info("Universal Build Score module shutdown")
 
     # Facade
-    def score(self, project: Any, run_tests: Optional[bool] = None) -> Dict[str, Any]:
+    def score(self, project: Any, run_tests: Optional[bool] = None,
+              coverage_pct: Optional[float] = None) -> Dict[str, Any]:
         if self.engine is None:
             raise RuntimeError("UniversalScoreModule not initialized")
         use_tests = self.config.get("run_tests", False) if run_tests is None else run_tests
-        result = self.engine.score(project, run_tests=use_tests)
+        result = self.engine.score(project, run_tests=use_tests, coverage_pct=coverage_pct)
         self._last_score = result
         return result
 

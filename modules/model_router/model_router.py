@@ -59,6 +59,10 @@ class ProviderError(Exception):
 class RateLimitError(ProviderError):
     """Upstream returned 429 / rate-limited; safe to retry."""
 
+    def __init__(self, message: str = "", retry_after: Optional[str] = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
 
 class ProviderTimeoutError(TimeoutError, ProviderError):
     """Upstream timed out; safe to retry."""
@@ -74,6 +78,75 @@ class ServiceUnavailableError(ProviderError):
 
 class NoDeploymentAvailableError(ProviderError):
     """No healthy (non-cooldowned, non-blacklisted) deployment is left."""
+
+
+# =============================================================================
+# Error classification / diagnosis
+# =============================================================================
+
+# machine-readable categories returned by classify_http_error()
+CAT_AUTH = "auth"
+CAT_RATE_LIMIT = "rate_limit"
+CAT_UNAVAILABLE = "unavailable"
+CAT_TIMEOUT = "timeout"
+CAT_PROTOCOL = "protocol"
+CAT_UNKNOWN = "unknown"
+CAT_OK = "ok"
+
+
+def classify_http_error(error: Exception, endpoint: Optional[str] = None):
+    """Map an exception to a ``(category, human_readable_reason)`` pair.
+
+    Works on both the router's own :class:`ProviderError` subclasses and on raw
+    ``urllib``/stdlib exceptions (as surfaced by :class:`HTTPAdapter`). This gives
+    operators a single deterministic classifier to reason about a deployment,
+    independent of the transport layer that raised the failure.
+
+    Categories: ``auth``, ``rate_limit`` (incl. Retry-After), ``unavailable``,
+    ``timeout``, ``protocol``, ``unknown``, or ``ok``.
+    """
+    ep = f" @ {endpoint}" if endpoint else ""
+
+    # -- Already-classified domain errors -------------------------------------
+    if isinstance(error, AuthenticationError):
+        return CAT_AUTH, f"authentication failed (HTTP 401/403): {error}{ep}"
+    if isinstance(error, RateLimitError):
+        return CAT_RATE_LIMIT, f"rate-limited (HTTP 429): {error}{ep}"
+    if isinstance(error, ProviderTimeoutError):
+        return CAT_TIMEOUT, f"provider timeout: {error}{ep}"
+    if isinstance(error, ServiceUnavailableError):
+        return CAT_UNAVAILABLE, f"service unavailable (HTTP 5xx): {error}{ep}"
+    if isinstance(error, ProviderError):
+        return CAT_PROTOCOL, f"provider error: {error}{ep}"
+
+    # -- Raw urllib / stdlib errors -------------------------------------------
+    if isinstance(error, urllib.error.HTTPError):
+        code = error.code
+        if code in (401, 403):
+            return CAT_AUTH, f"HTTP {code} authentication failed{ep}"
+        if code == 429:
+            retry = ""
+            headers = getattr(error, "headers", None)
+            retry_after = None
+            if headers is not None:
+                try:
+                    retry_after = headers.get("Retry-After")
+                except Exception:  # pragma: no cover - unusual header object
+                    retry_after = None
+            if retry_after:
+                retry = f" (Retry-After: {retry_after}s)"
+            return CAT_RATE_LIMIT, f"HTTP 429 rate-limited{retry}{ep}"
+        if 500 <= code <= 599:
+            return CAT_UNAVAILABLE, f"HTTP {code} service unavailable{ep}"
+        if 400 <= code <= 499:
+            return CAT_PROTOCOL, f"HTTP {code} client/request error{ep}"
+        return CAT_PROTOCOL, f"HTTP {code}{ep}"
+
+    if isinstance(error, (urllib.error.URLError, TimeoutError, socket.timeout)):
+        return CAT_TIMEOUT, f"connection/timeout: {error}{ep}"
+
+    return CAT_UNKNOWN, f"unclassified error: {error}{ep}"
+
 
 
 # =============================================================================
@@ -269,6 +342,51 @@ class HTTPAdapter(BaseProviderAdapter):
     ) -> None:
         self.timeout = timeout
         self._env = env if env is not None else os.environ
+        # Last-outcome bookkeeping so operators can inspect a failed call.
+        self.last_status_code: Optional[int] = None
+        self.last_retry_after: Optional[str] = None
+        self.last_endpoint: Optional[str] = None
+        self.last_error: Optional[Exception] = None
+
+    def _record_outcome(self, status_code: Optional[int], exc: Optional[Exception] = None) -> None:
+        self.last_status_code = status_code
+        self.last_error = exc
+        if exc is not None:
+            self.last_retry_after = getattr(exc, "retry_after", None)
+
+    def diagnose(self, endpoint: Optional[str] = None,
+                 error: Optional[Exception] = None) -> str:
+        """Return a human-readable reason for a provider failure.
+
+        ``classify_http_error`` is the guts of this method — it turns any caught
+        exception (raw ``urllib`` or our own :class:`ProviderError`) into a
+        plain-language description such as:
+
+            "HTTP 429 rate-limited (Retry-After: 2s) @ https://..."
+
+        If ``error`` is omitted the most recent outcome recorded by a prior
+        :meth:`call` is classified, so an operator can call
+        ``adapter.diagnose()`` right after a failed request to get a reason.
+        ``endpoint`` is optional context appended to the message (e.g. the
+        deployment's base_url).
+        """
+        if error is None:
+            error = self.last_error
+        if error is None:
+            ep = f" @ {endpoint}" if endpoint else ""
+            if self.last_status_code is not None:
+                status = self.last_status_code
+                if status == 429:
+                    retry = f" (Retry-After: {self.last_retry_after}s)" if self.last_retry_after else ""
+                    return f"HTTP 429 rate-limited{retry}{ep}"
+                if status in (401, 403):
+                    return f"HTTP {status} authentication failed{ep}"
+                if 500 <= status <= 599:
+                    return f"HTTP {status} service unavailable{ep}"
+                return f"HTTP {status}{ep}"
+            return "no prior call recorded"
+        _, reason = classify_http_error(error, endpoint=endpoint)
+        return reason
 
     async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:
         url = deployment.base_url.rstrip("/") + "/chat/completions"
@@ -279,19 +397,32 @@ class HTTPAdapter(BaseProviderAdapter):
         req.add_header("Content-Type", "application/json")
         if api_key:
             req.add_header("Authorization", f"Bearer {api_key}")
+        self.last_endpoint = url
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
+            self._record_outcome(getattr(resp, "status", 200), None)
         except urllib.error.HTTPError as e:
             code = e.code
+            self._record_outcome(code, e)
+            retry_after = None
             if code == 429:
-                raise RateLimitError(f"HTTP 429 rate-limited for {deployment.id}")
+                headers = getattr(e, "headers", None)
+                if headers is not None:
+                    try:
+                        retry_after = headers.get("Retry-After")
+                    except Exception:  # pragma: no cover - unusual header object
+                        retry_after = None
+                err = RateLimitError(f"HTTP 429 rate-limited for {deployment.id}")
+                err.retry_after = retry_after
+                raise err
             if code in (401, 403):
                 raise AuthenticationError(f"HTTP {code} auth for {deployment.id}")
             if 500 <= code <= 599:
                 raise ServiceUnavailableError(f"HTTP {code} unavailable for {deployment.id}")
             raise ProviderError(f"HTTP {code} for {deployment.id}")
         except (urllib.error.URLError, TimeoutError, socket.timeout) as e:
+            self._record_outcome(None, e)
             raise ProviderTimeoutError(f"timeout/runtime error for {deployment.id}: {e}")
 
         try:
@@ -733,4 +864,13 @@ __all__ = [
     "AuthenticationError",
     "ServiceUnavailableError",
     "NoDeploymentAvailableError",
+    # Classification / diagnosis
+    "classify_http_error",
+    "CAT_AUTH",
+    "CAT_RATE_LIMIT",
+    "CAT_UNAVAILABLE",
+    "CAT_TIMEOUT",
+    "CAT_PROTOCOL",
+    "CAT_UNKNOWN",
+    "CAT_OK",
 ]

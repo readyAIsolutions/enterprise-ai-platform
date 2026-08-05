@@ -53,6 +53,15 @@ from .gateway import (
     interval_next,
     send_with_retry,
 )
+from .jobs import (
+    ChannelConfigLoader,
+    JobRegistry,
+    JobScheduler,
+    RegisteredJob,
+    load_jobs,
+    push_test,
+    wire_config,
+)
 
 __all__ = [
     "__version__",
@@ -76,6 +85,14 @@ __all__ = [
     "send_with_retry",
     "GatewayRouter",
     "Outbox",
+    # Real channel + scheduled-job wiring
+    "RegisteredJob",
+    "JobRegistry",
+    "JobScheduler",
+    "ChannelConfigLoader",
+    "push_test",
+    "load_jobs",
+    "wire_config",
 ]
 
 _logger: logging.Logger = logging.getLogger("enterprise.gateway")
