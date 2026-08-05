@@ -17,6 +17,8 @@ Architecture:
     metrics.py      - Developer productivity and DORA metrics
 """
 
+__version__ = "1.0.0"
+
 from enterprise.modules.developer_experience.journey import (
     DeveloperJourney,
     JourneyStage,
@@ -164,3 +166,78 @@ __all__ = [
     "track_build_duration",
     "track_deploy_frequency",
 ]
+
+# --------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
+# Kernel lifecycle registration -- makes this OS module discoverable by the
+# ENI Platform Kernel for initialize/health_check/shutdown orchestration.
+# --------------------------------------------------------------------------
+import asyncio
+import logging
+import threading
+from typing import Any, Dict, Optional
+
+from enterprise.platform_kernel import HealthStatus, Module, module
+
+_KERNEL_VERSION = globals().get("__version__", "1.0.0")
+
+from .journey import DeveloperJourney
+
+_logger = logging.getLogger("enterprise.developer_experience")
+
+
+@module(name="developer_experience", version=_KERNEL_VERSION)
+class DeveloperExperienceModule(Module):
+    """Kernel-managed wrapper around the developer_experience OS module.
+
+    Wraps the most representative entrypoint (DeveloperJourney) so the platform kernel
+    can initialize it, probe its health, and shut it down as part of the ENI
+    lifecycle. If the core component cannot be instantiated the module reports
+    UNHEALTHY rather than crashing the platform.
+    """
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        super().__init__(config)
+        self._lock = threading.RLock()
+        self._component = None
+        self._init_error = None
+
+    async def initialize(self) -> None:
+        with self._lock:
+            self._status = HealthStatus.STARTING
+            try:
+                self._component = DeveloperJourney(developer_id="kernel", developer_name="Kernel", team="platform", role="engineer")
+                self._status = HealthStatus.HEALTHY
+                _logger.info("%s module initialized", self.name)
+            except Exception as e:  # pragma: no cover - degrade gracefully
+                self._init_error = str(e)
+                self._status = HealthStatus.UNHEALTHY
+                _logger.warning("%s module failed to initialize: %s", self.name, e)
+
+    async def health_check(self) -> HealthStatus:
+        with self._lock:
+            if self._component is None:
+                return HealthStatus.UNHEALTHY if self._init_error else HealthStatus.DEGRADED
+            try:
+                if not getattr(self._component, "stages", None) or len(self._component.stages) == 0:
+                    return HealthStatus.DEGRADED
+                return HealthStatus.HEALTHY
+            except Exception as e:  # pragma: no cover
+                _logger.warning("%s health probe failed: %s", self.name, e)
+                return HealthStatus.DEGRADED
+
+    async def shutdown(self) -> None:
+        with self._lock:
+            self._status = HealthStatus.STOPPING
+            self._component = None
+            self._init_error = None
+
+
+def create_developer_experience_module(config: Optional[Dict[str, Any]] = None) -> DeveloperExperienceModule:
+    """Factory: create a developer_experience module instance."""
+    return DeveloperExperienceModule(config)

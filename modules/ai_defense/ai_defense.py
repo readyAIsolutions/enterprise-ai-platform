@@ -627,7 +627,8 @@ class AIDefenseModule(Module):
 
     async def shutdown(self) -> None:
         """Graceful shutdown (nothing to tear down beyond state)."""
-        self._status = HealthStatus.STOPPED
+        # Kernel's Module.shutdown() sets terminal state; do not reference
+        # HealthStatus.STOPPED (does not exist — it's a LifecycleState).
         logger.info("AI Defense Module shutdown complete.")
 
     def gate_request(self, key: str, **kw: Any) -> Judgement:

@@ -181,6 +181,44 @@ modules:
       toxicity_threshold: 0.7
       refusal_threshold: 0.8
 
+  # ── Upgrade: Model routing / fallback gateway (LiteLLM-style retry+cooldown)
+  model_router:
+    enabled: true
+    priority: 50
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 60
+    config:
+      route_metrics: true
+      blacklist: []
+      deployments:
+        - id: "openrouter-flash"
+          model: "deepseek/deepseek-v4-flash-0731"
+          provider: "openrouter"
+          base_url: "https://openrouter.ai/api/v1"
+          api_key_env: "OPENROUTER_API_KEY"
+          weight: 3
+          allowed_fails: 3
+          cooldown_time: 60
+          max_fallbacks: 2
+          group: "chat"
+          retry_policy:
+            RateLimitError: 2
+            ProviderTimeoutError: 3
+        - id: "local-free-router"
+          model: "local/free"
+          provider: "local"
+          base_url: "http://127.0.0.1:8080/v1"
+          api_key_env: ""
+          weight: 1
+          allowed_fails: 2
+          cooldown_time: 30
+          max_fallbacks: 2
+          group: "chat"
+          retry_policy:
+            RateLimitError: 1
+            ServiceUnavailableError: 1
+
   # ── Upgrade: Long-term agent memory engine (mem0-style) ───────────────────
   memory:
     enabled: true

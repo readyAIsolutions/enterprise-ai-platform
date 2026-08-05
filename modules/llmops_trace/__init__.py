@@ -34,8 +34,25 @@ from .llmops_trace import (
     TraceFacade,
     TraceModule,
 )
+from .otel_genai import (
+    GEN_AI_KEYS,
+    ConsoleExporter,
+    ExportPipeline,
+    GenAISpan,
+    JsonlExporter,
+    PrometheusExporter,
+    Sampler,
+    SpanExporter,
+    compute_cost,
+    end_span,
+    reset as reset_otel_state,
+    start_genai_span,
+    start_span,
+    trace_model_call,
+    trace_model_call_decorator,
+)
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __module__ = "llmops_trace"
 
 __all__ = [
@@ -51,6 +68,22 @@ __all__ = [
     "Trace",
     "Span",
     "SpanStatus",
+    # OTel GenAI semantic-convention tracing
+    "GenAISpan",
+    "GEN_AI_KEYS",
+    "start_span",
+    "end_span",
+    "start_genai_span",
+    "compute_cost",
+    "Sampler",
+    "SpanExporter",
+    "ConsoleExporter",
+    "JsonlExporter",
+    "PrometheusExporter",
+    "ExportPipeline",
+    "trace_model_call",
+    "trace_model_call_decorator",
+    "reset_otel_state",
 ]
 
 _logger = logging.getLogger("enterprise.llmops_trace")

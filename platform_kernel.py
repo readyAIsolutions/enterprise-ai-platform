@@ -163,6 +163,7 @@ class LifecycleState(Enum):
             },
             LifecycleState.PAUSED: {
                 LifecycleState.RUNNING,
+                LifecycleState.RECOVERING,
                 LifecycleState.STOPPING,
             },
             LifecycleState.STOPPING: {
@@ -182,6 +183,12 @@ class LifecycleState(Enum):
             },
         }
         return target in _TRANSITIONS.get(self, set())
+
+
+# Numeric index for metrics gauges (lower = earlier in lifecycle).
+_STATE_INDEX: Dict["LifecycleState", int] = {
+    state: idx for idx, state in enumerate(LifecycleState)
+}
 
 
 # =============================================================================
@@ -719,11 +726,16 @@ class ModuleRegistry:
                     config=module_cfg.get("config", {}),
                 )
 
-                # Check if a @module-decorated class exists
+                self._records[name] = record
+
+                # Import the module package so the @module decorator registers
+                # its class in _MODULE_REGISTRY, then bind the record to it.
+                # Without the import, module_class stays None and initialize_all()
+                # silently skips the module (nothing ever boots).
+                self.import_module(name)
                 if name in _MODULE_REGISTRY:
                     record.module_class = _MODULE_REGISTRY[name]
 
-                self._records[name] = record
                 discovered.append(name)
 
                 logging.getLogger("eni.registry").info(
@@ -797,17 +809,34 @@ class ModuleRegistry:
             key=lambda r: r.priority,
         )
 
+        startup_timeout = float(
+            (self._config.get("lifecycle", {}) or {}).get(
+                "startup_timeout_sec", 30
+            )
+        )
+
         for record in ordered:
             try:
                 instance = record.module_class(config=record.config)  # type: ignore[misc]
                 record.instance = instance
-                await instance.initialize()
+                # Honor a per-module startup timeout so a hung initialize()
+                # cannot block the entire platform boot forever.
+                await asyncio.wait_for(instance.initialize(), timeout=startup_timeout)
                 instance._started_at = datetime.now(timezone.utc)
                 instance.status = HealthStatus.HEALTHY
                 results[record.name] = HealthStatus.HEALTHY
                 logging.getLogger("eni.registry").info(
                     "Initialized module: %s", record.name
                 )
+            except asyncio.TimeoutError:
+                logging.getLogger("eni.registry").error(
+                    "Module %s initialize() timed out after %ss; marking UNHEALTHY",
+                    record.name,
+                    startup_timeout,
+                )
+                results[record.name] = HealthStatus.UNHEALTHY
+                if record.instance:
+                    record.instance.status = HealthStatus.UNHEALTHY
             except Exception as exc:
                 logging.getLogger("eni.registry").error(
                     "Failed to initialize module %s: %s\n%s",
@@ -1739,6 +1768,28 @@ class PlatformOS:
         else:
             self._transition_to(LifecycleState.RUNNING)
 
+        # Record lifecycle + module metrics so the (previously decorative)
+        # MetricsCollector actually reflects platform reality.
+        if self._metrics_collector:
+            self._metrics_collector.set_gauge(
+                "platform.state",
+                float(_STATE_INDEX.get(self._state, 0)),
+                module="platform_os",
+            )
+            self._metrics_collector.set_gauge(
+                "platform.modules.initialized",
+                len(results),
+                module="platform_os",
+            )
+            self._metrics_collector.set_gauge(
+                "platform.modules.healthy",
+                sum(1 for s in results.values() if s == HealthStatus.HEALTHY),
+                module="platform_os",
+            )
+            self._metrics_collector.increment(
+                "platform.lifecycle.starts", module="platform_os"
+            )
+
         # Start background health polling (only if we have a running loop)
         try:
             loop = asyncio.get_running_loop()
@@ -1808,6 +1859,72 @@ class PlatformOS:
 
         self._transition_to(LifecycleState.STOPPED)
         self._logger.info("Platform stopped.")
+
+    # ── Pause / Resume ───────────────────────────────────────────────────────
+
+    async def pause(self) -> None:
+        """Pause the platform: stop health polling and background work.
+
+        Transitions RUNNING/DEGRADED/RECOVERING -> PAUSING -> PAUSED.
+        """
+        if self._state not in (
+            LifecycleState.RUNNING,
+            LifecycleState.DEGRADED,
+            LifecycleState.RECOVERING,
+        ):
+            raise RuntimeError(f"Cannot pause from state {self._state.value}")
+
+        self._transition_to(LifecycleState.PAUSING)
+        self._logger.info("Platform pausing...")
+        if self._health_poll_task and not self._health_poll_task.done():
+            self._health_poll_task.cancel()
+            try:
+                await self._health_poll_task
+            except asyncio.CancelledError:
+                pass
+            self._health_poll_task = None
+        self._transition_to(LifecycleState.PAUSED)
+        self._logger.info("Platform paused.")
+
+    async def resume(self) -> None:
+        """Resume the platform from PAUSED: restart health polling and recover.
+
+        Transitions PAUSED -> RECOVERING -> RUNNING (or DEGRADED).
+        """
+        if self._state != LifecycleState.PAUSED:
+            raise RuntimeError(f"Cannot resume from state {self._state.value}")
+
+        self._transition_to(LifecycleState.RECOVERING)
+        self._logger.info("Platform resuming...")
+
+        # Attempt to re-initialize any failed/UNHEALTHY required modules.
+        if self._module_registry is not None:
+            for record in self._module_registry.list_modules():
+                if not record.enabled:
+                    continue
+                inst = record.instance
+                if inst is not None and inst.status in (
+                    HealthStatus.UNHEALTHY,
+                    HealthStatus.UNKNOWN,
+                ):
+                    try:
+                        await inst.initialize()
+                        inst.status = HealthStatus.HEALTHY
+                        self._logger.info("Recovered module: %s", record.name)
+                    except Exception as exc:
+                        self._logger.error(
+                            "Failed to recover module %s: %s", record.name, exc
+                        )
+
+        # Restart health polling
+        try:
+            loop = asyncio.get_running_loop()
+            self._health_poll_task = loop.create_task(self._health_poll_loop())
+        except RuntimeError:
+            self._logger.info("No running event loop; health polling not restarted")
+
+        self._transition_to(LifecycleState.RUNNING)
+        self._logger.info("Platform resumed.")
 
     # ── Health Poll Loop ─────────────────────────────────────────────────────
 

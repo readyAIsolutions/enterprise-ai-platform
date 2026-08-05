@@ -282,6 +282,57 @@ class TestModuleRegistry:
         assert record is not None
         assert record.version == "1.0.0"
 
+    def test_discover_imports_and_binds_decorated_classes(self, tmp_path):
+        """Regression: discover() must import module packages so @module-decorated
+        classes land in _MODULE_REGISTRY and get bound to their records.
+
+        Previously discover() only looked up _MODULE_REGISTRY without ever
+        importing, so every record.module_class stayed None and initialize_all()
+        silently skipped ALL modules (nothing ever booted).
+        """
+        modules_dir = tmp_path / "modules"
+        mod_dir = modules_dir / "discovery_probe"
+        mod_dir.mkdir(parents=True)
+        (mod_dir / "__init__.py").write_text('__version__ = "1.0.0"\n')
+
+        @module(name="discovery_probe", version="1.0.0")
+        class DiscoveryProbe(Module):
+            async def initialize(self):
+                self.status = HealthStatus.HEALTHY
+
+            async def health_check(self):
+                return HealthStatus.HEALTHY
+
+            async def shutdown(self):
+                pass
+
+        registry = ModuleRegistry(modules_path=modules_dir, config={})
+        registry.discover()
+        record = registry.get_record("discovery_probe")
+        assert record is not None
+        # The decorated class must be bound to the record after discovery.
+        assert record.module_class is DiscoveryProbe
+
+    def test_discover_does_not_crash_on_unimportable_module(self, tmp_path):
+        """Discovery must not crash when a module's __init__ is not importable.
+
+        This is the non-regression guard for the import-during-discovery change:
+        an unimportable module degrades to module_class=None instead of raising.
+        """
+        modules_dir = tmp_path / "modules"
+        mod_dir = modules_dir / "broken_mod"
+        mod_dir.mkdir(parents=True)
+        (mod_dir / "__init__.py").write_text(
+            "__version__ = '9.9.9'\nimport not_a_real_dependency_xyz\n"
+        )
+        registry = ModuleRegistry(modules_path=modules_dir, config={})
+        discovered = registry.discover()
+        assert "broken_mod" in discovered
+        record = registry.get_record("broken_mod")
+        assert record is not None
+        # A failed import must not kill discovery; class stays unbound.
+        assert record.module_class is None
+
     def test_discover_defaults_when_missing(self, tmp_path):
         """ModuleRegistry should not crash if modules path doesn't exist."""
         bad_path = tmp_path / "nonexistent"

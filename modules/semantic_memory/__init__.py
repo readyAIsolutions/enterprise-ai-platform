@@ -39,8 +39,15 @@ from .semantic_memory import (
     dot,
     normalize,
 )
+from .hybrid import (
+    AddResult,
+    HybridRetriever,
+    HybridSemanticMemory,
+    keyword_score,
+    tokenize,
+)
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __module__ = "semantic_memory"
 
 __all__ = [
@@ -48,6 +55,9 @@ __all__ = [
     "SemanticMemoryModule",
     # Core classes
     "SemanticMemory",
+    "HybridSemanticMemory",
+    "HybridRetriever",
+    "AddResult",
     "SemanticIndex",
     "KnowledgeGraphAdapter",
     "HashEmbedder",
@@ -58,6 +68,8 @@ __all__ = [
     "normalize",
     "dot",
     "cosine_similarity",
+    "keyword_score",
+    "tokenize",
 ]
 
 _logger = logging.getLogger("enterprise.semantic_memory")
@@ -76,6 +88,9 @@ class SemanticMemoryModule(Module):
             (default 256).
         top_k (int): Default number of results returned by ``recall`` when no
             ``k`` is supplied (default 5).
+        db_path (str): Optional SQLite database path for persistence. When
+            unset the module runs in-memory. A bare filename (no directory)
+            is resolved under ``data/``.
 
     Events published (when an event bus is wired via ``set_event_bus``):
         - memory.doc.indexed  — a document was added to the index
@@ -89,6 +104,9 @@ class SemanticMemoryModule(Module):
         self._lock = threading.RLock()
         self._dim: int = int(self._config.get("dim", 256) or 256)
         self._top_k: int = int(self._config.get("top_k", 5) or 5)
+        self._db_path: str | None = (self._config.get("db_path") or None)
+        if self._db_path is not None:
+            self._db_path = str(self._db_path)
 
     # -- Properties ---------------------------------------------------------
 
@@ -108,10 +126,18 @@ class SemanticMemoryModule(Module):
         """Configured default retrieval result count."""
         return self._top_k
 
+    @property
+    def db_path(self) -> str | None:
+        """Configured SQLite persistence path (None = in-memory)."""
+        return self._db_path
+
     # -- Lifecycle ----------------------------------------------------------
 
     async def initialize(self) -> None:
-        """Build the SemanticMemory index and its default hash embedder.
+        """Build the hybrid SemanticMemory store and its default hash embedder.
+
+        Uses :class:`~.HybridSemanticMemory` (mem0-style change detection +
+        hybrid vector/keyword retrieval) with optional SQLite persistence.
 
         On success the module status becomes :data:`HealthStatus.HEALTHY`;
         on failure it becomes :data:`HealthStatus.UNHEALTHY` and the error is
@@ -121,11 +147,16 @@ class SemanticMemoryModule(Module):
             self._status = HealthStatus.STARTING
 
         _logger.info(
-            "Semantic memory initializing (dim=%s, top_k=%s)", self._dim, self._top_k
+            "Semantic memory initializing (dim=%s, top_k=%s, db_path=%s)",
+            self._dim,
+            self._top_k,
+            self._db_path,
         )
         try:
             embedder = HashEmbedder(dim=self._dim)
-            self._memory = SemanticMemory(embedder=embedder)
+            self._memory = HybridSemanticMemory(
+                embedder=embedder, db_path=self._db_path
+            )
             self._status = HealthStatus.HEALTHY
             _logger.info("Semantic memory initialized successfully")
         except Exception as exc:
@@ -152,7 +183,16 @@ class SemanticMemoryModule(Module):
         with self._lock:
             self._status = HealthStatus.STOPPING
             _logger.info("Shutting down semantic memory module...")
+            mem = self._memory
             self._memory = None
+        if mem is not None:
+            close = getattr(mem, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:  # pragma: no cover - defensive
+                    _logger.warning("Failed to close semantic memory store", exc_info=True)
+        with self._lock:
             self._status = HealthStatus.HEALTHY
 
     # -- Event Bus Wiring ---------------------------------------------------
