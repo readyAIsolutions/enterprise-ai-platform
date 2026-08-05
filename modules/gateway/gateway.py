@@ -75,7 +75,7 @@ class GatewayResult:
 # ---------------------------------------------------------------------------
 
 
-def _default_opener(url: str, data: bytes, headers: dict[str, str]) -> Any:
+def _default_opener(url: str, data: bytes, headers: dict[str, str]) -> Any:  # noqa: ANN401
     """Send a POST via ``urllib.request`` and return the response object.
 
     The returned object must expose ``.read()`` (like ``http.client`` /
@@ -399,7 +399,7 @@ class DeliveryReceipt:
         }
 
 
-def _is_transient_failure(channel: Channel, result: GatewayResult) -> bool:
+def _is_transient_failure(channel: Channel, result: GatewayResult) -> bool:  # noqa: ARG001
     """Classify a failed send as transient (retryable) or permanent.
 
     A channel that is not configured (``enabled`` False) fails permanently —

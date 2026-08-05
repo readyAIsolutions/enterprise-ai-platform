@@ -76,7 +76,7 @@ class FakeRunner:
         self.rc = rc
         self.calls: list = []
 
-    def __call__(self, command, cwd, timeout):  # type: ignore[no-untyped-def]
+    def __call__(self, command: list[str], cwd: str, timeout: int) -> _Proc:  # noqa: ARG002
         self.calls.append(list(command))
         if "json" in command:
             return _Proc(json.dumps(self.payload), self.rc)
@@ -86,7 +86,7 @@ class FakeRunner:
 class BadRunner:
     """Subprocess runner that always fails (nonzero return code)."""
 
-    def __call__(self, command, cwd, timeout):  # type: ignore[no-untyped-def]
+    def __call__(self, _command: list[str], cwd: str, timeout: int) -> _Proc:  # noqa: ARG002
         return _Proc("", 1)
 
 
@@ -192,7 +192,7 @@ class TestCoveragePctSlotIn:
         )
         assert result["coverage_pct"] == 0.0
 
-    def test_higher_coverage_raises_test_quality(self, tmp_path) -> None:
+    def test_higher_coverage_raises_test_quality(self, tmp_path: Path) -> None:
         s = UniversalBuildScore()
         low = s.score(make_good_project(tmp_path / "a"), run_tests=False, coverage_pct=5.0)
         high = s.score(make_good_project(tmp_path / "b"), run_tests=False, coverage_pct=95.0)
@@ -201,7 +201,7 @@ class TestCoveragePctSlotIn:
         assert high_d4 > low_d4
         assert high["coverage_pct"] == 95.0
 
-    def test_coverage_pct_none_backward_compatible(self, tmp_path) -> None:
+    def test_coverage_pct_none_backward_compatible(self, tmp_path: Path) -> None:
         s = UniversalBuildScore()
         result = s.score(make_good_project(tmp_path), run_tests=False)
         assert result["coverage_pct"] is None
@@ -211,7 +211,7 @@ class TestCoveragePctSlotIn:
 # run_fleet_coverage report writer
 # ---------------------------------------------------------------------------
 class TestRunFleetCoverage:
-    def test_writes_report_file_hermetically(self, tmp_path) -> None:
+    def test_writes_report_file_hermetically(self, tmp_path: Path) -> None:
         probe = CoverageProbe(FIXTURE, runner=FakeRunner(_payload(75.0)))
         out = tmp_path / "COVERAGE_REPORT.md"
         rep = run_fleet_coverage(root=FIXTURE, report_path=out, probe=probe)
@@ -221,7 +221,7 @@ class TestRunFleetCoverage:
         assert "Grade: C" in text
         assert "app/mod2.py" in text
 
-    def test_report_covers_lowest_files_section(self, tmp_path) -> None:
+    def test_report_covers_lowest_files_section(self, tmp_path: Path) -> None:
         probe = CoverageProbe(FIXTURE, runner=FakeRunner(_payload()))
         out = tmp_path / "COVERAGE_REPORT.md"
         run_fleet_coverage(root=FIXTURE, report_path=out, probe=probe)
@@ -233,7 +233,7 @@ class TestRunFleetCoverage:
 # skipped when the `coverage` package is unavailable.
 # ---------------------------------------------------------------------------
 class TestFleetScriptRealSmoke:
-    def test_real_tiny_fixture_coverage(self, tmp_path) -> None:
+    def test_real_tiny_fixture_coverage(self, tmp_path: Path) -> None:
         pytest.importorskip("coverage")
         probe = CoverageProbe(FIXTURE, python_bin=sys.executable, source_dirs=("app",), timeout=120)
         out = tmp_path / "COVERAGE_REPORT.md"

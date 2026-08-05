@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional  # noqa: F401
+from typing import Any, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     Event,
@@ -214,7 +214,7 @@ class AgentGraphModule(Module):
             max_steps=self._max_steps,
         )
 
-    def add_node(self, name: str, fn: Any = None) -> GraphNode:
+    def add_node(self, name: str, fn: Any = None) -> GraphNode:  # noqa: ANN401
         """Add a node to the active graph."""
         return self._require_facade().add_node(name, fn)
 
@@ -222,7 +222,7 @@ class AgentGraphModule(Module):
         self,
         from_node: str,
         to_node: str,
-        condition: Any = None,
+        condition: Any = None,  # noqa: ANN401
     ) -> GraphEdge:
         """Add an edge to the active graph."""
         return self._require_facade().add_edge(from_node, to_node, condition=condition)

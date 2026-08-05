@@ -36,6 +36,7 @@ import sqlite3
 import threading
 from datetime import datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 __all__ = [
@@ -81,7 +82,7 @@ class MaskType(StrEnum):
 # enforced by construction, not just by convention.
 
 
-def _is_already_masked(value: str, mask_char: str = "*") -> bool:
+def _is_already_masked(value: str, _mask_char: str = "*") -> bool:
     """Heuristic: a value made only of mask chars + separators is already masked."""
     if not value:
         return False
@@ -94,7 +95,7 @@ class Masker:
 
     kind: str = "generic"
 
-    def mask(self, value: Any) -> Any:
+    def mask(self, value: Any) -> Any:  # noqa: ANN401
         if value is None:
             return None
         if not isinstance(value, str):
@@ -108,7 +109,7 @@ class Masker:
     def _mask(self, value: str) -> str:  # pragma: no cover - abstract
         raise NotImplementedError
 
-    def __call__(self, value: Any) -> Any:
+    def __call__(self, value: Any) -> Any:  # noqa: ANN401
         return self.mask(value)
 
 
@@ -285,7 +286,7 @@ class MaskingPolicy:
     def default_masker(self) -> Masker | None:
         return self._default
 
-    def apply(self, record: Any) -> Any:
+    def apply(self, record: Any) -> Any:  # noqa: ANN401
         return _apply_policy(self, record, _depth=0)
 
     def rules_for(self, field: str) -> Masker | None:
@@ -304,10 +305,10 @@ def _coerce_masker(mtype: MaskType | str | Masker) -> Masker:
         return MASKER_REGISTRY[MaskType(str(mtype))]
     except (KeyError, ValueError):
         msg = f"Unknown mask type: {mtype!r}"
-        raise ValueError(msg)
+        raise ValueError(msg) from None
 
 
-def _apply_policy(policy: MaskingPolicy, node: Any, _depth: int) -> Any:
+def _apply_policy(policy: MaskingPolicy, node: Any, _depth: int) -> Any:  # noqa: ANN401
     if _depth > 100:
         return node  # guard against pathological nesting
     if isinstance(node, dict):
@@ -401,7 +402,7 @@ class SQLiteVault(Vault):
             if self._path == ":memory:":
                 conn = sqlite3.connect(self._path, check_same_thread=False)
             else:
-                os.makedirs(os.path.dirname(os.path.abspath(self._path)), exist_ok=True)
+                Path(self._path).parent.mkdir(parents=True, exist_ok=True)
                 conn = sqlite3.connect(self._path, check_same_thread=False)
             conn.row_factory = sqlite3.Row
             self._local.conn = conn
@@ -461,13 +462,13 @@ class SQLiteVault(Vault):
             self._local.conn = None
 
 
-def json_dumps(obj: Any) -> str:
+def json_dumps(obj: Any) -> str:  # noqa: ANN401
     import json
 
     return json.dumps(obj, sort_keys=True)
 
 
-def json_loads(s: str) -> Any:
+def json_loads(s: str) -> Any:  # noqa: ANN401
     import json
 
     try:
@@ -519,7 +520,7 @@ class TokenizationEngine:
 
     def tokenize(
         self,
-        value: Any,
+        value: Any,  # noqa: ANN401
         metadata: dict[str, Any] | None = None,
         tokenize_map: dict[str, Any] | None = None,
     ) -> str:
@@ -563,7 +564,7 @@ class TokenizationEngine:
         """True if the caller-supplied token came from this engine & is in the vault."""
         return isinstance(token, str) and token in self._vault
 
-    def reverse(self, value: Any) -> str | None:
+    def reverse(self, value: Any) -> str | None:  # noqa: ANN401
         """Return the token for a previously-tokenized value, or None."""
         return self._vault.reverse(str(value))
 
@@ -614,8 +615,7 @@ def _format_preserve_token(plaintext: str, secret: bytes) -> str:
     """
     digest = hmac.new(secret, plaintext.encode(), hashlib.sha256).digest()
     out = []
-    di = 0
-    for ch in plaintext:
+    for di, ch in enumerate(plaintext):
         b = digest[di % len(digest)]
         if ch.isdigit():
             out.append(str(b % 10))
@@ -626,7 +626,6 @@ def _format_preserve_token(plaintext: str, secret: bytes) -> str:
         else:
             # keep punctuation / whitespace verbatim (shape preservation)
             out.append(ch)
-        di += 1
     token = "".join(out)
     if not any(c.isalpha() for c in token):
         token = "tok_" + token
@@ -652,7 +651,7 @@ class DataMasker:
     def __init__(self, policy: MaskingPolicy | None = None) -> None:
         self._policy = policy
 
-    def apply(self, record: Any, policy: MaskingPolicy | None = None) -> Any:
+    def apply(self, record: Any, policy: MaskingPolicy | None = None) -> Any:  # noqa: ANN401
         pol = policy or self._policy
         if pol is None:
             msg = "No MaskingPolicy supplied (construct with one or pass policy=)"
@@ -660,7 +659,7 @@ class DataMasker:
         return pol.apply(record)
 
     @staticmethod
-    def apply_policy(policy, record):
+    def apply_policy(policy: MaskingPolicy, record: Any) -> Any:  # noqa: ANN401
         """Facade-style: DataMasker.apply_policy(policy, record) -> masked record."""
         if not isinstance(policy, MaskingPolicy):
             msg = "apply_policy expects a MaskingPolicy"

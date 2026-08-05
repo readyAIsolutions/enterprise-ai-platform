@@ -21,7 +21,7 @@ __version__ = "1.0.0"
 __module__ = "gateway"
 
 import logging
-from typing import Any, Dict, List, Optional  # noqa: F401
+from typing import Any
 
 from enterprise.platform_kernel import (
     Event,

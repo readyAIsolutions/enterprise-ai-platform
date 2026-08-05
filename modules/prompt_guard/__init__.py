@@ -11,7 +11,7 @@ All components are stdlib-only with zero external dependencies.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Any  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module  # noqa: F401
 

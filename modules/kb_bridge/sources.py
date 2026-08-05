@@ -219,9 +219,11 @@ class FileSourceAdapter(SourceAdapter):
             doc = self._to_doc(path)
             if filters.get("path") is not None and str(path) != str(filters["path"]):
                 continue
-            if filters.get("suffix") is not None:
-                if path.suffix.lower() != filters["suffix"].lower():
-                    continue
+            if (
+                filters.get("suffix") is not None
+                and path.suffix.lower() != filters["suffix"].lower()
+            ):
+                continue
             if not query:
                 doc.score = 0.0
             else:
@@ -290,7 +292,7 @@ class SqliteSourceAdapter(SourceAdapter):
         self._conn.commit()
 
     @staticmethod
-    def _parse_meta(raw: Any) -> dict[str, Any]:
+    def _parse_meta(raw: dict[str, Any] | str | None) -> dict[str, Any]:
         if isinstance(raw, dict):
             return dict(raw)
         if raw is None:

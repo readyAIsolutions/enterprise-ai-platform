@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .snapshot import SnapshotEngine
@@ -104,8 +104,8 @@ class BackupManager:
         When :meth:`execute_backup` is called with a real ``source_path`` the
         engine archives that directory here instead of fabricating numbers.
         """
-        self._snapshot_store = os.path.abspath(target_dir)
-        os.makedirs(self._snapshot_store, exist_ok=True)
+        self._snapshot_store = str(Path(target_dir).resolve())
+        Path(self._snapshot_store).mkdir(parents=True, exist_ok=True)
         return self._snapshot_store
 
     def set_executor(self, fn: Callable) -> None:
@@ -181,7 +181,7 @@ class BackupManager:
 
         backup_id = str(uuid.uuid4())
         snapshot_path = ""
-        real_source = bool(source_path) and os.path.isdir(os.path.abspath(source_path))
+        real_source = bool(source_path) and Path(source_path).resolve().is_dir()
 
         if real_source and self._snapshot_store:
             # REAL snapshot: archive the actual directory, real sizes + hashes.

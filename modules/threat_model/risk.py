@@ -625,7 +625,7 @@ class ThreatAssessment:
         self,
         register: RiskRegister | None = None,
         planner: MitigationPlanner | None = None,
-        scorer: SeverityScore | None = None,
+        scorer: SeverityScore | None = None,  # noqa: ARG002
     ) -> None:
         self.register = register or RiskRegister()
         self.planner = planner or MitigationPlanner()

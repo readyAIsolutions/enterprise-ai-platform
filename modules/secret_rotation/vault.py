@@ -69,6 +69,7 @@ from .secret_rotation import hash_secret
 
 if TYPE_CHECKING:
     import builtins
+    from collections.abc import Callable
 
 logger = logging.getLogger("enterprise.secret_rotation.vault")
 
@@ -208,7 +209,7 @@ class SecretVault:
     def path(self) -> str:
         return self._db_path
 
-    def _resolve_key(self, master_key: str | bytes | None):
+    def _resolve_key(self, master_key: str | bytes | None) -> str | bytes:
         return self._master_key if master_key is None else master_key
 
     # -- CRUD -------------------------------------------------------------
@@ -393,7 +394,7 @@ class RotationScheduler:
         self,
         name: str,
         now: float | None = None,
-        generator=None,
+        generator: Callable[[], str] | None = None,
         master_key: str | bytes | None = None,
     ) -> dict[str, Any]:
         """Generate a new random secret for ``name`` and store it via the vault.
@@ -559,12 +560,17 @@ class VaultFacade:
 
     store = put
 
-    def get(self, name: str, master_key=None, actor: str | None = None) -> str:
+    def get(
+        self,
+        name: str,
+        master_key: str | bytes | None = None,
+        actor: str | None = None,
+    ) -> str:
         value = self.vault.get(name, master_key=master_key)
         self.audit.log(name, "get", actor=actor or self._actor)
         return value
 
-    def rotate(self, name: str, actor: str | None = None, **kw) -> dict[str, Any]:
+    def rotate(self, name: str, actor: str | None = None, **kw: Any) -> dict[str, Any]:  # noqa: ANN401  # forwards scheduler kwargs
         result = self.scheduler.rotate(name, **kw)
         self.audit.log(name, "rotate", actor=actor or self._actor)
         return result

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """ENI Knowledge Base OS Module
 
 Enterprise-grade wrapper around Hermes KB Universal, providing
@@ -15,13 +13,15 @@ Version: 1.0.0
 Python: 3.10+
 """
 
+from __future__ import annotations
+
 __version__ = "1.0.0"
 __module__ = "kb_bridge"
 
 import asyncio
 import logging
 import threading
-from typing import Any, Dict, List, Optional  # noqa: F401
+from typing import Any, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     EventBus,

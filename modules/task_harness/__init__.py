@@ -25,7 +25,7 @@ import asyncio
 import logging
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Any  # noqa: F401
 
 from enterprise.platform_kernel import (
     Event,

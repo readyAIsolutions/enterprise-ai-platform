@@ -196,7 +196,7 @@ class SecretDetector:
     _PLACEHOLDER_RE = re.compile(r"__SECRET_[0-9a-f]{12}__")
 
     @staticmethod
-    def _overlaps_any(hit, spans) -> bool:
+    def _overlaps_any(hit: SecretHit, spans: list[tuple[int, int]]) -> bool:
         return any(hit.start < e and s < hit.end for s, e in spans)
 
     def contains_secret(self, text: str) -> bool:
@@ -486,7 +486,10 @@ class SecretBrokerModule(Module):
         return self.broker.restore(redacted_text, mapping)
 
     def guard_outbound(
-        self, text: str, known_secrets: dict[str, str] | None = None, **kw: Any
+        self,
+        text: str,
+        known_secrets: dict[str, str] | None = None,
+        **kw: Any,  # noqa: ANN401
     ) -> str:
         return self.broker.guard_outbound(text, known_secrets, **kw)
 

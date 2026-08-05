@@ -23,6 +23,7 @@ Stdlib-only: ``sqlite3``, ``hashlib``, ``dataclasses``, ``datetime``.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
 import sqlite3
@@ -59,7 +60,7 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _content_hash(**fields: Any) -> str:
+def _content_hash(**fields: str) -> str:
     """Canonical SHA-256 over the evidence content fields."""
     canonical = "|".join(
         str(fields.get(k, ""))
@@ -446,10 +447,8 @@ class EvidenceRegister:
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
-        try:
+        with contextlib.suppress(sqlite3.Error):  # pragma: no cover - defensive
             self._conn.close()
-        except sqlite3.Error:  # pragma: no cover - defensive
-            pass
 
     # -- integrity ----------------------------------------------------------
 
@@ -512,7 +511,7 @@ class EvidenceRegister:
     def __enter__(self) -> EvidenceRegister:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
 

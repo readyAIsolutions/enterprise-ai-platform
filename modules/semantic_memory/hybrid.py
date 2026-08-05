@@ -117,7 +117,7 @@ DEFAULT_IMPORTANCE_WEIGHT = 0.5
 EXACT_TOKEN_BONUS = 0.05  # small rerank boost for keyword-exact-token hits
 
 
-def _coerce_ts(value: Any) -> float | None:
+def _coerce_ts(value: Any) -> float | None:  # noqa: ANN401
     """Normalize ``since``/``until`` to a unix-epoch float (or ``None``).
 
     Accepts floats, ints, and anything exposing ``.timestamp()`` (datetime/date).
@@ -228,8 +228,8 @@ class HybridRetriever:
         query: str,
         limit: int = 5,
         filters: dict[str, Any] | None = None,
-        since: Any = None,
-        until: Any = None,
+        since: Any = None,  # noqa: ANN401
+        until: Any = None,  # noqa: ANN401
         time_bucket: str | None = None,
     ) -> list[ScoredDoc]:
         """Hybrid search merging vector + keyword hits.
@@ -272,7 +272,10 @@ class HybridRetriever:
         return ranked[:limit]
 
     def _resolve_window(
-        self, since: Any, until: Any, time_bucket: str | None
+        self,
+        since: Any,  # noqa: ANN401
+        until: Any,  # noqa: ANN401
+        time_bucket: str | None,
     ) -> tuple[float | None, float | None]:
         """Combine explicit ``since``/``until`` with an optional ``time_bucket``."""
         if time_bucket:
@@ -283,7 +286,7 @@ class HybridRetriever:
                 until = end
         return _coerce_ts(since), _coerce_ts(until)
 
-    def recall_since(self, since: Any) -> list[dict[str, Any]]:
+    def recall_since(self, since: Any) -> list[dict[str, Any]]:  # noqa: ANN401
         """Return memories whose created/updated timestamp is at/after ``since``."""
         ts = _coerce_ts(since) or 0.0
         out = []
@@ -312,7 +315,7 @@ class HybridRetriever:
             g["memories"].append({"id": doc.id, "text": doc.text})
         return groups
 
-    def _importance(self, row_id: str, doc: Any) -> float:
+    def _importance(self, row_id: str, doc: Any) -> float:  # noqa: ANN401
         meta = doc.metadata if doc is not None else {}
         score = 0.0
         pri = meta.get("priority")
@@ -557,9 +560,9 @@ class HybridSemanticMemory(SemanticMemory):
     def _init_db(self) -> None:
         if self._db_path is None:
             return
-        parent = os.path.dirname(self._db_path)
+        parent = os.path.dirname(self._db_path)  # noqa: PTH120
         if parent:
-            os.makedirs(parent, exist_ok=True)
+            os.makedirs(parent, exist_ok=True)  # noqa: PTH103
         self._conn = sqlite3.connect(self._db_path)
         self._conn.executescript(_SQL_SCHEMA)
         self._ensure_time_columns()
@@ -726,8 +729,8 @@ class HybridSemanticMemory(SemanticMemory):
         query: str,
         limit: int = 5,
         filters: dict[str, Any] | None = None,
-        since: Any = None,
-        until: Any = None,
+        since: Any = None,  # noqa: ANN401
+        until: Any = None,  # noqa: ANN401
         time_bucket: str | None = None,
     ) -> list[ScoredDoc]:
         """Hybrid retrieval: vector + keyword, merged + de-duplicated + re-ranked.
@@ -779,7 +782,10 @@ class HybridSemanticMemory(SemanticMemory):
         return ranked[:limit]
 
     def _resolve_window(
-        self, since: Any, until: Any, time_bucket: str | None
+        self,
+        since: Any,  # noqa: ANN401
+        until: Any,  # noqa: ANN401
+        time_bucket: str | None,
     ) -> tuple[float | None, float | None]:
         """Combine explicit ``since``/``until`` with an optional ``time_bucket``."""
         if time_bucket:
@@ -790,7 +796,7 @@ class HybridSemanticMemory(SemanticMemory):
                 until = end
         return _coerce_ts(since), _coerce_ts(until)
 
-    def recall_since(self, since: Any) -> list[dict[str, Any]]:
+    def recall_since(self, since: Any) -> list[dict[str, Any]]:  # noqa: ANN401
         """Return memories created at/after ``since`` (temporal recall).
 
         Args:
@@ -826,7 +832,7 @@ class HybridSemanticMemory(SemanticMemory):
             g["memories"].append(it)
         return groups
 
-    def _importance(self, row_id: str, doc: Any) -> float:
+    def _importance(self, row_id: str, doc: Any) -> float:  # noqa: ANN401
         """Importance score from metadata priority + hit-frequency (mem0-style)."""
         meta = doc.metadata if doc is not None else {}
         score = 0.0

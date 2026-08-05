@@ -66,7 +66,7 @@ def test_all_builtin_probes_registered() -> None:
         PIILeakProbe,
     ],
 )
-def test_probe_generate_non_empty_distinct(cls) -> None:
+def test_probe_generate_non_empty_distinct(cls: type[Probe]) -> None:
     attempts = cls().generate()
     assert len(attempts) >= 3
     assert all(isinstance(a, str) and a.strip() for a in attempts)
@@ -82,7 +82,7 @@ def test_probe_generate_non_empty_distinct(cls) -> None:
         PIILeakProbe,
     ],
 )
-def test_probe_declares_metadata(cls) -> None:
+def test_probe_declares_metadata(cls: type[Probe]) -> None:
     p = cls()
     assert isinstance(p.goal, str)
     assert p.goal
@@ -154,7 +154,7 @@ def test_detector_result_is_dataclass_with_bounds() -> None:
 
 
 def test_scan_failing_target_full_stop_rate() -> None:
-    scan = SecurityScanner(target=lambda a: BAD_CANNED).scan()
+    scan = SecurityScanner(target=lambda _: BAD_CANNED).scan()
     assert scan.stop_rate == 1.0
     assert scan.passed is False
     assert scan.flagged == scan.attempts > 0
@@ -168,14 +168,14 @@ def test_scan_echo_failing_reports_stop_rate() -> None:
 
 
 def test_scan_safe_target_passes() -> None:
-    scan = SecurityScanner(target=lambda a: REFUSAL_OUTPUT).scan()
+    scan = SecurityScanner(target=lambda _: REFUSAL_OUTPUT).scan()
     assert scan.stop_rate == 0.0
     assert scan.passed is True
     assert scan.findings == []
 
 
 def test_scan_findings_populated_on_failure() -> None:
-    scan = SecurityScanner(target=lambda a: BAD_CANNED).scan(probe_names=["pii_leak"])
+    scan = SecurityScanner(target=lambda _: BAD_CANNED).scan(probe_names=["pii_leak"])
     assert len(scan.findings) == scan.attempts
     finding = scan.findings[0]
     assert finding["probe"] == "pii_leak"
@@ -184,7 +184,7 @@ def test_scan_findings_populated_on_failure() -> None:
 
 
 def test_scan_report_aggregation_api() -> None:
-    scan = SecurityScanner(target=lambda a: BAD_CANNED).scan(probe_names=["prompt_injection"])
+    scan = SecurityScanner(target=lambda _: BAD_CANNED).scan(probe_names=["prompt_injection"])
     assert isinstance(scan, ScanReport)
     assert scan.attempts == len(scan.per_attempt) == 4
     assert scan.flagged == scan.attempts
@@ -195,7 +195,7 @@ def test_scan_report_aggregation_api() -> None:
 
 
 def test_scan_only_runs_selected_probes() -> None:
-    scan = SecurityScanner(target=lambda a: REFUSAL_OUTPUT).scan(probe_names=["data_exfil"])
+    scan = SecurityScanner(target=lambda _: REFUSAL_OUTPUT).scan(probe_names=["data_exfil"])
     assert scan.probes_run == ["data_exfil"]
     assert all(a.probe == "data_exfil" for a in scan.per_attempt)
 
@@ -208,7 +208,7 @@ def test_scan_uses_recommended_detector() -> None:
 
 
 def test_scan_requires_target() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="requires a target callable"):
         SecurityScanner().scan()
 
 
@@ -223,12 +223,12 @@ def test_scan_unknown_probe_raises() -> None:
 
 
 def test_register_probe_duplicate_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already registered"):
         register_probe("prompt_injection")(PromptInjectionProbe)
 
 
 def test_register_detector_duplicate_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already registered"):
         register_detector("injection_detector")(InjectionDetector)
 
 
@@ -244,7 +244,7 @@ def test_registry_getters() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _gate(tmp_path):
+def _gate(tmp_path: Path) -> SecurityGate:
     return SecurityGate(
         {
             "audit_path": str(Path(tmp_path) / "audit.log"),
@@ -253,26 +253,26 @@ def _gate(tmp_path):
     )
 
 
-def test_facade_securitygate_run_scan_safe(tmp_path) -> None:
+def test_facade_securitygate_run_scan_safe(tmp_path: Path) -> None:
     g = _gate(tmp_path)
-    rep = g.run_scan(target=lambda a: REFUSAL_OUTPUT)
+    rep = g.run_scan(target=lambda _: REFUSAL_OUTPUT)
     assert rep.passed is True
     assert rep.stop_rate == 0.0
 
 
-def test_facade_securitygate_run_scan_failing(tmp_path) -> None:
+def test_facade_securitygate_run_scan_failing(tmp_path: Path) -> None:
     g = _gate(tmp_path)
     rep = g.run_scan(probe_names=["prompt_injection"], target=lambda a: a)
     assert rep.stop_rate == 1.0
     assert rep.passed is False
 
 
-def test_facade_module_run_scan(tmp_path) -> None:
+def test_facade_module_run_scan(tmp_path: Path) -> None:
     m = ModelSecurityModule(
         {"audit_path": str(Path(tmp_path) / "a.log"), "policy_path": str(Path(tmp_path) / "p.yaml")}
     )
-    rep = m.run_scan(probe_names=["jailbreak"], target=lambda a: BAD_CANNED)
+    rep = m.run_scan(probe_names=["jailbreak"], target=lambda _: BAD_CANNED)
     assert rep.stop_rate == 1.0
     assert rep.passed is False
-    safe = m.run_scan(target=lambda a: REFUSAL_OUTPUT)
+    safe = m.run_scan(target=lambda _: REFUSAL_OUTPUT)
     assert safe.passed is True

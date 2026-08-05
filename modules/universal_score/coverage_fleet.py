@@ -132,7 +132,7 @@ class CoverageProbe:
 
     def __init__(
         self,
-        project_root: Any,
+        project_root: str | Path,
         runner: Callable[..., _Proc] | None = None,
         timeout: int = DEFAULT_TIMEOUT,
         python_bin: str | None = None,
@@ -290,8 +290,8 @@ def _repo_root() -> Path:
 
 
 def run_fleet_coverage(
-    root: Any | None = None,
-    report_path: Any | None = None,
+    root: str | Path | None = None,
+    report_path: str | Path | None = None,
     probe: CoverageProbe | None = None,
 ) -> CoverageReport:
     """Run REAL line coverage over the enterprise repo's own ``modules/`` tree

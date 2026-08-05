@@ -72,15 +72,12 @@ except ImportError:
 try:
     from enterprise.platform_kernel import Event, EventBus, HealthStatus  # noqa: F401
 except ImportError:
-    import os as _os
     import sys as _sys
 
-    _enterprise_dir = _os.path.dirname(
-        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-    )
-    _parent = _os.path.dirname(_enterprise_dir)
-    if _parent not in _sys.path:
-        _sys.path.insert(0, _parent)
+    _enterprise_dir = Path(__file__).resolve().parent.parent.parent
+    _parent = _enterprise_dir.parent
+    if str(_parent) not in _sys.path:
+        _sys.path.insert(0, str(_parent))
     from enterprise.platform_kernel import Event
 
 # ── Pluggable codec registry + ratio negotiation (stdlib, no engine dep) ───
@@ -187,7 +184,7 @@ class BridgeStats:
 class _EventEmitter:
     """Thin wrapper over the platform EventBus.  Falls back to log-only mode."""
 
-    def __init__(self, bus: Any = None, source: str = "compression_bridge") -> None:
+    def __init__(self, bus: EventBus | None = None, source: str = "compression_bridge") -> None:
         self._bus = bus
         self._source = source
         self._handlers: dict[str, list[Callable[..., Any]]] = defaultdict(list)
@@ -271,7 +268,7 @@ class CompressionBridge:
     def __init__(
         self,
         config: dict[str, Any] | None = None,
-        event_bus: Any = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         """Initialise the CompressionBridge.
 
@@ -324,7 +321,7 @@ class CompressionBridge:
         self._omega = None
         self._initialized = False
 
-    async def _load_omega(self) -> Any:
+    async def _load_omega(self) -> Any:  # noqa: ANN401
         """Load or create the OMEGA encoder."""
         if get_omega is not None:
             return await get_omega()
@@ -428,7 +425,7 @@ class CompressionBridge:
         """The pluggable stdlib codec registry attached to this bridge."""
         return self._codec_registry
 
-    def select_codec(self, data: Any, codec: str = "auto") -> str:
+    def select_codec(self, data: Any, codec: str = "auto") -> str:  # noqa: ANN401
         """Negotiate (or resolve) the best codec name for *data*.
 
         Args:
@@ -444,7 +441,7 @@ class CompressionBridge:
         self._codec_registry.get(codec)  # raises KeyError if unknown
         return codec
 
-    def negotiate_ratio(self, source_payload: Any) -> dict[str, Any]:
+    def negotiate_ratio(self, source_payload: Any) -> dict[str, Any]:  # noqa: ANN401
         """Negotiate the best codec and report achievable savings.
 
         Returns a dict with codec / ratio / original_size / compressed_size /
@@ -452,11 +449,11 @@ class CompressionBridge:
         """
         return negotiate_ratio(source_payload)
 
-    def compress_best(self, data: Any) -> CompressionResult:
+    def compress_best(self, data: Any) -> CompressionResult:  # noqa: ANN401
         """Compress *data* using the auto-negotiated best stdlib codec."""
         return self._compress_with_codec(data, codec="auto")
 
-    def _compress_with_codec(self, data: Any, codec: str = "auto") -> CompressionResult:
+    def _compress_with_codec(self, data: Any, codec: str = "auto") -> CompressionResult:  # noqa: ANN401
         """Compress *data* through the pluggable codec registry.
 
         Returns a ``CompressionResult`` (Drop-in compatible with the core
@@ -685,7 +682,7 @@ class CompressionBridge:
             "error": error,
         }
 
-    def _run_omega(self, data: bytes | str) -> Any:
+    def _run_omega(self, data: bytes | str) -> Any:  # noqa: ANN401
         """Run OMEGA transcendence, handling nested event loops.
 
         Uses a separate thread when inside an existing event loop.
@@ -702,7 +699,7 @@ class CompressionBridge:
             # No running event loop — safe to call asyncio.run directly
             return self._sync_transcend(data)
 
-    def _sync_transcend(self, data: bytes | str) -> Any:
+    def _sync_transcend(self, data: bytes | str) -> Any:  # noqa: ANN401
         """Synchronous OMEGA transcend — always safe to call."""
         if transcend is not None:
             return asyncio.run(transcend(data))

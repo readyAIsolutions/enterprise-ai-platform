@@ -178,7 +178,7 @@ class MCPToolGatewayModule(Module):
 
     # -- Public facade ------------------------------------------------------
 
-    def register_tool(self, tool_or_decorator: Any, name: str | None = None) -> Tool:
+    def register_tool(self, tool_or_decorator: Any, name: str | None = None) -> Tool:  # noqa: ANN401
         """Register a Tool (or a decorated/bare callable) and return the Tool.
 
         Raises:
@@ -207,7 +207,7 @@ class MCPToolGatewayModule(Module):
             self._emit("mcp_tools.tool.unregistered", {"name": name})
         return removed
 
-    def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
+    def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         """Execute the tool named ``name`` with ``arguments``.
 
         Emits ``mcp_tools.tool.called`` on the event bus when available. Async
@@ -221,7 +221,7 @@ class MCPToolGatewayModule(Module):
         )
         return result
 
-    async def call_tool_async(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
+    async def call_tool_async(self, name: str, arguments: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         """Asynchronously execute the tool named ``name`` with ``arguments``."""
         registry = self._require_registry()
         result = await registry.acall(name, arguments=arguments)
@@ -235,7 +235,7 @@ class MCPToolGatewayModule(Module):
         self,
         method: str,
         params: dict[str, Any] | None = None,
-        request_id: Any = None,
+        request_id: Any = None,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Serve an MCP request (``tools/list`` / ``tools/call``) as JSON-RPC."""
         registry = self._require_registry()

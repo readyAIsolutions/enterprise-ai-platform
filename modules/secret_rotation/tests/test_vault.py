@@ -24,11 +24,11 @@ FAST = 2000
 MASTER = "correct-horse-battery-staple"
 
 
-def make_vault(tmp_path, master=MASTER):
+def make_vault(tmp_path: Path, master: str = MASTER) -> SecretVault:
     return SecretVault(tmp_path / "vault.db", master, iterations=FAST)
 
 
-def make_facade(tmp_path, master=MASTER):
+def make_facade(tmp_path: Path, master: str = MASTER) -> VaultFacade:
     return VaultFacade(tmp_path / "vault.db", master, iterations=FAST)
 
 
@@ -63,7 +63,7 @@ def test_encrypt_decrypt_wrong_master_key_raises() -> None:
 # ── SecretVault: put/get round-trip, encrypted-at-rest ─────────────────
 
 
-def test_put_get_roundtrip(tmp_path) -> None:
+def test_put_get_roundtrip(tmp_path: Path) -> None:
     v = make_vault(tmp_path)
     v.put("db_pass", "S3cret!")
     assert v.get("db_pass") == "S3cret!"
@@ -71,7 +71,7 @@ def test_put_get_roundtrip(tmp_path) -> None:
     v.close()
 
 
-def test_raw_db_has_no_plaintext(tmp_path) -> None:
+def test_raw_db_has_no_plaintext(tmp_path: Path) -> None:
     db = tmp_path / "vault.db"
     v = SecretVault(db, MASTER, iterations=FAST)
     v.put("api_key", "SUPERSECRETPLAINTEXT123456")
@@ -85,7 +85,7 @@ def test_raw_db_has_no_plaintext(tmp_path) -> None:
     assert b"SUPERSECRETPLAINTEXT123456" not in bytes(blob)
 
 
-def test_get_wrong_master_key_fails(tmp_path) -> None:
+def test_get_wrong_master_key_fails(tmp_path: Path) -> None:
     v = make_vault(tmp_path)
     v.put("k", "v")
     with pytest.raises(VaultIntegrityError):
@@ -93,7 +93,7 @@ def test_get_wrong_master_key_fails(tmp_path) -> None:
     v.close()
 
 
-def test_get_detects_tampered_blob(tmp_path) -> None:
+def test_get_detects_tampered_blob(tmp_path: Path) -> None:
     db = tmp_path / "vault.db"
     v = SecretVault(db, MASTER, iterations=FAST)
     v.put("k", "v")
@@ -110,14 +110,14 @@ def test_get_detects_tampered_blob(tmp_path) -> None:
     v2.close()
 
 
-def test_get_missing_raises(tmp_path) -> None:
+def test_get_missing_raises(tmp_path: Path) -> None:
     v = make_vault(tmp_path)
     with pytest.raises(SecretNotFoundError):
         v.get("nope")
     v.close()
 
 
-def test_put_overwrite_updates(tmp_path) -> None:
+def test_put_overwrite_updates(tmp_path: Path) -> None:
     v = make_vault(tmp_path)
     v.put("k", "old-value")
     v.put("k", "new-value")
@@ -126,7 +126,7 @@ def test_put_overwrite_updates(tmp_path) -> None:
     v.close()
 
 
-def test_list_and_delete(tmp_path) -> None:
+def test_list_and_delete(tmp_path: Path) -> None:
     v = make_vault(tmp_path)
     v.put("a", "1")
     v.put("b", "2")
@@ -140,7 +140,7 @@ def test_list_and_delete(tmp_path) -> None:
     v.close()
 
 
-def test_vault_rotate_generates_new_secret(tmp_path) -> None:
+def test_vault_rotate_generates_new_secret(tmp_path: Path) -> None:
     v = make_vault(tmp_path)
     v.put("k", "old-secret")
     old = v.get("k")
@@ -151,7 +151,7 @@ def test_vault_rotate_generates_new_secret(tmp_path) -> None:
     v.close()
 
 
-def test_vault_rotate_hash_kind_stores_hash_only(tmp_path) -> None:
+def test_vault_rotate_hash_kind_stores_hash_only(tmp_path: Path) -> None:
     v = make_vault(tmp_path)
     v.put("k", "old", kind="hash")
     assert v.get("k") == hash_secret("old")
@@ -174,7 +174,7 @@ def test_vault_rotate_hash_kind_stores_hash_only(tmp_path) -> None:
 # ── RotationScheduler ───────────────────────────────────────────────────
 
 
-def test_due_for_rotation(tmp_path) -> None:
+def test_due_for_rotation(tmp_path: Path) -> None:
     f = make_facade(tmp_path)
     f.put("k", "v")
     f.set_policy("k", interval_secs=100.0, last_rotated=0.0)
@@ -184,7 +184,7 @@ def test_due_for_rotation(tmp_path) -> None:
     f.close()
 
 
-def test_rotation_generates_new_and_updates_due(tmp_path) -> None:
+def test_rotation_generates_new_and_updates_due(tmp_path: Path) -> None:
     f = make_facade(tmp_path)
     f.put("k", "old")
     f.scheduler.set_policy("k", interval_secs=100.0, last_rotated=0.0)
@@ -198,7 +198,7 @@ def test_rotation_generates_new_and_updates_due(tmp_path) -> None:
     f.close()
 
 
-def test_rotation_scheduler_rotate(tmp_path) -> None:
+def test_rotation_scheduler_rotate(tmp_path: Path) -> None:
     v = make_vault(tmp_path)
     sch = RotationScheduler(v)
     v.put("k", "old")
@@ -212,7 +212,7 @@ def test_rotation_scheduler_rotate(tmp_path) -> None:
 # ── AccessAudit + integrity ─────────────────────────────────────────────
 
 
-def test_audit_logs_put_get_rotate(tmp_path) -> None:
+def test_audit_logs_put_get_rotate(tmp_path: Path) -> None:
     f = make_facade(tmp_path, master=MASTER)
     f.put("k", "v", actor="alice")
     f.get("k", actor="bob")
@@ -225,7 +225,7 @@ def test_audit_logs_put_get_rotate(tmp_path) -> None:
     f.close()
 
 
-def test_audit_hash_chain_integrity(tmp_path) -> None:
+def test_audit_hash_chain_integrity(tmp_path: Path) -> None:
     f = make_facade(tmp_path)
     f.put("a", "1")
     f.put("b", "2")
@@ -235,7 +235,7 @@ def test_audit_hash_chain_integrity(tmp_path) -> None:
     f.close()
 
 
-def test_audit_detects_tampering(tmp_path) -> None:
+def test_audit_detects_tampering(tmp_path: Path) -> None:
     db = tmp_path / "vault.db"
     f = VaultFacade(db, MASTER, iterations=FAST)
     f.put("a", "1")
@@ -256,7 +256,7 @@ def test_audit_detects_tampering(tmp_path) -> None:
     f2.close()
 
 
-def test_audit_append_only(tmp_path) -> None:
+def test_audit_append_only(tmp_path: Path) -> None:
     f = make_facade(tmp_path)
     f.put("a", "1")
     n1 = f.audit.count()
@@ -266,7 +266,7 @@ def test_audit_append_only(tmp_path) -> None:
     f.close()
 
 
-def test_delete_is_audited(tmp_path) -> None:
+def test_delete_is_audited(tmp_path: Path) -> None:
     f = make_facade(tmp_path)
     f.put("k", "v")
     assert f.delete("k") is True
@@ -279,7 +279,7 @@ def test_delete_is_audited(tmp_path) -> None:
 # ── VaultFacade lifecycle / persistence ────────────────────────────────
 
 
-def test_facade_persists_across_reopen(tmp_path) -> None:
+def test_facade_persists_across_reopen(tmp_path: Path) -> None:
     db = tmp_path / "vault.db"
     f = VaultFacade(db, MASTER, iterations=FAST)
     f.put("k", "durable-secret")
@@ -291,7 +291,7 @@ def test_facade_persists_across_reopen(tmp_path) -> None:
     f2.close()
 
 
-def test_facade_wrong_master_on_reopen_fails(tmp_path) -> None:
+def test_facade_wrong_master_on_reopen_fails(tmp_path: Path) -> None:
     db = tmp_path / "vault.db"
     f = VaultFacade(db, MASTER, iterations=FAST)
     f.put("k", "v")
@@ -309,7 +309,7 @@ def test_create_vault_facade_factory() -> None:
     from enterprise.modules.secret_rotation import create_vault_facade
 
     with tempfile.TemporaryDirectory() as d:
-        f = create_vault_facade(os.path.join(d, "v.db"), MASTER, {"iterations": FAST})
+        f = create_vault_facade(os.path.join(d, "v.db"), MASTER, {"iterations": FAST})  # noqa: PTH118  # plugin API expects os interop
         f.put("k", "v")
         assert f.get("k") == "v"
         assert f.audit_verify()["valid"] is True

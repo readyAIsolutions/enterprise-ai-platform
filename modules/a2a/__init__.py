@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional  # noqa: F401
+from typing import Any, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     Event,
@@ -279,7 +279,7 @@ class A2AModule(Module):
     def create_task(
         self,
         agent_ref: str,
-        message: Any = None,
+        message: Any = None,  # noqa: ANN401  (arbitrary A2A message payload)
         *,
         idempotency_key: str | None = None,
         parent_task_id: str | None = None,
@@ -313,7 +313,7 @@ class A2AModule(Module):
     def send_message(
         self,
         task_id: str,
-        message: Any,
+        message: Any,  # noqa: ANN401  (arbitrary A2A message payload)
         *,
         role: MessageRole = MessageRole.USER,
         context: dict[str, Any] | None = None,
@@ -331,7 +331,7 @@ class A2AModule(Module):
         self,
         task_id: str,
         target_ref: str,
-        message: Any = None,
+        message: Any = None,  # noqa: ANN401  (arbitrary A2A handoff payload)
         *,
         context: dict[str, Any] | None = None,
         idempotency_key: str | None = None,

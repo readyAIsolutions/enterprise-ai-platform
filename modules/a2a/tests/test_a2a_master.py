@@ -23,9 +23,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
+
+if TYPE_CHECKING:
+    from pathlib import Path
 from enterprise.modules.a2a import (
     A2AModule,
     AgentCard,
@@ -152,7 +155,7 @@ class TestTaskStateMachine:
 
 
 class TestTaskStorePersistence:
-    def test_round_trip_across_reopen(self, tmp_path) -> None:
+    def test_round_trip_across_reopen(self, tmp_path: Path) -> None:
         db = str(tmp_path / "tasks.db")
         store = make_store(db)
         task = store.create_task("bookkeeper", msg("balance"), session_id="sess-1")
@@ -172,7 +175,7 @@ class TestTaskStorePersistence:
         assert task.artifacts[0]["rows"] == 42
         reopened.close()
 
-    def test_reload_on_init_restores_all_tasks(self, tmp_path) -> None:
+    def test_reload_on_init_restores_all_tasks(self, tmp_path: Path) -> None:
         db = str(tmp_path / "tasks.db")
         store = make_store(db)
         a = store.create_task("agent-a", session_id="s1")
@@ -186,7 +189,7 @@ class TestTaskStorePersistence:
         assert reopened.get_task(b.task_id).state is TaskState.COMPLETED
         reopened.close()
 
-    def test_transition_is_durable_after_reopen(self, tmp_path) -> None:
+    def test_transition_is_durable_after_reopen(self, tmp_path: Path) -> None:
         db = str(tmp_path / "tasks.db")
         store = make_store(db)
         task = store.create_task("a")
@@ -408,7 +411,7 @@ class TestInMemoryTransport:
     def test_async_send_get(self) -> None:
         t = InMemoryTransport()
 
-        async def _run() -> Any:
+        async def _run() -> dict[str, Any]:
             await t.asend("broker", {"cmd": "buy"})
             return await t.aget("broker")
 
@@ -422,7 +425,7 @@ class TestInMemoryTransport:
 
 
 class TestModuleMaster:
-    async def test_persisting_module_health_and_store(self, tmp_path) -> None:
+    async def test_persisting_module_health_and_store(self, tmp_path: Path) -> None:
         db = str(tmp_path / "m.db")
         mod = A2AModule(config={"db_path": db})
         assert mod.persists is True
@@ -438,7 +441,7 @@ class TestModuleMaster:
         assert mod.facade is None
         assert mod.store is None
 
-    async def test_durability_through_module_restart(self, tmp_path) -> None:
+    async def test_durability_through_module_restart(self, tmp_path: Path) -> None:
         db = str(tmp_path / "m2.db")
         mod = A2AModule(config={"db_path": db})
         await mod.initialize()

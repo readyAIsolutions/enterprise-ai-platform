@@ -32,7 +32,7 @@ from enterprise.platform_kernel import (
 from .risk import ThreatAssessment
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
 
 _logger = logging.getLogger("enterprise.threat_model")
 
@@ -427,7 +427,7 @@ class ThreatLibrary:
     def __len__(self) -> int:
         return len(self._threats)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Threat]:
         return iter(self._threats.values())
 
     # -- lookups --------------------------------------------------------------
@@ -671,7 +671,7 @@ class STRIDEThreatMapper:
 
     @staticmethod
     def _mitigations_for(category: str) -> list[str]:
-        _BASE: dict[str, list[str]] = {
+        _base: dict[str, list[str]] = {
             "Spoofing": ["Mutual TLS / identity verification", "Prompt-injection guard"],
             "Tampering": ["Output hashing & integrity checks", "Context sanitization"],
             "Repudiation": ["Hash-chained audit logging", "Tool-call attestation"],
@@ -679,7 +679,7 @@ class STRIDEThreatMapper:
             "Denial of Service": ["Request quotas", "Input length caps"],
             "Elevation of Privilege": ["Least-privilege tool scoping", "Human-in-the-loop"],
         }
-        return list(_BASE.get(category, []))
+        return list(_base.get(category, []))
 
     def categories(self) -> list[str]:
         """Return the six STRIDE category names."""

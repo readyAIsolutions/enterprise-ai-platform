@@ -13,7 +13,7 @@ Version: 1.0.0
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Any  # noqa: F401
 
 from enterprise.modules.universal_score.coverage_fleet import (
     CoverageError,

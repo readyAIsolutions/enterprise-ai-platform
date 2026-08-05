@@ -45,13 +45,13 @@ logger = logging.getLogger("enterprise.release_change.flags")
 _BUCKET_MOD = 10_000  # 0.01% granularity
 
 
-def _digest(*parts: Any) -> str:
+def _digest(*parts: object) -> str:
     """Deterministic SHA-256 digest over stringified parts."""
     raw = ":".join(str(p) for p in parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def hash_bucket(*parts: Any) -> int:
+def hash_bucket(*parts: object) -> int:
     """Return a stable bucket in [0, _BUCKET_MOD).
 
     The same ``*parts`` always yields the same bucket, regardless of process,
@@ -472,7 +472,7 @@ class Canary:
             logger.exception("canary %s health check raised", self.name)
             return False
 
-    def _snapshot(self, **extra: Any) -> dict[str, Any]:
+    def _snapshot(self, **extra: object) -> dict[str, Any]:
         snap = {
             "name": self.name,
             "current_percent": self.current_percent,
@@ -520,7 +520,7 @@ class ReleaseGate:
         engine: FlagEngine,
         flag_name: str,
         canary: Canary | None = None,
-        context: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,  # noqa: ARG002 - public API, bound by keyword
     ) -> dict[str, Any]:
         """Evaluate the gate for a change.
 

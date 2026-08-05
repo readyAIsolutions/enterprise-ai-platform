@@ -49,13 +49,18 @@ except ImportError:  # pragma: no cover - fallback for loose-import environments
 
 # ── Platform imports ───────────────────────────────────────────────────────
 try:
-    from enterprise.platform_kernel import Event, EventBus, EventPriority, HealthStatus  # noqa: F401
+    from enterprise.platform_kernel import (  # noqa: F401
+        Event,
+        EventBus,
+        EventPriority,
+        HealthStatus,
+    )
 except ImportError:
     import os as _os
     import sys as _sys
 
-    _enterprise_dir = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-    _parent = _os.path.dirname(_enterprise_dir)
+    _enterprise_dir = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))  # noqa: PTH100, PTH120
+    _parent = _os.path.dirname(_enterprise_dir)  # noqa: PTH120
     if _parent not in _sys.path:
         _sys.path.insert(0, _parent)
     from enterprise.platform_kernel import Event, EventBus
@@ -697,7 +702,7 @@ class ToolRegistry:
         tool_name: str,
         params: dict[str, Any],
         context: ToolExecutionContext | None = None,
-    ) -> Any:
+    ) -> Any:  # noqa: ANN401
         """Invoke a tool by name with parameters.
 
         Args:
@@ -817,7 +822,7 @@ class ToolRegistry:
                     },
                 )
                 msg = f"Tool {tool_name} exceeded timeout of {ctx.timeout_seconds}s"
-                raise TimeoutError(msg)
+                raise TimeoutError(msg) from None
 
             # 6. Auto-compress output if applicable
             elapsed_ms = (time.perf_counter() - start) * 1000
@@ -941,7 +946,7 @@ class ToolRegistry:
         tool: BaseTool,
         params: BaseModel,
         ctx: ToolExecutionContext,
-        exec_id: str,
+        _exec_id: str,
     ) -> None:
         """Background consumer for streaming execution."""
         try:

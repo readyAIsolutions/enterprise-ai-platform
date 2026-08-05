@@ -137,7 +137,7 @@ class PromptInjectionGuard:
         r"in a (hypothetical|fictional) (world|setting)",
         r"role[ -]?play",
         r"as (a )?(movie|novel|role[- ]play) scenario",
-        r"for (research|testing|educational|entertainment) purposes (only )?(please )?(ignore|bypass)",
+        r"for (research|testing|educational|entertainment) purposes (only )?(please )?(ignore|bypass)",  # noqa: E501
         r"base64",
         r"rot13",
         r"opaquely (encoded|obfuscated)",
@@ -173,7 +173,7 @@ class PromptInjectionGuard:
             matched=matched > 0,
             score=float(matched),
             patterns=patterns,
-            reasons=["matched %d lexical pattern(s)" % matched] if matched else [],
+            reasons=[f"matched {matched} lexical pattern(s)"] if matched else [],
         )
 
     # -- behavioral -------------------------------------------------------- #
@@ -194,7 +194,7 @@ class PromptInjectionGuard:
             ln
             for ln in lines
             if re.match(
-                r"^(ignore|forget|override|pretend|you( must| are| should)|do not|repeat|reveal|print)\b",
+                r"^(ignore|forget|override|pretend|you( must| are| should)|do not|repeat|reveal|print)\b",  # noqa: E501
                 ln,
                 re.IGNORECASE,
             )
@@ -249,8 +249,7 @@ class PromptInjectionGuard:
             matched=(matched > 0) or beh.matched,
             score=float(matched) + beh.score,
             patterns=patterns + beh.patterns,
-            reasons=(["matched %d jailbreak pattern(s)" % matched] if matched else [])
-            + beh.reasons,
+            reasons=([f"matched {matched} jailbreak pattern(s)"] if matched else []) + beh.reasons,
         )
 
 
@@ -303,7 +302,7 @@ class PolicyGuard:
         if policy.max_length > 0 and len(prompt) > policy.max_length:
             blocked = True
             patterns.append("max_length")
-            reasons.append("prompt length %d exceeds max %d" % (len(prompt), policy.max_length))
+            reasons.append(f"prompt length {len(prompt)} exceeds max {policy.max_length}")
 
         # Allowed roles.
         if policy.allowed_roles:
@@ -481,7 +480,11 @@ class PromptGuardModule(Module):
 
     # Convenience passthroughs.
     def run(
-        self, prompt: str, policy: Policy | None = None, role: str | None = None, **kw: Any
+        self,
+        prompt: str,
+        policy: Policy | None = None,
+        role: str | None = None,
+        **kw: Any,  # noqa: ANN401
     ) -> GuardVerdict:
         return self.guard.run(prompt, policy, role, **kw)
 

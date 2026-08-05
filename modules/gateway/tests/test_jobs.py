@@ -29,7 +29,7 @@ _PROJECT_ROOT: Path = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from typing import TYPE_CHECKING, Never
+from typing import TYPE_CHECKING, Never  # noqa: E402
 
 from enterprise.modules.gateway import (  # noqa: E402
     ChannelConfigLoader,
@@ -85,7 +85,7 @@ class RecordingOpener:
     def __init__(self) -> None:
         self.calls: list[tuple[str, bytes, dict]] = []
 
-    def __call__(self, url: str, data: bytes, headers: dict):
+    def __call__(self, url: str, data: bytes, headers: dict) -> _FakeResponse:
         self.calls.append((url, data, headers))
         return _FakeResponse()
 
@@ -136,7 +136,7 @@ def start_echo_server() -> EchoServer:
             self.end_headers()
             self.wfile.write(b'{"ok":true}')
 
-        def log_message(self, *args) -> None:  # silence stdlib request logging
+        def log_message(self, *args: object) -> None:  # noqa: ARG002  # silence stdlib request logging
             return
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)

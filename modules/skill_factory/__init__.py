@@ -30,7 +30,7 @@ __module__ = "skill_factory"
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Any  # noqa: F401
 
 from enterprise.platform_kernel import (
     Event,

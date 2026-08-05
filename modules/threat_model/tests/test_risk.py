@@ -112,7 +112,7 @@ def test_register_add_and_get() -> None:
 def test_register_rejects_duplicate_id() -> None:
     reg = RiskRegister()
     reg.add("R-1", "t", "Tampering", 5.0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already exists"):
         reg.add("R-1", "t2", "Tampering", 6.0)
 
 
@@ -137,7 +137,7 @@ def test_register_status_lifecycle() -> None:
     assert reg.get("R-1").status == STATUS_MITIGATED
     reg.close("R-1")
     assert reg.get("R-1").status == STATUS_CLOSED
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="invalid status"):
         reg.set_status("R-1", "bogus")
 
 
@@ -241,7 +241,7 @@ def test_mitigation_plan_and_tracking() -> None:
 # ---------------------------------------------------------------------------
 
 
-def make_assessment():
+def make_assessment() -> ThreatAssessment:
     return ThreatAssessment(
         register=RiskRegister(),
         planner=MitigationPlanner(),

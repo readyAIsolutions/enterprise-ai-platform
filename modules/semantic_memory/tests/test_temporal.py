@@ -16,6 +16,7 @@ Run with:
 from __future__ import annotations
 
 import datetime
+from typing import TYPE_CHECKING
 
 import pytest
 from enterprise.modules.semantic_memory.hybrid import (
@@ -26,11 +27,15 @@ from enterprise.modules.semantic_memory.hybrid import (
     _exact_tokens,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
+
 DAY = 86400.0
 
 
 @pytest.fixture
-def memory(tmp_path):
+def memory(tmp_path: Path) -> Iterator[HybridSemanticMemory]:
     db = str(tmp_path / "temporal.db")
     m = HybridSemanticMemory(db_path=db)
     yield m
@@ -280,7 +285,7 @@ class TestExactTokenRerankBonus:
 
 
 class TestTemporalPersistence:
-    def test_timestamps_persist_and_recall_since_after_reload(self, tmp_path) -> None:
+    def test_timestamps_persist_and_recall_since_after_reload(self, tmp_path: Path) -> None:
         db = str(tmp_path / "mem.db")
         m1 = HybridSemanticMemory(db_path=db)
         r = m1.add("persistent decision from the past", {"source": "kb"})
@@ -302,7 +307,7 @@ class TestTemporalPersistence:
         finally:
             m2.close()
 
-    def test_migration_adds_missing_time_columns(self, tmp_path) -> None:
+    def test_migration_adds_missing_time_columns(self, tmp_path: Path) -> None:
         """A pre-temporal DB (no created_at/updated_at) opens and migrates cleanly."""
         db = str(tmp_path / "legacy.db")
         import sqlite3

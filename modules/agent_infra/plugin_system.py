@@ -33,7 +33,6 @@ import importlib
 import importlib.util
 import json
 import logging
-import os
 import sys
 import threading
 import time
@@ -421,8 +420,8 @@ class PluginManager:
         self._plugin_dirs: list[str] = cfg.get(
             "plugin_dirs",
             [
-                os.path.expanduser("~/.hermes/plugins"),
-                os.path.join(os.path.dirname(__file__), "plugins"),
+                str(Path("~/.hermes/plugins").expanduser()),
+                str(Path(__file__).parent / "plugins"),
             ],
         )
         self._auto_hot_reload: bool = cfg.get("auto_hot_reload", True)
@@ -541,8 +540,8 @@ class PluginManager:
 
         # Load module
         try:
-            entry_file = os.path.join(path, metadata.main)
-            if not os.path.isfile(entry_file):
+            entry_file = Path(path) / metadata.main
+            if not entry_file.is_file():
                 msg = f"Entry file not found: {metadata.main}"
                 raise FileNotFoundError(msg)
 
@@ -689,14 +688,14 @@ class PluginManager:
             return False
 
         path = instance.path
-        manifest_path = os.path.join(path, "plugin.json")
+        manifest_path = Path(path) / "plugin.json"
 
-        if not os.path.isfile(manifest_path):
+        if not manifest_path.is_file():
             _logger.error("Plugin manifest missing for %s", name)
             return False
 
         try:
-            manifest = json.loads(open(manifest_path).read())
+            manifest = json.loads(manifest_path.read_text())
             await self.unload_plugin(name)
             new_instance = await self._load_plugin(path, manifest)
             return new_instance is not None and new_instance.state in (

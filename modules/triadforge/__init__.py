@@ -26,7 +26,7 @@ import threading
 from dataclasses import dataclass, field  # noqa: F401
 from datetime import UTC, datetime, timezone  # noqa: F401
 from pathlib import Path
-from typing import Any, Dict, List, Optional  # noqa: F401
+from typing import Any
 
 from enterprise.platform_kernel import EventBus, HealthStatus, Module, module
 
@@ -166,7 +166,7 @@ class ScanCore:
         self._lock = threading.RLock()
 
     # ── Target management ───────────────────────────────────────────────────
-    def add_target(self, target: Any) -> int:
+    def add_target(self, target: Any) -> int:  # noqa: ANN401 - accepts dict or object with attributes
         """Register a target (dict or object with attributes); return target_id."""
         with self._lock:
             if isinstance(target, dict):
@@ -593,7 +593,7 @@ class TriadForgeModule(Module):
             }
         )
 
-    def _add_target(self, t: Any) -> int:
+    def _add_target(self, t: Any) -> int:  # noqa: ANN401 - accepts dict or object with attributes
         self._require()
         if self._engine == "external":
             # External TriadForge store expects a Target model object.

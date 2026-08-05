@@ -26,6 +26,9 @@ from enterprise.platform_kernel import EventBus, HealthStatus, Module, module
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from enterprise.modules.model_security.probe_detector import ScanReport
+    from enterprise.modules.model_security.security_gate import SecurityGate
+
 logger = logging.getLogger("enterprise.model_security")
 
 
@@ -135,7 +138,11 @@ class AuditEntry:
     hmac: str = ""
 
     def compute_hash(self) -> str:
-        content = f"{self.timestamp}|{self.sequence}|{self.event_type}|{self.actor}|{self.action}|{json.dumps(self.details, sort_keys=True, separators=(',', ':'))}|{self.prev_hash}"
+        content = (
+            f"{self.timestamp}|{self.sequence}|{self.event_type}|{self.actor}|"
+            f"{self.action}|{json.dumps(self.details, sort_keys=True, separators=(',', ':'))}|"
+            f"{self.prev_hash}"
+        )
         return hashlib.sha256(content.encode()).hexdigest()
 
     def to_dict(self) -> dict[str, Any]:
@@ -318,9 +325,8 @@ class InputSanitizer:
         """Quick check for secrets."""
         for regex, _, min_entropy in self._secret_regex:
             for m in regex.finditer(text):
-                if min_entropy > 0:
-                    if self._shannon_entropy(m.group()) < min_entropy:
-                        continue
+                if min_entropy > 0 and self._shannon_entropy(m.group()) < min_entropy:
+                    continue
                 return True
         return False
 
@@ -666,7 +672,7 @@ class OutputValidator:
             for p, label, conf in self.EXFILTRATION_PATTERNS
         ]
 
-    def validate(self, output: str, context: dict[str, Any] | None = None) -> GuardResult:
+    def validate(self, output: str, context: dict[str, Any] | None = None) -> GuardResult:  # noqa: ARG002 - context kept for API compatibility
         findings = []
         max_toxicity = 0.0
         max_refusal = 0.0
@@ -910,7 +916,10 @@ class AuditLogger:
         details: dict,
         prev_hash: str,
     ) -> str:
-        content = f"{timestamp}|{sequence}|{event_type}|{actor}|{action}|{json.dumps(details, sort_keys=True, separators=(',', ':'))}|{prev_hash}"
+        content = (
+            f"{timestamp}|{sequence}|{event_type}|{actor}|{action}|"
+            f"{json.dumps(details, sort_keys=True, separators=(',', ':'))}|{prev_hash}"
+        )
         return hashlib.sha256(content.encode()).hexdigest()
 
     def _compute_hmac(self, entry: AuditEntry) -> str:
@@ -1336,7 +1345,7 @@ class ModelSecurityModule(Module):
             raise RuntimeError(msg)
         return self._pipeline.execute(prompt, model_fn, model_name, model_type)
 
-    def get_audit_tail(self, lines: int = 100) -> list[dict]:
+    def get_audit_tail(self, lines: int = 100) -> list[dict]:  # noqa: ARG002 - param kept for API compatibility
         """Get recent audit entries."""
         # Would read from audit log
         return []
@@ -1349,13 +1358,19 @@ class ModelSecurityModule(Module):
 
     # -- Upgrade-Run 5 facet: unified security surface -------------------------
 
-    def new_gate(self, **kw):
+    def new_gate(self, **kw: Any) -> SecurityGate:  # noqa: ANN401 - options forwarded to SecurityGate
         """Create a SecurityGate (kernel-level model-agnostic wrapper)."""
         from enterprise.modules.model_security.security_gate import SecurityGate
 
         return SecurityGate({**(self._config or {}), **kw})
 
-    def new_gate_wrapped(self, model_fn, model_name="model", model_type="cloud", **kw):
+    def new_gate_wrapped(
+        self,
+        model_fn: Callable[[str], str],
+        model_name: str = "model",
+        model_type: str = "cloud",
+        **kw: Any,  # noqa: ANN401 - options forwarded to SecurityGate
+    ) -> object:
         """Return a SecuredGate-wrapped model callable."""
         return self.new_gate(**kw).wrap(model_fn, model_name, model_type)
 
@@ -1365,19 +1380,23 @@ class ModelSecurityModule(Module):
 
         return SecurityHealth(self._config or {}).report()
 
-    def redteam(self, model_type: str = "cloud", **kw) -> dict[str, Any]:
+    def redteam(self, model_type: str = "cloud", **kw: Any) -> dict[str, Any]:  # noqa: ANN401 - config options
         """Run the adversarial red-team bench; returns stop-rate + slips."""
         from enterprise.modules.model_security.redteam_bench import RedTeamBench
 
         return RedTeamBench({**(self._config or {}), **kw}).run(model_type=model_type)
 
-    def assert_deploy_secure(self, **kw) -> dict[str, Any]:
+    def assert_deploy_secure(self, **kw: Any) -> dict[str, Any]:  # noqa: ANN401 - check options forwarded
         """Fail-closed deployment gate; raises if security posture unhealthy."""
         from enterprise.modules.model_security.deployment_gate import DeploymentSecurityGate
 
         return DeploymentSecurityGate(self._config or {}).check(**kw)
 
-    def run_scan(self, probe_names=None, target=None):
+    def run_scan(
+        self,
+        probe_names: list[str] | None = None,
+        target: Callable[[str], str] | None = None,
+    ) -> ScanReport:
         """Run a Garak-style probe/detector scan via an injectable model adapter.
 
         `target` is a callable ``str -> str`` representing the model under test;

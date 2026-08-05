@@ -16,15 +16,16 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-VALIDATION_SCRIPT = str(HERE / "run_validation.py")
-
 from jinja2 import Environment, FileSystemLoader
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 from starlette.staticfiles import StaticFiles
+
+HERE = Path(__file__).resolve().parent
+VALIDATION_SCRIPT = str(HERE / "run_validation.py")
 
 # ── Kernel live telemetry ─────────────────────────────────────────────────────
 # Pull the real kernel primitives so the dashboard surfaces LIVE events, health
@@ -53,7 +54,7 @@ except Exception as exc:  # pragma: no cover - import fallback path
     Event = EventBus = EventPriority = MetricsCollector = None
     Module = ModuleRecord = ModuleRegistry = None
     HealthChecker = HealthStatus = None
-    module = _json_safe = lambda *a, **k: None
+    module = _json_safe = lambda *_a, **_k: None
 
 jinja_env = Environment(loader=FileSystemLoader(str(HERE / "templates")), autoescape=True)
 START_TIME = time.time()
@@ -61,7 +62,7 @@ _cache = {}
 _cache_time = 0.0
 
 
-def _run_validation():
+def _run_validation() -> dict | None:
     """Run validation as subprocess — no import path issues."""
     try:
         result = subprocess.run(
@@ -78,7 +79,7 @@ def _run_validation():
     return None
 
 
-def _get_validation():
+def _get_validation() -> dict:
     global _cache, _cache_time
     now = time.time()
     if _cache and (now - _cache_time) < 5:
@@ -114,7 +115,7 @@ def _get_validation():
     }
 
 
-def _get_swarm():
+def _get_swarm() -> dict:
     signal, concurrency = -60, 50
     try:
         out = subprocess.run(
@@ -208,7 +209,10 @@ else:
 
 
 def configure_live_source(
-    os_instance=None, event_bus=None, metrics=None, health_checker=None
+    os_instance: object | None = None,
+    event_bus: object | None = None,
+    metrics: object | None = None,
+    health_checker: object | None = None,
 ) -> None:
     """Inject a running kernel so the dashboard reflects REAL platform state.
 
@@ -227,7 +231,12 @@ def configure_live_source(
         _health_checker = getattr(os_instance, "health_checker", None) or _health_checker
 
 
-def publish_event(topic, source="dashboard", payload=None, priority=None):
+def publish_event(
+    topic: str,
+    source: str = "dashboard",
+    payload: dict | None = None,
+    priority: object | None = None,
+) -> object | None:
     """Publish a REAL event onto the live EventBus (surfaced by /api/events).
 
     Returns the created Event, or None if the kernel is unavailable.
@@ -242,12 +251,12 @@ def publish_event(topic, source="dashboard", payload=None, priority=None):
     return ev
 
 
-def _record_http(name="http.requests") -> None:
+def _record_http(name: str = "http.requests") -> None:
     if _metrics is not None:
         _metrics.increment(name, module="dashboard")
 
 
-def _event_to_dict(ev):
+def _event_to_dict(ev: object) -> dict:
     ts = getattr(ev, "timestamp", None)
     prio = getattr(ev, "priority", "unknown")
     return {
@@ -261,7 +270,7 @@ def _event_to_dict(ev):
     }
 
 
-def _qint(raw, default):
+def _qint(raw: str | None, default: int) -> int:
     try:
         return max(1, min(int(raw), 1000))
     except (TypeError, ValueError):
@@ -273,7 +282,7 @@ _health_cache_time = 0.0
 _HEALTH_TTL = 3.0
 
 
-async def _refresh_health():
+async def _refresh_health() -> dict | None:
     """Run structural+functional health checks and return per-module dicts."""
     if _health_checker is None:
         return None
@@ -288,7 +297,7 @@ async def _refresh_health():
     return {name: [r.to_dict() for r in rl] for name, rl in reports.items()}
 
 
-def _build_offline_health():
+def _build_offline_health() -> dict:
     return {
         "platform": [
             {
@@ -309,7 +318,7 @@ def _build_offline_health():
     }
 
 
-async def _get_health_reports():
+async def _get_health_reports() -> dict:
     global _health_cache, _health_cache_time
     now = time.time()
     if _health_cache and (now - _health_cache_time) < _HEALTH_TTL:
@@ -322,7 +331,7 @@ async def _get_health_reports():
     return _build_offline_health()
 
 
-def _overall_status(modules) -> str:
+def _overall_status(modules: dict) -> str:
     if not modules:
         return "degraded"
     names = [n for n in modules if n != "platform"]
@@ -349,7 +358,7 @@ if _event_bus is not None:
 # ══════════════════════════════════════════════════════════════════════════════
 #  HANDLERS
 # ══════════════════════════════════════════════════════════════════════════════
-async def home(req):
+async def home(req: Request) -> HTMLResponse:
     v = _get_validation()
     s = _get_swarm()
     _record_http()
@@ -363,22 +372,22 @@ async def home(req):
     return HTMLResponse(jinja_env.get_template("dashboard.html").render(ctx))
 
 
-async def api_score(req):
+async def api_score(_req: Request) -> JSONResponse:
     _record_http()
     return JSONResponse(_get_validation())
 
 
-async def api_modules(req):
+async def api_modules(_req: Request) -> JSONResponse:
     _record_http()
     return JSONResponse(_get_validation().get("modules", {}))
 
 
-async def api_swarm(req):
+async def api_swarm(_req: Request) -> JSONResponse:
     _record_http()
     return JSONResponse(_get_swarm())
 
 
-async def api_events(req):
+async def api_events(req: Request) -> JSONResponse:
     _record_http("http.events_requests")
     limit = _qint(req.query_params.get("limit"), 50)
     evs = _event_bus.get_history(limit=limit) if _event_bus else []
@@ -391,7 +400,7 @@ async def api_events(req):
     )
 
 
-async def api_metrics(req):
+async def api_metrics(_req: Request) -> JSONResponse:
     _record_http("http.metrics_requests")
     if _metrics is None:
         return JSONResponse(
@@ -403,7 +412,7 @@ async def api_metrics(req):
     return JSONResponse(snap)
 
 
-async def api_health(req):
+async def api_health(_req: Request) -> JSONResponse:
     _record_http("http.health_requests")
     mods = await _get_health_reports()
     metrics_snap = _metrics.snapshot() if _metrics is not None else {}

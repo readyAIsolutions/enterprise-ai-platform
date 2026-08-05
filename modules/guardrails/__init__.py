@@ -28,7 +28,10 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional  # noqa: F401
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from enterprise.platform_kernel import (
     EventBus,
@@ -221,7 +224,9 @@ class GuardrailsModule(Module):
         """List validator names registered in the plugin registry."""
         return self.registry.list_validators()
 
-    def register_validator(self, name: str, data_type: str = "string"):
+    def register_validator(
+        self, name: str, data_type: str = "string"
+    ) -> Callable[[type[Validator]], type[Validator]]:
         """Register a plugin validator (decorator) into the module registry."""
         return self.registry.register_validator(name, data_type)
 

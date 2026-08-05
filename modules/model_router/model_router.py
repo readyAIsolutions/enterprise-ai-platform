@@ -97,7 +97,7 @@ CAT_UNKNOWN = "unknown"
 CAT_OK = "ok"
 
 
-def classify_http_error(error: Exception, endpoint: str | None = None):
+def classify_http_error(error: Exception, endpoint: str | None = None) -> tuple[str, str]:
     """Map an exception to a ``(category, human_readable_reason)`` pair.
 
     Works on both the router's own :class:`ProviderError` subclasses and on raw
@@ -335,7 +335,7 @@ class BaseProviderAdapter:
     subclass so the router can apply its retry/cooldown policy.
     """
 
-    async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:
+    async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:  # noqa: ANN401
         raise NotImplementedError
 
 
@@ -400,7 +400,7 @@ class HTTPAdapter(BaseProviderAdapter):
         _, reason = classify_http_error(error, endpoint=endpoint)
         return reason
 
-    async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:
+    async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:  # noqa: ANN401
         url = deployment.base_url.rstrip("/") + "/chat/completions"
         payload = {"model": deployment.model, "messages": request}
         api_key = self._env.get(deployment.api_key_env) if deployment.api_key_env else None
@@ -427,25 +427,25 @@ class HTTPAdapter(BaseProviderAdapter):
                         retry_after = None
                 err = RateLimitError(f"HTTP 429 rate-limited for {deployment.id}")
                 err.retry_after = retry_after
-                raise err
+                raise err from e
             if code in (401, 403):
                 msg = f"HTTP {code} auth for {deployment.id}"
-                raise AuthenticationError(msg)
+                raise AuthenticationError(msg) from e
             if 500 <= code <= 599:
                 msg = f"HTTP {code} unavailable for {deployment.id}"
-                raise ServiceUnavailableError(msg)
+                raise ServiceUnavailableError(msg) from e
             msg = f"HTTP {code} for {deployment.id}"
-            raise ProviderError(msg)
+            raise ProviderError(msg) from e
         except (urllib.error.URLError, TimeoutError) as e:
             self._record_outcome(None, e)
             msg = f"timeout/runtime error for {deployment.id}: {e}"
-            raise ProviderTimeoutError(msg)
+            raise ProviderTimeoutError(msg) from e
 
         try:
             content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
             msg = f"malformed response from {deployment.id}"
-            raise ProviderError(msg)
+            raise ProviderError(msg) from None
         tokens = data.get("usage") or {}
         return ProviderResponse(content=content, status="success", tokens=tokens)
 
@@ -463,7 +463,7 @@ class EchoAdapter(BaseProviderAdapter):
         self.fail_map: dict[str, list[BaseException]] = fail_map or {}
         self.calls = 0
 
-    async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:
+    async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:  # noqa: ANN401
         self.calls += 1
         fails = self.fail_map.get(deployment.id)
         if fails:
@@ -481,7 +481,7 @@ class EchoAdapter(BaseProviderAdapter):
 class NoopAdapter(BaseProviderAdapter):
     """Pure no-op adapter: never fails, returns an empty canned response."""
 
-    async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:
+    async def call(self, deployment: DeploymentModel, request: Any) -> ProviderResponse:  # noqa: ANN401, ARG002
         return ProviderResponse(content="", status="success", tokens={})
 
 
@@ -615,7 +615,7 @@ class Router:
     async def _invoke_with_retries(
         self,
         deployment: DeploymentModel,
-        request: Any,
+        request: Any,  # noqa: ANN401
     ) -> ProviderResponse:
         """Call adapter for this deployment applying per-exception-type retries."""
         retry_policy: dict[str, int] = {
@@ -653,7 +653,7 @@ class Router:
                 self._fail_counts[deployment_id] = self._fail_counts.get(deployment_id, 0) + 1
         return entered
 
-    def _record_success(self, deployment_id: str, tokens: dict | None, latency_ms: float) -> None:
+    def _record_success(self, deployment_id: str, tokens: dict | None, latency_ms: float) -> None:  # noqa: ARG002
         self.cooldown.reset_failures(deployment_id)
         if self._metrics_enabled:
             with self._lock:
@@ -663,7 +663,7 @@ class Router:
                 )
                 self._latency_count[deployment_id] = self._latency_count.get(deployment_id, 0) + 1
 
-    async def route(self, group_id: str, request: Any, **kw: Any) -> RouteResult:
+    async def route(self, group_id: str, request: Any, **kw: Any) -> RouteResult:  # noqa: ANN401, ARG002
         """Route ``request`` through the model group named ``group_id``.
 
         Returns:
@@ -795,10 +795,10 @@ class ModelRouter(Router):
     ``snapshot``.
     """
 
-    async def route(self, group_id: str, messages: Any, **kw: Any) -> RouteResult:
+    async def route(self, group_id: str, messages: Any, **kw: Any) -> RouteResult:  # noqa: ANN401
         return await super().route(group_id, messages, **kw)
 
-    def add_deployment(self, deployment: Any) -> None:
+    def add_deployment(self, deployment: Any) -> None:  # noqa: ANN401
         if isinstance(deployment, dict):
             deployment = DeploymentModel.from_dict(deployment)
         super().add_deployment(deployment)

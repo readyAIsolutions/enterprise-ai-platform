@@ -363,7 +363,7 @@ class ComponentNode:
             self.lifecycle = ComponentLifecycle.UNMOUNTED
             self.parent = None
 
-    def set_state(self, **kwargs: Any) -> None:
+    def set_state(self, **kwargs: Any) -> None:  # noqa: ANN401  # arbitrary component state
         """Update component state, triggering a re-render signal."""
         self.state.update(kwargs)
         self.lifecycle = ComponentLifecycle.UPDATING
@@ -533,7 +533,7 @@ class KeybindingRegistry:
             if handler is not None:
 
                 def _make_handler(h: Callable[[], Any]) -> Callable:
-                    def _wrapped(event: Any) -> None:
+                    def _wrapped(event: Any) -> None:  # noqa: ARG001, ANN401  # signal event is dynamic
                         h()
 
                     return _wrapped
@@ -784,7 +784,7 @@ class TUIEngine:
         self._status = HealthStatus.HEALTHY
         _logger.info("TUI Engine shut down")
 
-    def create_root(self, **props: Any) -> ComponentNode:
+    def create_root(self, **props: Any) -> ComponentNode:  # noqa: ANN401  # arbitrary component props
         """Create a new root component node."""
         p = ComponentProps(**props) if props else ComponentProps(id="app-root")
         return ComponentNode(name="root", props=p)

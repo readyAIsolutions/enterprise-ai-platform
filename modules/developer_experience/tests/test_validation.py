@@ -99,7 +99,7 @@ def test_golden_check_accepts_string_present_files() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_validator_complete_project_100_percent(tmp_path) -> None:
+def test_validator_complete_project_100_percent(tmp_path: Path) -> None:
     project = make_project(tmp_path, COMPLETE)
     report = GoldenPathValidator().validate(project)
     assert isinstance(report, ValidationReport)
@@ -109,7 +109,7 @@ def test_validator_complete_project_100_percent(tmp_path) -> None:
     assert len(report.passed()) == len(report.results)
 
 
-def test_validator_empty_project_zero_compliance(tmp_path) -> None:
+def test_validator_empty_project_zero_compliance(tmp_path: Path) -> None:
     project = make_project(tmp_path, {})
     report = GoldenPathValidator().validate(project)
     assert report.compliance_percent() == 0.0
@@ -118,7 +118,7 @@ def test_validator_empty_project_zero_compliance(tmp_path) -> None:
     assert len(report.passed()) == 0
 
 
-def test_validator_partial_project_letter_grade(tmp_path) -> None:
+def test_validator_partial_project_letter_grade(tmp_path: Path) -> None:
     project = make_project(tmp_path, {"README.md": "# Proj\n", ".gitignore": "x\n"})
     report = GoldenPathValidator().validate(project)
     pct = report.compliance_percent()
@@ -127,14 +127,14 @@ def test_validator_partial_project_letter_grade(tmp_path) -> None:
     assert len(report.passed()) == 2
 
 
-def test_validator_missing_directory_fails(tmp_path) -> None:
+def test_validator_missing_directory_fails(tmp_path: Path) -> None:
     missing = tmp_path / "nope"
     report = GoldenPathValidator().validate(missing)
     assert report.failures()
     assert report.compliance_percent() == 0.0
 
 
-def test_validator_returns_per_check_results(tmp_path) -> None:
+def test_validator_returns_per_check_results(tmp_path: Path) -> None:
     project = make_project(tmp_path, COMPLETE)
     report = GoldenPathValidator().validate(project)
     for result in report.results:
@@ -144,7 +144,7 @@ def test_validator_returns_per_check_results(tmp_path) -> None:
         assert result.evidence
 
 
-def test_validator_failure_recommendations(tmp_path) -> None:
+def test_validator_failure_recommendations(tmp_path: Path) -> None:
     project = make_project(tmp_path, {})
     report = GoldenPathValidator().validate(project)
     recs = report.recommendations()
@@ -155,7 +155,7 @@ def test_validator_failure_recommendations(tmp_path) -> None:
         assert len(rec) > 10
 
 
-def test_validator_custom_path(tmp_path) -> None:
+def test_validator_custom_path(tmp_path: Path) -> None:
     project = make_project(tmp_path, {"README.md": "x\n"})
     path = GoldenPath(
         name="custom",
@@ -170,7 +170,7 @@ def test_validator_custom_path(tmp_path) -> None:
     assert report.compliance_percent() == 100.0
 
 
-def test_validator_versioned_check(tmp_path) -> None:
+def test_validator_versioned_check(tmp_path: Path) -> None:
     # versioned via pyproject.toml
     project = make_project(tmp_path / "v1", {"pyproject.toml": '[project]\nversion = "1.0.0"\n'})
     check = GoldenPath.enterprise_dx().get("is_versioned")
@@ -283,7 +283,7 @@ def test_delivery_metrics_to_dict() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_dxscore_combines_compliance_and_delivery(tmp_path) -> None:
+def test_dxscore_combines_compliance_and_delivery(tmp_path: Path) -> None:
     project = make_project(tmp_path, COMPLETE)
     metrics = DeliveryMetrics(team="core")
     now = datetime.utcnow()
@@ -297,7 +297,7 @@ def test_dxscore_combines_compliance_and_delivery(tmp_path) -> None:
     assert score["dx_score"] >= 95.0
 
 
-def test_dxscore_poor_project_low_score(tmp_path) -> None:
+def test_dxscore_poor_project_low_score(tmp_path: Path) -> None:
     project = make_project(tmp_path, {})
     metrics = DeliveryMetrics()
     now = datetime.utcnow()
@@ -325,7 +325,7 @@ def test_letter_grade_boundaries() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_validation_report_to_dict(tmp_path) -> None:
+def test_validation_report_to_dict(tmp_path: Path) -> None:
     project = make_project(tmp_path, COMPLETE)
     report = GoldenPathValidator().validate(project)
     data = report.to_dict()

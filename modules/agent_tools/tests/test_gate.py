@@ -30,9 +30,9 @@ _PARENT = str(_ENTERPRISE_ROOT.parent)
 if _PARENT not in sys.path:
     sys.path.insert(0, _PARENT)
 
-from typing import Never
+from typing import Never  # noqa: E402
 
-from enterprise.modules.agent_tools.gate import (
+from enterprise.modules.agent_tools.gate import (  # noqa: E402
     Decision,
     ToolAudit,
     ToolGate,

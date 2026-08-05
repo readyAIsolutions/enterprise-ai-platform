@@ -102,7 +102,7 @@ def test_funnel_distinct_customer_dedup() -> None:
 
 def test_funnel_unknown_stage_rejected() -> None:
     fa = FunnelAnalyst(STAGES)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unknown funnel stage"):
         fa.feed("nonexistent", "x")
 
 
@@ -111,7 +111,7 @@ def test_funnel_empty_and_zero_guards() -> None:
     assert fa.overall_conversion() == 0.0
     assert fa.reach() == dict.fromkeys(STAGES, 0)
     assert fa.conversions()[0].rate == 0.0
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="at least one stage"):
         FunnelAnalyst([])
 
 
@@ -143,9 +143,9 @@ def test_nps_band_boundaries() -> None:
 
 def test_nps_invalid_score_rejected() -> None:
     nps = NPS()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="NPS score must be 0-10"):
         nps.record(-1)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="NPS score must be 0-10"):
         nps.record(11)
 
 
@@ -291,7 +291,7 @@ def test_journey_analytics_churn_aggregate() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_funnel_sqlite_roundtrip(tmp_path) -> None:
+def test_funnel_sqlite_roundtrip(tmp_path: Path) -> None:
     db = str(tmp_path / "funnel.db")
     fa = FunnelAnalyst(STAGES)
     for i in range(6):
@@ -305,7 +305,7 @@ def test_funnel_sqlite_roundtrip(tmp_path) -> None:
     assert loaded.event_count() == fa.event_count()
 
 
-def test_nps_sqlite_roundtrip(tmp_path) -> None:
+def test_nps_sqlite_roundtrip(tmp_path: Path) -> None:
     db = str(tmp_path / "nps.db")
     nps = NPS()
     for s in (9, 10, 7, 7, 3, 1):
@@ -318,7 +318,7 @@ def test_nps_sqlite_roundtrip(tmp_path) -> None:
     assert loaded.detractors == nps.detractors
 
 
-def test_churn_sqlite_roundtrip(tmp_path) -> None:
+def test_churn_sqlite_roundtrip(tmp_path: Path) -> None:
     db = str(tmp_path / "churn.db")
     cr = ChurnRisk()
     cr.update("a", support_tickets=4, negative_feedback=2, inactivity_days=60)
@@ -331,7 +331,7 @@ def test_churn_sqlite_roundtrip(tmp_path) -> None:
     assert loaded.customers() == ["a", "b"]
 
 
-def test_journey_analytics_sqlite_roundtrip(tmp_path) -> None:
+def test_journey_analytics_sqlite_roundtrip(tmp_path: Path) -> None:
     db = str(tmp_path / "ja.db")
     ja = JourneyAnalytics(STAGES)
     for _ in range(10):

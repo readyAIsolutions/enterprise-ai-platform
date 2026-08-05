@@ -220,7 +220,7 @@ class TaskRecord:
     last_error: str | None = None
 
     @property
-    def payload(self) -> Any:
+    def payload(self) -> Any:  # noqa: ANN401  # JSON-decoded dynamic payload
         try:
             return json.loads(self.fn_payload)
         except (TypeError, ValueError):
@@ -292,7 +292,7 @@ class DurableScheduler:
     def schedule(
         self,
         task_id: str,
-        fn_payload: Any,
+        fn_payload: Any,  # noqa: ANN401  # arbitrary serializable payload
         eta: float | None = None,
         priority: int = 0,
         max_retries: int = 0,
@@ -354,7 +354,7 @@ class DurableScheduler:
                         self._conn.commit()
                         return row["task_id"]
                 msg = f"task_id {task_id!r} already exists"
-                raise SchedulerError(msg)
+                raise SchedulerError(msg) from None
             return task_id
 
     def get_task(self, task_id: str) -> TaskRecord | None:
@@ -467,7 +467,7 @@ class DurableScheduler:
             raise LeaseError(msg)
         return row
 
-    def complete(self, task_id: str, worker_id: str | None = None, result: Any = None) -> bool:
+    def complete(self, task_id: str, worker_id: str | None = None, result: Any = None) -> bool:  # noqa: ARG002, ANN401
         """Mark a task completed (optionally verifying lease ownership)."""
         with self._lock:
             self._require_owner(task_id, worker_id)
@@ -610,7 +610,7 @@ class DurableScheduler:
     def __enter__(self) -> DurableScheduler:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: Any) -> None:  # noqa: ANN401  # signal frame/exc tuple is dynamic
         self.close()
 
 
@@ -646,7 +646,7 @@ class TaskQueue:
     def enqueue(
         self,
         item_id: str,
-        payload: Any,
+        payload: Any,  # noqa: ANN401  # arbitrary serializable payload
         priority: int = 0,
         deadline: float | None = None,
     ) -> str:
@@ -668,7 +668,7 @@ class TaskQueue:
             except sqlite3.IntegrityError:
                 self._conn.rollback()
                 msg = f"item_id {item_id!r} already exists"
-                raise SchedulerError(msg)
+                raise SchedulerError(msg) from None
             return item_id
 
     def peek(self) -> tuple[str, Any] | None:
@@ -727,7 +727,7 @@ class TaskQueue:
                 payload = row["payload"]
             return (row["item_id"], payload)
 
-    def release(self, item_id: str, worker_id: str | None = None) -> bool:
+    def release(self, item_id: str, worker_id: str | None = None) -> bool:  # noqa: ARG002
         """Return a leased item to ``pending`` (e.g. worker died, retry)."""
         now = self.now()
         with self._lock:
@@ -743,7 +743,7 @@ class TaskQueue:
             self._conn.commit()
             return cur.rowcount == 1
 
-    def ack(self, item_id: str, worker_id: str | None = None) -> bool:
+    def ack(self, item_id: str, worker_id: str | None = None) -> bool:  # noqa: ARG002
         """Mark an item as completed and remove it from the active queue."""
         now = self.now()
         with self._lock:
@@ -844,7 +844,7 @@ class SchedulerBus:
     def publish(
         self,
         topic: str,
-        payload: Any,
+        payload: Any,  # noqa: ANN401  # arbitrary serializable payload
         eta: float | None = None,
         priority: int = 0,
         max_retries: int = 2,

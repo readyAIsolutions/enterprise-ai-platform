@@ -75,7 +75,10 @@ def test_substitution_round_trip() -> None:
 
 def test_substitution_placeholder_is_unique_and_reversible() -> None:
     p = PlaceholderSubstituter()
-    text = "first sk-abcdefghijklmnopqrstuvwxyz1234567890ABC second sk-abcdefghijklmnopqrstuvwxyz1234567890ABC"
+    text = (
+        "first sk-abcdefghijklmnopqrstuvwxyz1234567890ABC "
+        "second sk-abcdefghijklmnopqrstuvwxyz1234567890ABC"
+    )
     sub = p.substitute(text)
     # Identical secrets -> identical placeholder (deterministic).
     assert len(set(sub.map.keys())) == 1

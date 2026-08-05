@@ -24,6 +24,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -162,7 +163,7 @@ class PromptVersion:
     checksum: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.checksum:
             self.checksum = self._compute_checksum()
 
@@ -760,7 +761,8 @@ class PromptRegistry:
         if new_status not in self.VALID_TRANSITIONS.get(current.status, set()):
             msg = (
                 f"Cannot transition from {current.status.value} to {new_status.value}. "
-                f"Valid transitions: {[s.value for s in self.VALID_TRANSITIONS.get(current.status, set())]}"
+                f"Valid transitions: "
+                f"{[s.value for s in self.VALID_TRANSITIONS.get(current.status, set())]}"
             )
             raise InvalidTransitionError(msg)
 
@@ -977,7 +979,7 @@ class PromptRegistry:
         if not metrics:
             return None
 
-        def key(m):
+        def key(m: PerformanceMetric) -> float:
             return m.value
 
         best = max(metrics, key=key) if higher_is_better else min(metrics, key=key)
@@ -1104,13 +1106,13 @@ class PromptRegistry:
             msg = "No storage path specified"
             raise ValueError(msg)
         data = self.to_dict()
-        with open(target, "w", encoding="utf-8") as f:
+        with Path(target).open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, default=str)
 
     @classmethod
     def load(cls, path: str) -> PromptRegistry:
         """Load the registry from a JSON file."""
-        with open(path, encoding="utf-8") as f:
+        with Path(path).open(encoding="utf-8") as f:
             data = json.load(f)
         registry = cls.from_dict(data)
         registry._storage_path = path

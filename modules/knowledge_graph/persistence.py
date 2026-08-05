@@ -38,6 +38,7 @@ import sqlite3
 import threading
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from .contradiction import ContradictionManager, ContradictionRecord
@@ -55,7 +56,7 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _jdefault(o: Any) -> Any:
+def _jdefault(o: Any) -> Any:  # noqa: ANN401 - JSON fallback accepts arbitrary objects
     """JSON fallback for non-serializable values."""
     if isinstance(o, set):
         return sorted(o)
@@ -152,17 +153,23 @@ class KGPersistence:
             # directory unless it explicitly names a DB file (or is an
             # existing file).
             p = os.fspath(db_path)
-            looks_like_file = os.path.splitext(p)[1].lower() in (
-                ".db",
-                ".sqlite",
-                ".sqlite3",
-                ".db3",
-            ) or os.path.isfile(p)
+            p_path = Path(p)
+            looks_like_file = (
+                p_path.suffix.lower()
+                in (
+                    ".db",
+                    ".sqlite",
+                    ".sqlite3",
+                    ".db3",
+                )
+                or p_path.is_file()
+            )
             if not looks_like_file:
-                p = os.path.join(p, "knowledge_graph.db")
-            parent = os.path.dirname(os.path.abspath(p))
-            if parent:
-                os.makedirs(parent, exist_ok=True)
+                p_path = p_path / "knowledge_graph.db"
+            parent = p_path.resolve().parent
+            if str(parent):
+                parent.mkdir(parents=True, exist_ok=True)
+            p = str(p_path)
             self.db_path = p
             self._conn = sqlite3.connect(p, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
@@ -184,7 +191,7 @@ class KGPersistence:
     def __enter__(self) -> KGPersistence:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: Any) -> None:  # noqa: ANN401 - context manager exc tuple is arbitrary
         self.close()
 
     # ------------------------------------------------------------------ #
@@ -213,7 +220,7 @@ class KGPersistence:
     # entities
     # ------------------------------------------------------------------ #
 
-    def upsert_entity(self, entity: Any, attrs: dict[str, Any] | None = None) -> str:
+    def upsert_entity(self, entity: dict | Entity, attrs: dict[str, Any] | None = None) -> str:
         """Insert or update an entity, deduplicating by (type, id).
 
         Accepts a dict (from ``Entity.to_dict``), an ``Entity`` instance, or
@@ -308,7 +315,7 @@ class KGPersistence:
 
     def upsert_relationship(
         self,
-        relationship: Any,
+        relationship: dict | Relationship,
         from_id: str | None = None,
         to_id: str | None = None,
         rel_type: str | None = None,
@@ -382,7 +389,8 @@ class KGPersistence:
                     ).fetchall()
                 else:
                     rows = self._conn.execute(  # type: ignore[union-attr]
-                        "SELECT id, from_id, to_id, type, attrs_json FROM relationships WHERE from_id = ?",
+                        "SELECT id, from_id, to_id, type, attrs_json "
+                        "FROM relationships WHERE from_id = ?",
                         (from_id,),
                     ).fetchall()
                 results = [self._row_to_relationship(dict(r)) for r in rows]
@@ -416,8 +424,10 @@ class KGPersistence:
                 with self._conn:  # type: ignore[union-attr]
                     self._conn.execute(  # type: ignore[union-attr]
                         """
-                        INSERT INTO provenance (id, entity_id, source, evidence, confidence, created_at)
-                        VALUES (:id, :entity_id, :source, :evidence, :confidence, :created_at)
+                        INSERT INTO provenance (id, entity_id, source, evidence,
+                            confidence, created_at)
+                        VALUES (:id, :entity_id, :source, :evidence,
+                            :confidence, :created_at)
                         """,
                         record,
                     )
@@ -513,7 +523,7 @@ class KGPersistence:
     # graph sync / load
     # ------------------------------------------------------------------ #
 
-    def sync(self, graph: Any) -> dict[str, int]:
+    def sync(self, graph: Any) -> dict[str, int]:  # noqa: ANN401 - graph is a runtime-dynamic container
         """Snapshot an in-memory graph into the store.
 
         ``graph`` must expose ``entity_registry`` and ``relationship_registry``
@@ -561,7 +571,7 @@ class KGPersistence:
 
         return self.stats()
 
-    def load(self, graph: Any | None = None) -> Any:
+    def load(self, graph: Any | None = None) -> Any:  # noqa: ANN401 - graph/result are runtime-dynamic containers
         """Rebuild an in-memory graph from the store.
 
         If ``graph`` is provided it is populated (entities + relationships

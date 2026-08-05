@@ -9,12 +9,12 @@ Covers:
 - Lifecycle: open/close/reopen, flush, context-manager cleanup
 """
 
-import os
 import sys
+from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from enterprise.modules.prompt_context import (
     ABOptimizer,
@@ -29,12 +29,12 @@ from enterprise.modules.prompt_context.persistence import (
 
 
 @pytest.fixture
-def db_dir(tmp_path):
+def db_dir(tmp_path: Path) -> str:
     return str(tmp_path / "store")
 
 
 @pytest.fixture
-def store(db_dir):
+def store(db_dir: str) -> PromptStore:
     s = PromptStore(db_dir)
     yield s
     s.close()
@@ -45,7 +45,7 @@ def store(db_dir):
 # ---------------------------------------------------------------------------
 
 
-def test_store_put_get_roundtrip(store) -> None:
+def test_store_put_get_roundtrip(store: PromptStore) -> None:
     store.put(
         "greet",
         template="Hello {{name}}",
@@ -63,7 +63,7 @@ def test_store_put_get_roundtrip(store) -> None:
     assert rec["metadata"] == {"a": 1}
 
 
-def test_store_put_updates_and_versions_history(store) -> None:
+def test_store_put_updates_and_versions_history(store: PromptStore) -> None:
     store.put("greet", template="Hello {{name}}", version="0.1.0")
     store.put("greet", template="Hi {{name}}!", version="0.2.0", status="active")
     rec = store.get("greet")
@@ -74,7 +74,7 @@ def test_store_put_updates_and_versions_history(store) -> None:
     assert [v["version"] for v in versions] == ["0.1.0", "0.2.0"]
 
 
-def test_store_reopen_roundtrip(db_dir, store) -> None:
+def test_store_reopen_roundtrip(db_dir: str, store: PromptStore) -> None:
     store.put("a", template="T {{x}}", version="1.0.0", params={"x": "int"}, status="active")
     store.put("a", template="T2 {{x}}", version="1.1.0")
     store.put("b", template="U {{y}}", version="0.5.0")
@@ -91,7 +91,7 @@ def test_store_reopen_roundtrip(db_dir, store) -> None:
         reopened.close()
 
 
-def test_store_delete_list_count(store) -> None:
+def test_store_delete_list_count(store: PromptStore) -> None:
     store.put("a", template="T", version="1")
     store.put("b", template="U", version="1")
     store.put("c", template="V", version="1")
@@ -102,13 +102,13 @@ def test_store_delete_list_count(store) -> None:
     assert store.delete("missing") is False
 
 
-def test_store_get_missing_raises(store) -> None:
+def test_store_get_missing_raises(store: PromptStore) -> None:
     with pytest.raises(StoreNotFound):
         store.get("nope")
     assert store.get_or_none("nope") is None
 
 
-def test_store_list_records_contains_payload(store) -> None:
+def test_store_list_records_contains_payload(store: PromptStore) -> None:
     store.put(
         "a", template="T {{x}}", version="2", metadata={"k": "v"}, record_json={"full": "record"}
     )
@@ -130,7 +130,7 @@ def test_registry_default_memory_preserves_api() -> None:
     assert reg._store is None
 
 
-def test_registry_persists_across_reopen(db_dir) -> None:
+def test_registry_persists_across_reopen(db_dir: str) -> None:
     reg = PromptRegistry(db_path=db_dir)
     pid = reg.define(name="persist", objective="o", template="Ver0 {{x}}")
     assert reg.get_current(pid).template == "Ver0 {{x}}"
@@ -150,7 +150,7 @@ def test_registry_persists_across_reopen(db_dir) -> None:
         reopened.close()
 
 
-def test_registry_versions_and_metrics_persist(db_dir) -> None:
+def test_registry_versions_and_metrics_persist(db_dir: str) -> None:
     reg = PromptRegistry(db_path=db_dir)
     pid = reg.define(name="vers", objective="o", template="v0 {{x}}")
     reg.update(pid, template="v1 {{x}}")
@@ -170,7 +170,7 @@ def test_registry_versions_and_metrics_persist(db_dir) -> None:
         reopened.close()
 
 
-def test_registry_hard_delete_removes_from_store(db_dir) -> None:
+def test_registry_hard_delete_removes_from_store(db_dir: str) -> None:
     reg = PromptRegistry(db_path=db_dir)
     reg.define(name="keep", objective="o", template="K {{x}}")
     pid_b = reg.define(name="drop", objective="o", template="D {{x}}")
@@ -184,7 +184,7 @@ def test_registry_hard_delete_removes_from_store(db_dir) -> None:
         reopened.close()
 
 
-def test_registry_close_flush_and_rollback_persist(db_dir) -> None:
+def test_registry_close_flush_and_rollback_persist(db_dir: str) -> None:
     reg = PromptRegistry(db_path=db_dir)
     pid = reg.define(name="rb", objective="o", template="v1 {{x}}")
     reg.update(pid, template="v2 {{x}}")  # now on v2
@@ -233,7 +233,7 @@ def test_ab_optimizer_throttles_low_n_variants() -> None:
 
 
 def test_ab_optimizer_deterministic_with_seed() -> None:
-    def run(seed):
+    def run(seed: int) -> list[int]:
         opt = ABOptimizer("qa", variants=["x", "y", "z"], epsilon=0.1, seed=seed)
         for _i in range(5):
             opt.record(opt.select_variant(), 0.5)
@@ -255,7 +255,7 @@ def test_ab_optimizer_tracks_stats() -> None:
     assert opt.stats("b").n == 0
 
 
-def test_ab_optimizer_stats_persist_across_reopen(db_dir) -> None:
+def test_ab_optimizer_stats_persist_across_reopen(db_dir: str) -> None:
     opt = ABOptimizer("qa", variants=["a", "b"], epsilon=0.0, min_samples=1, seed=9, db_path=db_dir)
     for _ in range(6):
         opt.record("a", 0.85)
@@ -304,7 +304,7 @@ def test_variant_stats_from_dict() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_store_context_manager_auto_close(tmp_path) -> None:
+def test_store_context_manager_auto_close(tmp_path: Path) -> None:
     path = str(tmp_path / "ctx")
     with PromptStore(path) as s:
         s.put("a", template="T", version="1")

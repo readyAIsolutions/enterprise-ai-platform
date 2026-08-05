@@ -24,7 +24,7 @@ from enterprise.modules.innovation_rd.integrity_ledger import (
 )
 
 
-def make_fingerprint(**overrides: Any) -> str:
+def make_fingerprint(**overrides: Any) -> str:  # noqa: ANN401  # arbitrary fingerprint fields
     base: dict[str, Any] = {
         "inputs": {"dataset": "mnist-v1", "split": "train"},
         "code_version": "abc123",
@@ -293,7 +293,7 @@ class PersistenceLifecycleTests(unittest.TestCase):
 
     def test_persistence_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            db = os.path.join(tmp, "ledger.db")
+            db = os.path.join(tmp, "ledger.db")  # noqa: PTH118  # keep os-based temp interop
             ledger = IntegrityLedger(db)
             try:
                 ledger.append("run-p", make_fingerprint(), actor="alice", action="ran")

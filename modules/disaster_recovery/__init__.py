@@ -66,23 +66,33 @@ __all__ = [
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio  # noqa: F401
-import logging
-import threading
-from typing import Any, Dict, Optional  # noqa: F401
+import asyncio  # noqa: E402, F401
+import logging  # noqa: E402
+import threading  # noqa: E402
+from typing import Any, Optional  # noqa: E402, F401
 
-from enterprise.platform_kernel import HealthStatus, Module, module
+from enterprise.platform_kernel import HealthStatus, Module, module  # noqa: E402
 
-from .ai_continuity import AIContinuityManager, AIContinuityPlan, AIDisruptionType
-from .backup import BackupManager, BackupPolicy, BackupType
-from .bia import BIAAsset, BIAEngine, CriticalityLevel, ImpactCategory
-from .crisis import CrisisManager, CrisisPlan, CrisisRole, CrisisTeam
-from .cyber_recovery import CyberRecoveryManager, CyberRecoveryPhase, CyberRecoveryPlan
-from .exercises import Exercise, ExerciseManager, ExerciseType
-from .recovery import RecoveryEngine, RecoveryMode, RecoveryPlan
-from .rto_rpo import RecoveryTier, RTOPlan, RTOPlanner
-from .scenarios import Scenario, ScenarioLibrary, ScenarioType
-from .snapshot import ManifestEntry, RestoreReport, Snapshot, SnapshotEngine, snapshot_to_dict
+from .ai_continuity import AIContinuityManager, AIContinuityPlan, AIDisruptionType  # noqa: E402
+from .backup import BackupManager, BackupPolicy, BackupType  # noqa: E402
+from .bia import BIAAsset, BIAEngine, CriticalityLevel, ImpactCategory  # noqa: E402
+from .crisis import CrisisManager, CrisisPlan, CrisisRole, CrisisTeam  # noqa: E402
+from .cyber_recovery import (  # noqa: E402
+    CyberRecoveryManager,
+    CyberRecoveryPhase,
+    CyberRecoveryPlan,
+)
+from .exercises import Exercise, ExerciseManager, ExerciseType  # noqa: E402
+from .recovery import RecoveryEngine, RecoveryMode, RecoveryPlan  # noqa: E402
+from .rto_rpo import RecoveryTier, RTOPlan, RTOPlanner  # noqa: E402
+from .scenarios import Scenario, ScenarioLibrary, ScenarioType  # noqa: E402
+from .snapshot import (  # noqa: E402
+    ManifestEntry,
+    RestoreReport,
+    Snapshot,
+    SnapshotEngine,
+    snapshot_to_dict,
+)
 
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 

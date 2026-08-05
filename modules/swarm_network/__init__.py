@@ -20,7 +20,6 @@ from __future__ import annotations
 import asyncio  # noqa: F401
 import json
 import logging
-import os
 import socket  # noqa: F401
 import subprocess
 import sys
@@ -29,7 +28,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum  # noqa: F401
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple  # noqa: F401
+from typing import Any
 
 # Platform kernel import (handles both import contexts)
 try:
@@ -193,7 +192,7 @@ class SwarmNetworkBridge:
     - Metrics for observability
     """
 
-    TURBOCHARGER_SCRIPT = os.path.expanduser("~/.hermes/scripts/swarm_turbocharger.py")
+    TURBOCHARGER_SCRIPT = Path("~/.hermes/scripts/swarm_turbocharger.py").expanduser()
 
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
@@ -231,7 +230,7 @@ class SwarmNetworkBridge:
 
     def start_turbocharger(self) -> bool:
         """Start the turbocharger proxy process."""
-        if not os.path.exists(self.TURBOCHARGER_SCRIPT):
+        if not self.TURBOCHARGER_SCRIPT.exists():
             logger.error(f"Turbocharger script not found: {self.TURBOCHARGER_SCRIPT}")
             return False
         try:

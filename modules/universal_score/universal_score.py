@@ -1018,7 +1018,7 @@ class UniversalBuildScore:
 
     def _hard_gates(
         self,
-        project: Path,
+        _project: Path,
         tests_pass: SubSignal,
         secrets: SubSignal,
         fake_data: SubSignal,
@@ -1044,7 +1044,10 @@ class UniversalBuildScore:
     # ---------- Main entry -----------------------------------------------
 
     def score(
-        self, project_path: Any, run_tests: bool = True, coverage_pct: float | None = None
+        self,
+        project_path: str | os.PathLike[str],
+        run_tests: bool = True,
+        coverage_pct: float | None = None,
     ) -> dict[str, Any]:
         project = Path(project_path)
         if not project.exists():
@@ -1163,7 +1166,10 @@ class UniversalScoreModule(Module):
 
     # Facade
     def score(
-        self, project: Any, run_tests: bool | None = None, coverage_pct: float | None = None
+        self,
+        project: str | os.PathLike[str],
+        run_tests: bool | None = None,
+        coverage_pct: float | None = None,
     ) -> dict[str, Any]:
         if self.engine is None:
             msg = "UniversalScoreModule not initialized"

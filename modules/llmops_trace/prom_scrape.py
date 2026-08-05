@@ -29,7 +29,6 @@ from __future__ import annotations
 import http.client
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
 
 from enterprise.modules.llmops_trace.otel_genai import (
     ExportPipeline,
@@ -123,7 +122,7 @@ class PrometheusScrapeEndpoint:
                 self.end_headers()
                 self.wfile.write(body)
 
-            def log_message(self, *args: Any) -> None:  # keep the endpoint quiet
+            def log_message(self, *args: object) -> None:  # keep the endpoint quiet
                 pass
 
         return Handler
@@ -150,11 +149,11 @@ class PrometheusScrapeEndpoint:
     def __enter__(self) -> PrometheusScrapeEndpoint:
         return self.start()
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.stop()
 
 
-def ScrapeTarget(
+def ScrapeTarget(  # noqa: N802  # public API factory name, keep as-is
     pipeline: ExportPipeline | None = None,
     exporter: PrometheusExporter | None = None,
 ) -> PrometheusScrapeEndpoint:

@@ -22,7 +22,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from typing import Never
+from typing import TYPE_CHECKING, Never
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import pytest
 from enterprise.modules.model_router import (
@@ -46,34 +49,61 @@ from enterprise.modules.model_router import (
 # ---------------------------------------------------------------------------
 
 
-def _mk_deployments():
+def _mk_deployments() -> list[DeploymentModel]:
     return [
         DeploymentModel(id="a", model="m-a", base_url="http://probe-a.test/v1"),
         DeploymentModel(id="b", model="m-b", base_url="http://probe-b.test/v1"),
     ]
 
 
-def _ok(base_url="http://x.test/v1", model="m", api_key=None, timeout=15.0):
+def _ok(
+    base_url: str = "http://x.test/v1",  # noqa: ARG001  (keyword request-fn call contract)
+    model: str = "m",  # noqa: ARG001
+    api_key: str | None = None,  # noqa: ARG001
+    timeout: float = 15.0,  # noqa: ARG001
+) -> tuple[int, dict]:
     return (200, {"choices": [{"message": {"content": "ok"}}]})
 
 
-def _rl(base_url="http://x.test/v1", model="m", api_key=None, timeout=15.0):
+def _rl(
+    base_url: str = "http://x.test/v1",  # noqa: ARG001  (keyword request-fn call contract)
+    model: str = "m",  # noqa: ARG001
+    api_key: str | None = None,  # noqa: ARG001
+    timeout: float = 15.0,  # noqa: ARG001
+) -> tuple[int, dict]:
     return (429, {})
 
 
-def _svc(base_url="http://x.test/v1", model="m", api_key=None, timeout=15.0):
+def _svc(
+    base_url: str = "http://x.test/v1",  # noqa: ARG001  (keyword request-fn call contract)
+    model: str = "m",  # noqa: ARG001
+    api_key: str | None = None,  # noqa: ARG001
+    timeout: float = 15.0,  # noqa: ARG001
+) -> tuple[int, dict]:
     return (503, {})
 
 
-def _timeout(base_url="http://x.test/v1", model="m", api_key=None, timeout=15.0) -> Never:
+def _timeout(
+    base_url: str = "http://x.test/v1",  # noqa: ARG001  (keyword request-fn call contract)
+    model: str = "m",  # noqa: ARG001
+    api_key: str | None = None,  # noqa: ARG001
+    timeout: float = 15.0,  # noqa: ARG001
+) -> Never:
     msg = "connection timed out"
     raise ProviderTimeoutError(msg)
 
 
-def _route_by_url(responses):
+def _route_by_url(
+    responses: dict[str, Callable[..., tuple[int, dict]]],
+) -> Callable[..., tuple[int, dict]]:
     """Return a request_fn routing on exact base_url match (falls back to 200)."""
 
-    def _fn(base_url, model="m", api_key=None, timeout=15.0):
+    def _fn(
+        base_url: str,
+        model: str = "m",
+        api_key: str | None = None,
+        timeout: float = 15.0,
+    ) -> tuple[int, dict]:
         if base_url in responses:
             return responses[base_url](
                 base_url=base_url, model=model, api_key=api_key, timeout=timeout
@@ -271,8 +301,8 @@ def test_ping_local_free_router_returns_tuple() -> None:
     assert isinstance(detail, str)
 
 
-def test_ping_local_free_router_unreachable(monkeypatch) -> None:
-    def _refuse(*a, **k) -> Never:
+def test_ping_local_free_router_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _refuse(*_a: object, **_k: object) -> Never:
         msg = "nope"
         raise ConnectionRefusedError(msg)
 

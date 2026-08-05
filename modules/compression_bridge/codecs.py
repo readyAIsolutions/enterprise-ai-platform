@@ -63,14 +63,14 @@ class Codec(ABC):
     mime: str = "application/octet-stream"
 
     @abstractmethod
-    def encode(self, data: Any) -> bytes:
+    def encode(self, data: Any) -> bytes:  # noqa: ANN401
         """Return the compressed representation of *data*."""
 
     @abstractmethod
-    def decode(self, data: bytes) -> Any:
+    def decode(self, data: bytes) -> Any:  # noqa: ANN401
         """Return the original object from a compressed representation."""
 
-    def ratio(self, data: Any) -> float:
+    def ratio(self, data: Any) -> float:  # noqa: ANN401
         """Compression ratio achieved on *data* (original / encoded size)."""
         encoded = self.encode(data)
         original_len = _measure(data)
@@ -78,11 +78,11 @@ class Codec(ABC):
             return 1.0
         return original_len / max(len(encoded), 1)
 
-    def compress(self, data: Any) -> bytes:
+    def compress(self, data: Any) -> bytes:  # noqa: ANN401
         """Alias for encode() — mirrors the bridge vocabulary."""
         return self.encode(data)
 
-    def decompress(self, data: bytes) -> Any:
+    def decompress(self, data: bytes) -> Any:  # noqa: ANN401
         """Alias for decode() — mirrors the bridge vocabulary."""
         return self.decode(data)
 
@@ -90,7 +90,7 @@ class Codec(ABC):
         return f"<{type(self).__name__} name={self.name!r} mime={self.mime!r}>"
 
 
-def _measure(data: Any) -> int:
+def _measure(data: Any) -> int:  # noqa: ANN401
     """Return the logical byte size of *data* regardless of type."""
     if isinstance(data, bytes):
         return len(data)
@@ -108,7 +108,7 @@ class XZCodec(Codec):
     name = "xz"
     mime = "application/x-xz"
 
-    def encode(self, data: Any) -> bytes:
+    def encode(self, data: Any) -> bytes:  # noqa: ANN401
         return lzma.compress(_as_bytes(data), preset=6)
 
     def decode(self, data: bytes) -> bytes:
@@ -121,7 +121,7 @@ class GzipCodec(Codec):
     name = "gzip"
     mime = "application/gzip"
 
-    def encode(self, data: Any) -> bytes:
+    def encode(self, data: Any) -> bytes:  # noqa: ANN401
         return gzip.compress(_as_bytes(data), compresslevel=9)
 
     def decode(self, data: bytes) -> bytes:
@@ -134,7 +134,7 @@ class Bz2Codec(Codec):
     name = "bz2"
     mime = "application/x-bzip2"
 
-    def encode(self, data: Any) -> bytes:
+    def encode(self, data: Any) -> bytes:  # noqa: ANN401
         return bz2.compress(_as_bytes(data), compresslevel=9)
 
     def decode(self, data: bytes) -> bytes:
@@ -147,10 +147,10 @@ class JsonCodec(Codec):
     name = "json"
     mime = "application/json"
 
-    def encode(self, data: Any) -> bytes:
+    def encode(self, data: Any) -> bytes:  # noqa: ANN401
         return json.dumps(data, separators=(",", ":")).encode("utf-8")
 
-    def decode(self, data: bytes) -> Any:
+    def decode(self, data: bytes) -> Any:  # noqa: ANN401
         return json.loads(data.decode("utf-8"))
 
 
@@ -160,14 +160,14 @@ class NOOPCodec(Codec):
     name = "noop"
     mime = "application/octet-stream"
 
-    def encode(self, data: Any) -> bytes:
+    def encode(self, data: Any) -> bytes:  # noqa: ANN401
         return _as_bytes(data)
 
     def decode(self, data: bytes) -> bytes:
         return bytes(data)
 
 
-def _as_bytes(data: Any) -> bytes:
+def _as_bytes(data: Any) -> bytes:  # noqa: ANN401
     """Normalise *data* to bytes for binary codecs."""
     if isinstance(data, bytes):
         return data
@@ -255,7 +255,7 @@ class CodecRegistry:
 
     # ── Negotiation ────────────────────────────────────────────────────────
 
-    def best_codec(self, payload: Any) -> Codec:
+    def best_codec(self, payload: Any) -> Codec:  # noqa: ANN401
         """Negotiate the best codec for *payload*.
 
         Each codec runs over a bounded sample of the payload; the one achieving
@@ -283,7 +283,7 @@ class CodecRegistry:
         return best
 
 
-def _sample(payload: Any) -> Any:
+def _sample(payload: Any) -> Any:  # noqa: ANN401
     """Return a bounded sample of *payload* for cheap negotiation."""
     if isinstance(payload, bytes):
         return payload[:SAMPLE_BYTES]
@@ -295,7 +295,7 @@ def _sample(payload: Any) -> Any:
     return payload  # dicts / scalars pass through whole
 
 
-def negotiate_ratio(source_payload: Any) -> dict[str, Any]:
+def negotiate_ratio(source_payload: Any) -> dict[str, Any]:  # noqa: ANN401
     """Negotiate the best codec and measure the achievable savings.
 
     Args:

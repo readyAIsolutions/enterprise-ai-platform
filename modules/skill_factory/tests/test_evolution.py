@@ -76,7 +76,7 @@ def _seed_bad(store: SkillFeedbackStore, name: str = "gamma", n: int = 12, day: 
 
 
 class TestSkillFeedbackStore:
-    def test_record_and_read_outcome(self, tmp_path) -> None:
+    def test_record_and_read_outcome(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         row_id = store.record_outcome(
             skill="alpha",
@@ -106,7 +106,7 @@ class TestSkillFeedbackStore:
         assert [r["result"] for r in outcomes] == [RESULT_SUCCESS, RESULT_FAIL, RESULT_SUCCESS]
         assert [r["feedback"] for r in outcomes] == [7, 10, 0]
 
-    def test_count_and_all_skills(self, tmp_path) -> None:
+    def test_count_and_all_skills(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         store.record_outcome("a", timestamp=_NEWER)
         store.record_outcome("a", "fail", timestamp=_NEWER)
@@ -117,7 +117,7 @@ class TestSkillFeedbackStore:
         assert store.get_outcomes("missing") == []
         assert store.all_skills() == ["a", "b"]
 
-    def test_clear_removes_everything(self, tmp_path) -> None:
+    def test_clear_removes_everything(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         _seed_good(store)
         assert store.count() == 20
@@ -125,7 +125,7 @@ class TestSkillFeedbackStore:
         assert store.count() == 0
         assert store.all_skills() == []
 
-    def test_persistence_round_trip(self, tmp_path) -> None:
+    def test_persistence_round_trip(self, tmp_path: Path) -> None:
         path = tmp_path / "evodb.sqlite"
         store = SkillFeedbackStore(path)
         _seed_good(store, name="persist")
@@ -146,13 +146,13 @@ class TestSkillFeedbackStore:
 
 
 class TestSkillScore:
-    def test_empty_outcomes_zero_weight(self, tmp_path) -> None:
+    def test_empty_outcomes_zero_weight(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         score = compute_evolution_score("ghost", store, now=_NOW_EPOCH)
         assert score["n"] == 0
         assert score["weight"] == 0.0
 
-    def test_all_success_high_score(self, tmp_path) -> None:
+    def test_all_success_high_score(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         _seed_good(store)
         score = compute_evolution_score("alpha", store, now=_NOW_EPOCH)
@@ -160,7 +160,7 @@ class TestSkillScore:
         assert score["n"] == 20
         assert score["weight"] >= 70.0  # well-measured, consistent success
 
-    def test_success_rate_orders_scores(self, tmp_path) -> None:
+    def test_success_rate_orders_scores(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         _seed_good(store, name="good")
         _seed_bad(store, name="bad")
@@ -169,7 +169,7 @@ class TestSkillScore:
         assert good["success_rate"] > bad["success_rate"]
         assert good["weight"] > bad["weight"]
 
-    def test_feedback_raises_score(self, tmp_path) -> None:
+    def test_feedback_raises_score(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         for _ in range(20):
             store.record_outcome(
@@ -183,7 +183,7 @@ class TestSkillScore:
         assert liked["avg_feedback"] > flat["avg_feedback"]
         assert liked["weight"] > flat["weight"]
 
-    def test_efficiency_raises_score(self, tmp_path) -> None:
+    def test_efficiency_raises_score(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         for _ in range(20):
             store.record_outcome(
@@ -197,7 +197,7 @@ class TestSkillScore:
         assert fast["efficiency"] > slow["efficiency"]
         assert fast["weight"] > slow["weight"]
 
-    def test_recency_boosts_newer_skill(self, tmp_path) -> None:
+    def test_recency_boosts_newer_skill(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         for _ in range(20):
             store.record_outcome(
@@ -211,7 +211,7 @@ class TestSkillScore:
         assert fresh["recency"] > stale["recency"]
         assert fresh["weight"] > stale["weight"]
 
-    def test_volume_weighted_stability_no_overweight(self, tmp_path) -> None:
+    def test_volume_weighted_stability_no_overweight(self, tmp_path: Path) -> None:
         """A single lucky 100% run must NOT rival a well-measured 100% skill."""
         store = _make(tmp_path)
         store.record_outcome(
@@ -235,7 +235,7 @@ class TestSkillScore:
 
 
 class TestEvolutionEngine:
-    def test_record_outcome_delegates_and_returns_row(self, tmp_path) -> None:
+    def test_record_outcome_delegates_and_returns_row(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         engine = EvolutionEngine(store)
         row = engine.record_outcome("s", "success", feedback=8, timestamp=_NEWER)
@@ -244,7 +244,7 @@ class TestEvolutionEngine:
         assert row["feedback"] == 8
         assert store.count("s") == 1
 
-    def test_update_score_computes_weight(self, tmp_path) -> None:
+    def test_update_score_computes_weight(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         _seed_good(store)
         engine = EvolutionEngine(store)
@@ -254,7 +254,7 @@ class TestEvolutionEngine:
         assert bd["n"] == 20
         assert bd["weight"] > 0
 
-    def test_rank_skills_orders_descending(self, tmp_path) -> None:
+    def test_rank_skills_orders_descending(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         _seed_good(store, name="top")
         _seed_bad(store, name="bottom")
@@ -281,7 +281,7 @@ class TestEvolutionEngine:
         assert top == ranked[0]
         assert bottom == ranked[-1]
 
-    def test_promote_below_threshold_marks(self, tmp_path) -> None:
+    def test_promote_below_threshold_marks(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         _seed_bad(store)  # low score
         engine = EvolutionEngine(store, threshold=DEFAULT_PROMOTE_THRESHOLD)
@@ -290,7 +290,7 @@ class TestEvolutionEngine:
         assert "gamma" in engine.promotions
         assert engine.promotions["gamma"]["weight"] == result["weight"]
 
-    def test_promote_above_threshold_not_marked(self, tmp_path) -> None:
+    def test_promote_above_threshold_not_marked(self, tmp_path: Path) -> None:
         store = _make(tmp_path)
         _seed_good(store)  # high score
         engine = EvolutionEngine(store)
@@ -298,7 +298,7 @@ class TestEvolutionEngine:
         assert result["promoted"] is False
         assert "alpha" not in engine.promotions
 
-    def test_refresh_loop_scores_scores_and_promotes(self, tmp_path) -> None:
+    def test_refresh_loop_scores_scores_and_promotes(self, tmp_path: Path) -> None:
         refiner_calls: list[str] = []
         store = _make(tmp_path)
         _seed_good(store, name="good")

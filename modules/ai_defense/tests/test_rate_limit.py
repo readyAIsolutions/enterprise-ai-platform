@@ -109,7 +109,7 @@ def test_limiter_snapshot_counts_live_hits() -> None:
 # ---------------------------------------------------------------------------
 # AttackerStore persistence
 # ---------------------------------------------------------------------------
-def test_store_records_attempts_and_survives_reopen(tmp_path) -> None:
+def test_store_records_attempts_and_survives_reopen(tmp_path: Path) -> None:
     db = str(tmp_path / "attackers.db")
     c = Clock()
     s1 = AttackerStore(db)
@@ -155,7 +155,7 @@ def test_store_block_lifecycle() -> None:
     s.unblock("ip:2")  # no-op safe on missing key
 
 
-def test_store_list_ordering_and_flags(tmp_path) -> None:
+def test_store_list_ordering_and_flags(tmp_path: Path) -> None:
     db = str(tmp_path / "a.db")
     c = Clock()
     s = AttackerStore(db)

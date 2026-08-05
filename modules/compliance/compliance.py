@@ -38,7 +38,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from enterprise.platform_kernel import (
     EventBus,
@@ -46,6 +46,9 @@ from enterprise.platform_kernel import (
     Module,
     module,
 )
+
+if TYPE_CHECKING:
+    from .evidence import ControlEvidence, EvidenceRegister
 
 logger = logging.getLogger("enterprise.compliance")
 
@@ -400,7 +403,7 @@ class ComplianceEvaluator:
 
     # -- per-control posture -------------------------------------------------
 
-    def _resolve(self, control: Control, raw: Any) -> ControlEvaluation:
+    def _resolve(self, control: Control, raw: CompControl | str | None) -> ControlEvaluation:
         """Coerce a raw map value into a normalized ControlEvaluation."""
         if isinstance(raw, CompControl):
             comp = raw
@@ -418,7 +421,7 @@ class ComplianceEvaluator:
             notes=comp.notes,
         )
 
-    def _applicable(self, results: list[ControlEvaluation]):
+    def _applicable(self, results: list[ControlEvaluation]) -> list[ControlEvaluation]:
         return [r for r in results if r.status != STATUS_NOT_APPLICABLE]
 
     # -- aggregate metrics ---------------------------------------------------
@@ -465,7 +468,7 @@ class ComplianceEvaluator:
 
     def _compute_passed(
         self,
-        implemented: int,
+        _implemented: int,
         partial: int,
         missing: int,
         coverage: float,
@@ -630,11 +633,16 @@ class ComplianceFacade:
         """The live evidence register backing evidence-based assessment."""
         return self._register
 
-    def add_evidence(self, evidence) -> int:
+    def add_evidence(self, evidence: ControlEvidence | dict[str, Any]) -> int:
         """Record a :class:`ControlEvidence` (or dict) into the register."""
         return self._register.add(evidence)
 
-    def ingest(self, results, source: str = "scan", framework: str | None = None) -> int:
+    def ingest(
+        self,
+        results: dict[str, Any],
+        source: str = "scan",
+        framework: str | None = None,
+    ) -> int:
         """Bulk-add evidence from a scan-results mapping."""
         from .evidence import ingest as _ingest
 
@@ -777,15 +785,20 @@ class ComplianceModule(Module):
     # -- live evidence-based assessment -------------------------------------
 
     @property
-    def register(self):
+    def register(self) -> EvidenceRegister:
         """The module's live :class:`EvidenceRegister`."""
         return self._register
 
-    def add_evidence(self, evidence) -> int:
+    def add_evidence(self, evidence: ControlEvidence | dict[str, Any]) -> int:
         """Record evidence into the module's register."""
         return self._facade.add_evidence(evidence)
 
-    def ingest(self, results, source: str = "scan", framework: str | None = None) -> int:
+    def ingest(
+        self,
+        results: dict[str, Any],
+        source: str = "scan",
+        framework: str | None = None,
+    ) -> int:
         """Bulk-add evidence from a scan-results mapping."""
         return self._facade.ingest(results, source=source, framework=framework)
 

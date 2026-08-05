@@ -15,7 +15,7 @@ All components are stdlib-only with zero external dependencies.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Any, Optional  # noqa: F401
 
 from enterprise.platform_kernel import (
     EventBus,  # noqa: F401
@@ -66,12 +66,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 
-def create_facade(config: dict[str, Any] | None = None) -> AIDefenseFacade:
+def create_facade(_config: dict[str, Any] | None = None) -> AIDefenseFacade:
     """Build an AIDefenseFacade from a config dict (defaults applied)."""
     return AIDefenseFacade()
 
 
-def register(context) -> Any:
+def register(context: Any) -> Any:  # noqa: ANN401 - plugin context is runtime-dynamic
     """Kernel plugin-style registration (optional; @module handles discovery)."""
     facade = AIDefenseFacade()
     context.register_hook(

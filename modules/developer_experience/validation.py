@@ -143,7 +143,10 @@ class GoldenPath:
                     grade="essential",
                     weight=2.0,
                     present_files=("README.md", "README.rst", "README.txt", "README"),
-                    remediation="Add a README.md at the repo root describing the project, quick start, and usage.",
+                    remediation=(
+                        "Add a README.md at the repo root describing the project, quick "
+                        "start, and usage."
+                    ),
                 ),
                 GoldenCheck(
                     id="has_tests",
@@ -151,7 +154,9 @@ class GoldenPath:
                     grade="essential",
                     weight=2.0,
                     present_files=("tests", "test", "spec"),
-                    remediation="Add a tests/ directory with unit tests and wire them into your build.",
+                    remediation=(
+                        "Add a tests/ directory with unit tests and wire them into your build."
+                    ),
                 ),
                 GoldenCheck(
                     id="has_ci",
@@ -165,7 +170,10 @@ class GoldenPath:
                         "Jenkinsfile",
                         ".azure-pipelines.yml",
                     ),
-                    remediation="Add a CI pipeline (e.g. .github/workflows/ci.yml) that runs tests on every push.",
+                    remediation=(
+                        "Add a CI pipeline (e.g. .github/workflows/ci.yml) that runs "
+                        "tests on every push."
+                    ),
                 ),
                 GoldenCheck(
                     id="has_lint_config",
@@ -182,7 +190,10 @@ class GoldenPath:
                         ".rubocop.yml",
                         ".golangci.yml",
                     ),
-                    remediation="Add a lint configuration (e.g. .flake8 or a ruff section in pyproject.toml).",
+                    remediation=(
+                        "Add a lint configuration (e.g. .flake8 or a ruff section in "
+                        "pyproject.toml)."
+                    ),
                 ),
                 GoldenCheck(
                     id="has_type_hints",
@@ -196,7 +207,9 @@ class GoldenPath:
                         "pyrightconfig.json",
                         "tsconfig.json",
                     ),
-                    remediation="Add mypy.ini (or py.typed for a library) and annotate public APIs.",
+                    remediation=(
+                        "Add mypy.ini (or py.typed for a library) and annotate public APIs."
+                    ),
                 ),
                 GoldenCheck(
                     id="has_gitignore",
@@ -204,7 +217,9 @@ class GoldenPath:
                     grade="essential",
                     weight=1.0,
                     present_files=(".gitignore",),
-                    remediation="Add a .gitignore covering build output, virtualenvs, caches and IDE files.",
+                    remediation=(
+                        "Add a .gitignore covering build output, virtualenvs, caches and IDE files."
+                    ),
                 ),
                 GoldenCheck(
                     id="has_license",
@@ -212,7 +227,10 @@ class GoldenPath:
                     grade="recommended",
                     weight=1.0,
                     present_files=("LICENSE", "LICENSE.txt", "LICENSE.md", "COPYING"),
-                    remediation="Add a LICENSE file (pick an OSI-approved license appropriate for the project).",
+                    remediation=(
+                        "Add a LICENSE file (pick an OSI-approved license appropriate "
+                        "for the project)."
+                    ),
                 ),
                 GoldenCheck(
                     id="is_versioned",
@@ -220,7 +238,10 @@ class GoldenPath:
                     grade="essential",
                     weight=2.0,
                     matcher=_check_versioned,
-                    remediation="Declare a version (e.g. __version__ in your package or version= in pyproject.toml).",
+                    remediation=(
+                        "Declare a version (e.g. __version__ in your package or "
+                        "version= in pyproject.toml)."
+                    ),
                 ),
             ],
         )

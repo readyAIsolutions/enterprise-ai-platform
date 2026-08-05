@@ -64,7 +64,7 @@ _RECENCY_BANDS: tuple[tuple[int, float], ...] = (
 )
 
 
-def _parse_date(value: Any, now: _dt.date | None = None) -> _dt.date:
+def _parse_date(value: Any, now: _dt.date | None = None) -> _dt.date:  # noqa: ANN401
     """Parse an ISO-8601 date/datetime into a date (never returns None)."""
     if value is None:
         return now or _dt.date.today()
@@ -138,7 +138,7 @@ class Source:
         except Exception:  # pragma: no cover - defensive
             return f"id-{self.id}"
 
-    def supports(self, claim: str | None = None) -> bool:
+    def supports(self, claim: str | None = None) -> bool:  # noqa: ARG002
         """True when this source supports (rather than contradicts) a claim."""
         return self.stance == "support"
 
@@ -179,7 +179,7 @@ class SourceCredibility:
         *,
         tier: str = UNKNOWN_TIER,
         corroboration: int = 1,
-        retrieved_at: Any = None,
+        retrieved_at: Any = None,  # noqa: ANN401
         now: _dt.date | None = None,
     ) -> float:
         """Compute credibility in [0, 1] from tier, corroboration, and recency.
@@ -421,7 +421,7 @@ class Verifier:
 
     def _judge(
         self,
-        claim: str,
+        _claim: str,
         corroboration: int,
         contradiction: int,
         confidence: float,

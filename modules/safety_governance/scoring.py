@@ -395,7 +395,11 @@ class CooccurrenceModel:
         return self._total
 
     # ------------------------------------------------------------------
-    def learn(self, ctx_pairs: Sequence[tuple[str, str]], target: str | None = None) -> None:
+    def learn(
+        self,
+        ctx_pairs: Sequence[tuple[str, str]],
+        target: str | None = None,  # noqa: ARG002 - documented provenance param
+    ) -> None:
         """Ingest association data.
 
         Args:
@@ -632,6 +636,6 @@ class SafetyScorer:
         }
 
 
-def create_safety_scorer(**config: Any) -> SafetyScorer:
+def create_safety_scorer(**config: Any) -> SafetyScorer:  # noqa: ANN401 - arbitrary config kwargs
     """Factory for a SafetyScorer with optional config overrides."""
     return SafetyScorer(**config)

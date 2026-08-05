@@ -233,12 +233,12 @@ PolicyDataMasker = masking.DataMasker
 # Kernel lifecycle registration -- makes this OS module discoverable by the
 # ENI Platform Kernel for initialize/health_check/shutdown orchestration.
 # --------------------------------------------------------------------------
-import asyncio  # noqa: F401
-import logging
-import threading
-from typing import Any, Dict, Optional  # noqa: F401
+import asyncio  # noqa: E402, F401
+import logging  # noqa: E402
+import threading  # noqa: E402
+from typing import Any, Optional  # noqa: E402, F401
 
-from enterprise.platform_kernel import HealthStatus, Module, module
+from enterprise.platform_kernel import HealthStatus, Module, module  # noqa: E402
 
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 

@@ -28,10 +28,15 @@ Python: 3.11+
 from __future__ import annotations
 
 import copy
+import json
+import sqlite3
+import threading
+import time
 import uuid
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 __all__ = [
@@ -429,7 +434,7 @@ class SupervisorGraph:
         self._routes: dict[str, Any] = {}
         self._coordinator = coordinator
         if self._coordinator is None:
-            self._coordinator = lambda state: {}  # pass-through
+            self._coordinator = lambda _state: {}  # pass-through
         self.graph.add_node("coordinator", self._coordinator)
         self.graph.add_edge(start, "coordinator")
 
@@ -437,7 +442,7 @@ class SupervisorGraph:
         self,
         name: str,
         fn: NodeFn,
-        route: Any | None = None,
+        route: object | None = None,
     ) -> str:
         """Register a worker node.
 
@@ -466,7 +471,7 @@ class SupervisorGraph:
         self.graph.add_edge(name, self.graph.end)
         return name
 
-    def _route_condition(self, route_value: Any) -> ConditionFn:
+    def _route_condition(self, route_value: object) -> ConditionFn:
         key = self.route_key
 
         def _cond(state: State) -> bool:
@@ -484,7 +489,7 @@ class SupervisorGraph:
     def run(
         self,
         initial_state: State | None = None,
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401 - forwarded verbatim to underlying graph.run
     ) -> GraphRun:
         """Run the supervisor graph (delegates to :meth:`AgentGraph.run`)."""
         return self.graph.run(initial_state, **kwargs)
@@ -586,13 +591,6 @@ class AgentGraphFacade:
 #   - clear errors on missing node / edge / cycle
 # ============================================================================
 
-import json
-import os
-import sqlite3
-import threading
-import time
-from pathlib import Path
-
 __all__ += [
     "RoutingFn",
     "SqliteCheckpointStore",
@@ -606,7 +604,7 @@ __all__ += [
 RoutingFn = Callable[[State], str | None]
 
 # Default database location for durable checkpoints (relative to cwd).
-DEFAULT_DB_PATH = os.path.join("data", "agent_graph_state.db")
+DEFAULT_DB_PATH = str(Path("data") / "agent_graph_state.db")
 
 _INITIAL_NODE = ""  # sentinel node name used for the seq-0 checkpoint
 
@@ -970,7 +968,7 @@ class StateGraph:
         name: str,
         route_key: str,
         workers: dict[Any, NodeFn | StateGraph],
-        coordinator: NodeFn | None = None,
+        coordinator: NodeFn | None = None,  # noqa: ARG002 - kept for API parity
     ) -> StateGraph:
         """Add a supervisor node that fans out to one of ``workers``.
 

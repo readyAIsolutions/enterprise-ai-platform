@@ -11,7 +11,8 @@ into organizational memory or engineering decisions.
 
 Core components (aligned with Research OS spec):
   - ResearchPlanner       — plan research, classify domain, scope investigation
-  - SourceRanker          — rank sources by authority (internal > vendor > standard > academic > tech pub > community)
+  - SourceRanker          — rank sources by authority (internal > vendor > standard >
+    academic > tech pub > community)
   - ClaimDetector         — detect conflicting claims, distinguish facts from assumptions
   - ConfidenceAssigner    — assign confidence levels to findings with transparent reasoning
   - EvidenceSynthesizer   — synthesize evidence into unified findings with recommendations
@@ -59,14 +60,14 @@ Architecture:
 
 from __future__ import annotations
 
-import os
 import sys
+from pathlib import Path
 
 # Ensure enterprise path is available
-_ENTERPRISE_DIR = os.path.dirname(os.path.dirname(__file__))
-_PARENT = os.path.dirname(_ENTERPRISE_DIR)
+_ENTERPRISE_DIR = Path(__file__).parent.parent
+_PARENT = _ENTERPRISE_DIR.parent
 if _PARENT not in sys.path:
-    sys.path.insert(0, _PARENT)
+    sys.path.insert(0, str(_PARENT))
 
 # Platform kernel imports
 try:
@@ -75,22 +76,22 @@ except ImportError:
     from platform_kernel import HealthStatus, Module, module
 
 # Core research engine
-from .claim_detector import (
+from .claim_detector import (  # noqa: E402
     ClaimDetector as StandaloneClaimDetector,  # noqa: F401
     classify_claim,
     extract_claims,
 )
-from .confidence import (
+from .confidence import (  # noqa: E402
     ConfidenceAssigner as StandaloneConfidenceAssigner,  # noqa: F401
     aggregate_confidence,
     compute_confidence,
 )
-from .evidence_synthesizer import (
+from .evidence_synthesizer import (  # noqa: E402
     EvidenceSynthesizer as StandaloneEvidenceSynthesizer,  # noqa: F401
     generate_recommendations,
     synthesize_evidence,
 )
-from .research_engine import (
+from .research_engine import (  # noqa: E402
     ClaimDetector,
     ClaimType,
     ConfidenceAssessment,
@@ -111,14 +112,14 @@ from .research_engine import (
 )
 
 # Standalone components
-from .source_ranker import (
+from .source_ranker import (  # noqa: E402
     SourcePriorities,  # noqa: F401
     SourceRanker as StandaloneSourceRanker,  # noqa: F401
     rank_source,
 )
 
 # Hardened verifier + evidence-chain report layer
-from .verifier import (
+from .verifier import (  # noqa: E402
     ACADEMIC_TIER,
     BANNED_TIER,
     GOV_TIER,

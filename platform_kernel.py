@@ -106,7 +106,7 @@ class LifecycleState(Enum):
 
     def can_transition_to(self, target: LifecycleState) -> bool:
         """Validate state machine transitions."""
-        _TRANSITIONS: dict[LifecycleState, set[LifecycleState]] = {
+        _transitions: dict[LifecycleState, set[LifecycleState]] = {
             LifecycleState.UNINITIALIZED: {
                 LifecycleState.INITIALIZING,
                 LifecycleState.STOPPED,
@@ -169,7 +169,7 @@ class LifecycleState(Enum):
                 LifecycleState.STOPPING,
             },
         }
-        return target in _TRANSITIONS.get(self, set())
+        return target in _transitions.get(self, set())
 
 
 # Numeric index for metrics gauges (lower = earlier in lifecycle).
@@ -885,7 +885,7 @@ class ModuleRegistry:
 # =============================================================================
 
 
-def _json_safe(value: Any, depth: int = 0) -> Any:
+def _json_safe(value: Any, depth: int = 0) -> Any:  # noqa: ANN401  # arbitrary JSON-coercible value accepted
     """Best-effort coercion of arbitrary probe/metric values to JSON types.
 
     Used by functional health checks and status reporting so raw Python
@@ -1421,7 +1421,7 @@ class LoggingBridge:
 
         if output_type == "file":
             path = output_cfg.get("path", "logs/platform.log")
-            os.makedirs(os.path.dirname(path), exist_ok=True)
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
             from logging.handlers import RotatingFileHandler
 
             handler = RotatingFileHandler(
@@ -1574,7 +1574,7 @@ class ConfigurationLoader:
             return self._load_defaults()
 
         try:
-            with open(self._config_path, encoding="utf-8") as f:
+            with self._config_path.open(encoding="utf-8") as f:
                 self._config = yaml.safe_load(f) or {}
             self._loaded = True
             logging.getLogger("eni.config").info("Loaded configuration from %s", self._config_path)
@@ -1637,7 +1637,7 @@ class ConfigurationLoader:
         if log_level and "logging" in self._config:
             self._config["logging"]["level"] = log_level.upper()
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Any = None) -> Any:  # noqa: ANN401  # nested config value is arbitrary
         """Get a nested config value using dot notation.
 
         Example: loader.get('modules.safety_governance.enabled', True)
@@ -2172,7 +2172,7 @@ class PlatformOS:
     def register_signal_handlers(self) -> None:
         """Register OS signal handlers for graceful shutdown (SIGINT, SIGTERM)."""
 
-        def _handle_signal(signum: int, frame: Any) -> None:
+        def _handle_signal(signum: int, frame: Any) -> None:  # noqa: ARG001, ANN401  # frame required by signal API, unused
             sig_name = signal.Signals(signum).name
             self._logger.info("Received signal %s, initiating shutdown...", sig_name)
             try:

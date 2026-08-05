@@ -50,7 +50,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Union
+from typing import Any
 
 from .vuln_scanner import (
     Probe,
@@ -75,7 +75,7 @@ __all__ = [
 # An injectable, offline target. A callable ``prompt -> response`` or a canned
 # ``{prompt: response}`` dict — mirrors ``Scanner``'s ``Endpoint`` so tests run
 # fully offline.
-Target = Union[Callable[[str], str], dict[str, str], Mapping[str, str]]
+Target = Callable[[str], str] | dict[str, str] | Mapping[str, str]
 
 
 # ═══════════════════════════════════════════════════════════════════════════

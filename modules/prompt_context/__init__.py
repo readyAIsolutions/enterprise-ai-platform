@@ -184,7 +184,10 @@ __all__ = [
 
 __version__ = "1.0.0"
 __author__ = "Eni Builder Enterprise"
-__description__ = "Prompt & Context Management OS - Enterprise-grade prompt lifecycle, context orchestration, optimization, and quality gating."
+__description__ = (
+    "Prompt & Context Management OS - Enterprise-grade prompt lifecycle, "
+    "context orchestration, optimization, and quality gating."
+)
 
 # --------------------------------------------------------------------------
 
@@ -199,7 +202,7 @@ __description__ = "Prompt & Context Management OS - Enterprise-grade prompt life
 import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Any, Dict, Optional  # noqa: F401, UP035  (re-exported API types)
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 

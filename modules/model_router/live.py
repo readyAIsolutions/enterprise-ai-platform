@@ -24,7 +24,7 @@ import asyncio
 import os
 import socket
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -80,7 +80,7 @@ class LiveProbe:
     HTTP outcome — no socket is opened.
     """
 
-    def __init__(self, timeout: float = 15.0, env: Any = None) -> None:
+    def __init__(self, timeout: float = 15.0, env: Mapping[str, str] | None = None) -> None:
         self.timeout = timeout
         self._env = env if env is not None else os.environ
 
@@ -189,7 +189,7 @@ class LiveFailoverSmoke:
     # -- helpers -------------------------------------------------------------
 
     @staticmethod
-    def _dep_id(dep: Any) -> str:
+    def _dep_id(dep: DeploymentModel | dict) -> str:
         if isinstance(dep, DeploymentModel):
             return dep.id
         if isinstance(dep, dict):
@@ -197,7 +197,7 @@ class LiveFailoverSmoke:
         return str(dep)
 
     @staticmethod
-    def _dep_base_url(dep: Any) -> str:
+    def _dep_base_url(dep: DeploymentModel | dict) -> str:
         if isinstance(dep, DeploymentModel):
             return dep.base_url
         if isinstance(dep, dict):
@@ -205,7 +205,7 @@ class LiveFailoverSmoke:
         return str(dep)
 
     @staticmethod
-    def _dep_model(dep: Any) -> str:
+    def _dep_model(dep: DeploymentModel | dict) -> str:
         if isinstance(dep, DeploymentModel):
             return dep.model or "probe-model"
         if isinstance(dep, dict):
@@ -213,14 +213,14 @@ class LiveFailoverSmoke:
         return "probe-model"
 
     @staticmethod
-    def _dep_key_env(dep: Any) -> str | None:
+    def _dep_key_env(dep: DeploymentModel | dict) -> str | None:
         if isinstance(dep, DeploymentModel):
             return dep.api_key_env
         if isinstance(dep, dict):
             return dep.get("api_key_env")
         return None
 
-    def _classify_result(self, res: ProbeResult, dep: Any) -> bool:
+    def _classify_result(self, res: ProbeResult, dep: DeploymentModel | dict) -> bool:
         """Record a transient failure into the cooldown cache if applicable.
 
         Returns True when the deployment is transient-failing (429 / 5xx /

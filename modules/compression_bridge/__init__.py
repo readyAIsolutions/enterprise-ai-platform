@@ -19,13 +19,13 @@ Architecture:
 
 from __future__ import annotations
 
-import os
 import sys
+from pathlib import Path
 
 # Ensure core compression engine is importable
-_ENI_CORE = os.path.join(os.path.dirname(__file__), "..", "..", "..", "eni_compression")
+_ENI_CORE = str(Path(__file__).resolve().parent.parent.parent.parent / "eni_compression")
 if _ENI_CORE not in sys.path:
-    sys.path.insert(0, os.path.abspath(_ENI_CORE))
+    sys.path.insert(0, _ENI_CORE)
 
 # Import from platform kernel, handling both absolute (from parent dir)
 # and relative (from within enterprise/) contexts.
@@ -33,13 +33,13 @@ try:
     from enterprise.platform_kernel import HealthStatus, Module, module
 except ImportError:
     # Running from inside enterprise/ — need the parent on sys.path
-    _enterprise_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    _parent = os.path.dirname(_enterprise_dir)
-    if _parent not in sys.path:
-        sys.path.insert(0, _parent)
+    _enterprise_dir = Path(__file__).resolve().parent.parent.parent
+    _parent = _enterprise_dir.parent
+    if str(_parent) not in sys.path:
+        sys.path.insert(0, str(_parent))
     from enterprise.platform_kernel import HealthStatus, Module, module
 
-from .codecs import (
+from .codecs import (  # noqa: E402
     Bz2Codec,
     Codec,
     CodecRegistry,
@@ -49,7 +49,7 @@ from .codecs import (
     XZCodec,
     negotiate_ratio,
 )
-from .compression_bridge import (
+from .compression_bridge import (  # noqa: E402
     CompressionBridge,
     CompressionHealthCheck,
 )

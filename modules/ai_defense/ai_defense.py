@@ -90,12 +90,12 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-def DEFAULT_CLOCK() -> float:
+def DEFAULT_CLOCK() -> float:  # noqa: N802 - public API name kept for backwards compatibility
     return time.time()
 
 
 # Detection verdicts shared across facets.
-class Judgement(abc.ABC):
+class Judgement(abc.ABC):  # noqa: B024 - intentional marker base; behavior emerges in concrete subclasses
     """Base classification result for a single defense decision."""
 
     def __init__(self, malicious: bool, reason: str = "", score: float = 0.0) -> None:
@@ -617,7 +617,7 @@ class AIDefenseFacade:
     def __init__(
         self,
         clock: Callable[[], float] = DEFAULT_CLOCK,
-        db_path: Any | None = None,
+        db_path: str | None = None,
         throttle: ThrottleGate | None = None,
         throttle_on: bool = False,
     ) -> None:
@@ -642,8 +642,8 @@ class AIDefenseFacade:
     def with_throttle(
         cls,
         clock: Callable[[], float] = DEFAULT_CLOCK,
-        db_path: Any | None = None,
-        **throttle_kwargs: Any,
+        db_path: str | None = None,
+        **throttle_kwargs: Any,  # noqa: ANN401 - forwarded verbatim to ThrottleGate
     ) -> AIDefenseFacade:
         """Build a facade with an enabled :class:`ThrottleGate`.
 
@@ -795,22 +795,22 @@ class AIDefenseModule(Module):
         # HealthStatus.STOPPED (does not exist — it's a LifecycleState).
         logger.info("AI Defense Module shutdown complete.")
 
-    def gate_request(self, key: str, **kw: Any) -> Judgement:
+    def gate_request(self, key: str, **kw: Any) -> Judgement:  # noqa: ANN401 - kwargs forwarded to facade
         return self.facade.gate_request(key, **kw)
 
-    def check_auth(self, account: str, ip: str = "", **kw: Any) -> Judgement:
+    def check_auth(self, account: str, ip: str = "", **kw: Any) -> Judgement:  # noqa: ANN401 - kwargs forwarded to facade
         return self.facade.check_auth(account, ip, **kw)
 
     def scan_content(self, content: str) -> Judgement:
         return self.facade.scan_content(content)
 
-    def guard_model_query(self, key: str, query: str = "", **kw: Any) -> Judgement:
+    def guard_model_query(self, key: str, query: str = "", **kw: Any) -> Judgement:  # noqa: ANN401 - kwargs forwarded to facade
         return self.facade.guard_model_query(key, query, **kw)
 
     def posture(self) -> dict[str, Any]:
         return self.facade.posture()
 
-    def throttle_request(self, key: str, cost: int = 1, **kw: Any) -> Allowance:
+    def throttle_request(self, key: str, cost: int = 1, **kw: Any) -> Allowance:  # noqa: ANN401 - kwargs forwarded to facade
         return self.facade.throttle_request(key, cost, **kw)
 
     def attacker_state(self, key: str) -> dict[str, Any] | None:

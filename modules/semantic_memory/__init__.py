@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional  # noqa: F401
+from typing import Any
 
 from enterprise.platform_kernel import (
     EventBus,
@@ -269,7 +269,7 @@ class SemanticMemoryModule(Module):
 
     # -- Temporal memory + consolidation passthroughs ------------------------
 
-    def recall_since(self, since: Any) -> list[dict[str, Any]]:
+    def recall_since(self, since: Any) -> list[dict[str, Any]]:  # noqa: ANN401  # passthrough opaque param
         """Pass-through: memories created at/after ``since`` (temporal recall)."""
         if self._memory is None:
             msg = "Semantic memory module is not initialized"
@@ -291,7 +291,7 @@ class SemanticMemoryModule(Module):
             raise AttributeError(msg)
         return fn(bucket, key=key)
 
-    def ranking(self, limit=None, **kwargs) -> list[dict[str, Any]]:
+    def ranking(self, limit: int | None = None, **kwargs: object) -> list[dict[str, Any]]:
         """Pass-through: rank memories by recency + importance (mem0-style)."""
         if self._memory is None:
             msg = "Semantic memory module is not initialized"
@@ -302,7 +302,12 @@ class SemanticMemoryModule(Module):
             raise AttributeError(msg)
         return fn(limit=limit, **kwargs)
 
-    def consolidate(self, max_age=None, min_importance=None, merge_threshold=0.7) -> dict[str, Any]:
+    def consolidate(
+        self,
+        max_age: float | None = None,
+        min_importance: float | None = None,
+        merge_threshold: float = 0.7,
+    ) -> list[dict[str, Any]]:
         """Pass-through: prune/merge stale + low-importance memories."""
         if self._memory is None:
             msg = "Semantic memory module is not initialized"

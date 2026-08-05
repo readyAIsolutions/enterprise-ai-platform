@@ -19,7 +19,12 @@ All components are stdlib-only, zero external dependencies.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional  # noqa: F401
+from typing import (  # noqa: F401, UP035 - re-exported for backwards compatibility
+    Any,
+    Dict,
+    List,
+    Optional,
+)
 
 from enterprise.platform_kernel import (
     EventBus,  # noqa: F401

@@ -45,11 +45,11 @@ from enterprise.platform_kernel import HealthStatus
 def sample(
     text: str,
     count: int,
-    ratio: float,
-    enabled: bool,
-    labels: list[str],
-    meta: dict[str, Any],
-    level: int = 3,
+    ratio: float,  # noqa: ARG001 - arg name is part of the derived schema contract
+    enabled: bool,  # noqa: ARG001 - arg name is part of the derived schema contract
+    labels: list[str],  # noqa: ARG001 - arg name is part of the derived schema contract
+    meta: dict[str, Any],  # noqa: ARG001 - arg name is part of the derived schema contract
+    level: int = 3,  # noqa: ARG001 - arg name is part of the derived schema contract
 ) -> str:
     """Compute a sample result.
 
@@ -70,7 +70,7 @@ async def async_sum(values: list[int]) -> int:
     return sum(values)
 
 
-def boom(a: int) -> int:
+def boom(a: int) -> int:  # noqa: ARG001 - arg name is part of the tool-call contract
     """Raise an exception to verify tool-raised error handling."""
     msg = "boom exploded"
     raise RuntimeError(msg)
@@ -86,7 +86,7 @@ class TestToolServerSchema:
         server = ToolServer(name="mcp")
 
         @server.tool(description="Sample tool for schema checks.")
-        def wrapper(**kwargs: Any) -> str:  # pragma: no cover - placeholder
+        def wrapper(**kwargs: Any) -> str:  # pragma: no cover - placeholder  # noqa: ANN401, ARG001
             return ""
 
         return server

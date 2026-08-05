@@ -17,13 +17,18 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
 
 import pytest
 
 # Make modules/ importable (same trick as the existing test_compression.py).
-_MODULE_PARENT = os.path.join(os.path.dirname(__file__), "..", "..")
-if _MODULE_PARENT not in sys.path:
-    sys.path.insert(0, os.path.abspath(_MODULE_PARENT))
+_MODULE_PARENT = Path(__file__).resolve().parent.parent.parent
+if str(_MODULE_PARENT) not in sys.path:
+    sys.path.insert(0, str(_MODULE_PARENT))
 
 from compression_bridge import (  # noqa: E402
     Bz2Codec,
@@ -50,7 +55,7 @@ TEXT = "Enterprise compression codec negotiation master class."
 _BINARY_CODECS = [XZCodec(), GzipCodec(), Bz2Codec(), NOOPCodec()]
 
 
-def _run(coro):
+def _run(coro: Coroutine[Any, Any, Any]) -> object:
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
@@ -135,10 +140,10 @@ def test_registry_register_custom_and_forms() -> None:
         name = "upper"
         mime = "text/plain"
 
-        def encode(self, data):
+        def encode(self, data: object) -> bytes:
             return str(data).upper().encode("utf-8")
 
-        def decode(self, data):
+        def decode(self, data: bytes) -> str:
             return data.decode("utf-8").lower()
 
     reg = CodecRegistry(codecs=[])
@@ -152,7 +157,7 @@ def test_registry_register_custom_and_forms() -> None:
 
 def test_registry_duplicate_name_raises_valueerror() -> None:
     reg = CodecRegistry()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="already registered"):
         reg.register_codec(XZCodec())  # "xz" already registered
 
 

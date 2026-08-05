@@ -15,6 +15,7 @@ Covers:
 
 import asyncio
 import threading
+from collections.abc import Generator
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -45,7 +46,7 @@ from enterprise.platform_kernel import (
 
 
 @pytest.fixture(autouse=True)
-def reset_platform_singleton():
+def reset_platform_singleton() -> Generator[None, None, None]:
     """Ensure each test starts with a clean PlatformOS singleton."""
     PlatformOS.reset_instance()
     yield
@@ -53,19 +54,19 @@ def reset_platform_singleton():
 
 
 @pytest.fixture
-def event_bus():
+def event_bus() -> EventBus:
     """Create a fresh EventBus for each test."""
     return EventBus()
 
 
 @pytest.fixture
-def metrics_collector():
+def metrics_collector() -> MetricsCollector:
     """Create a fresh MetricsCollector for each test."""
     return MetricsCollector()
 
 
 @pytest.fixture
-def temp_config_file(tmp_path):
+def temp_config_file(tmp_path: Path) -> Path:
     """Create a temporary config YAML file."""
     config_path = tmp_path / "config.yaml"
     config_path.write_text("""
@@ -106,7 +107,7 @@ event_bus:
 
 
 @pytest.fixture
-def temp_modules_path(tmp_path):
+def temp_modules_path(tmp_path: Path) -> Path:
     """Create a temporary modules directory with mock __init__.py files."""
     modules_dir = tmp_path / "modules"
     modules_dir.mkdir()
@@ -257,7 +258,7 @@ class TestModuleDecorator:
 class TestModuleRegistry:
     """Verify ModuleRegistry discovery and lifecycle."""
 
-    def test_discover_finds_modules(self, temp_modules_path) -> None:
+    def test_discover_finds_modules(self, temp_modules_path: Path) -> None:
         """ModuleRegistry.discover() should find all modules."""
         registry = ModuleRegistry(modules_path=temp_modules_path, config={})
         discovered = registry.discover()
@@ -267,7 +268,7 @@ class TestModuleRegistry:
         assert "test_c" in discovered
         assert len(discovered) == 3
 
-    def test_discover_reads_version(self, temp_modules_path) -> None:
+    def test_discover_reads_version(self, temp_modules_path: Path) -> None:
         """ModuleRegistry should read __version__ from __init__.py."""
         registry = ModuleRegistry(modules_path=temp_modules_path, config={})
         registry.discover()
@@ -276,7 +277,7 @@ class TestModuleRegistry:
         assert record is not None
         assert record.version == "1.0.0"
 
-    def test_discover_imports_and_binds_decorated_classes(self, tmp_path) -> None:
+    def test_discover_imports_and_binds_decorated_classes(self, tmp_path: Path) -> None:
         """Regression: discover() must import module packages so @module-decorated
         classes land in _MODULE_REGISTRY and get bound to their records.
 
@@ -294,7 +295,7 @@ class TestModuleRegistry:
             async def initialize(self) -> None:
                 self.status = HealthStatus.HEALTHY
 
-            async def health_check(self):
+            async def health_check(self) -> HealthStatus:
                 return HealthStatus.HEALTHY
 
             async def shutdown(self) -> None:
@@ -307,7 +308,7 @@ class TestModuleRegistry:
         # The decorated class must be bound to the record after discovery.
         assert record.module_class is DiscoveryProbe
 
-    def test_discover_does_not_crash_on_unimportable_module(self, tmp_path) -> None:
+    def test_discover_does_not_crash_on_unimportable_module(self, tmp_path: Path) -> None:
         """Discovery must not crash when a module's __init__ is not importable.
 
         This is the non-regression guard for the import-during-discovery change:
@@ -327,14 +328,14 @@ class TestModuleRegistry:
         # A failed import must not kill discovery; class stays unbound.
         assert record.module_class is None
 
-    def test_discover_defaults_when_missing(self, tmp_path) -> None:
+    def test_discover_defaults_when_missing(self, tmp_path: Path) -> None:
         """ModuleRegistry should not crash if modules path doesn't exist."""
         bad_path = tmp_path / "nonexistent"
         registry = ModuleRegistry(modules_path=bad_path)
         discovered = registry.discover()
         assert discovered == []
 
-    def test_list_modules_returns_records(self, temp_modules_path) -> None:
+    def test_list_modules_returns_records(self, temp_modules_path: Path) -> None:
         """list_modules() should return all ModuleRecords."""
         registry = ModuleRegistry(modules_path=temp_modules_path, config={})
         registry.discover()
@@ -342,13 +343,13 @@ class TestModuleRegistry:
         assert len(records) == 3
         assert all(isinstance(r, ModuleRecord) for r in records)
 
-    def test_get_record_returns_none_for_unknown(self, temp_modules_path) -> None:
+    def test_get_record_returns_none_for_unknown(self, temp_modules_path: Path) -> None:
         """get_record() should return None for unknown modules."""
         registry = ModuleRegistry(modules_path=temp_modules_path, config={})
         registry.discover()
         assert registry.get_record("nonexistent") is None
 
-    def test_initialize_all_with_decorated_modules(self, temp_modules_path) -> None:
+    def test_initialize_all_with_decorated_modules(self, temp_modules_path: Path) -> None:
         """initialize_all() should create instances for @module-decorated classes."""
 
         @module(name="test_a", version="1.0.0")
@@ -386,7 +387,7 @@ class TestModuleRegistry:
 
         asyncio.run(_run())
 
-    def test_shutdown_all_calls_shutdown(self, temp_modules_path) -> None:
+    def test_shutdown_all_calls_shutdown(self, temp_modules_path: Path) -> None:
         """shutdown_all() should call shutdown() on each instance."""
         shutdown_calls = []
 
@@ -412,7 +413,7 @@ class TestModuleRegistry:
 
         asyncio.run(_run())
 
-    def test_config_enabled_flag_works(self, temp_modules_path) -> None:
+    def test_config_enabled_flag_works(self, temp_modules_path: Path) -> None:
         """Modules with enabled=false should not be initialized."""
         config = {
             "modules": {
@@ -425,7 +426,7 @@ class TestModuleRegistry:
         assert record is not None
         assert record.enabled is False
 
-    def test_config_required_flag_works(self, temp_modules_path) -> None:
+    def test_config_required_flag_works(self, temp_modules_path: Path) -> None:
         """Required flag should be read from config."""
         config = {
             "modules": {
@@ -447,7 +448,7 @@ class TestModuleRegistry:
 class TestEventBus:
     """Verify EventBus pub/sub functionality."""
 
-    def test_subscribe_and_publish(self, event_bus) -> None:
+    def test_subscribe_and_publish(self, event_bus: EventBus) -> None:
         """Subscribers should receive published events."""
         received: list = []
 
@@ -461,7 +462,7 @@ class TestEventBus:
         assert len(received) == 1
         assert received[0].payload["data"] == 42
 
-    def test_unsubscribe_removes_handler(self, event_bus) -> None:
+    def test_unsubscribe_removes_handler(self, event_bus: EventBus) -> None:
         """After unsubscribe, handler should not receive events."""
         received: list = []
 
@@ -476,7 +477,7 @@ class TestEventBus:
         event_bus.publish(Event.create("test.topic", "s", {}))
         assert len(received) == 0
 
-    def test_wildcard_subscription(self, event_bus) -> None:
+    def test_wildcard_subscription(self, event_bus: EventBus) -> None:
         """Wildcard '*' should match all topics."""
         event_bus._async_dispatch = False
         received: list = []
@@ -489,7 +490,7 @@ class TestEventBus:
         event_bus.publish(Event.create("baz.qux", "s", {}))
         assert len(received) == 2
 
-    def test_once_subscription(self, event_bus) -> None:
+    def test_once_subscription(self, event_bus: EventBus) -> None:
         """Once subscriptions should auto-unsubscribe after first delivery."""
         received: list = []
 
@@ -501,7 +502,7 @@ class TestEventBus:
         event_bus.publish(Event.create("test.once", "s", {}))
         assert len(received) == 1
 
-    def test_priority_filter(self, event_bus) -> None:
+    def test_priority_filter(self, event_bus: EventBus) -> None:
         """Priority filter should only deliver events at or above threshold."""
         received: list = []
 
@@ -517,14 +518,14 @@ class TestEventBus:
         event_bus.publish(Event.create("test.prio", "s", {}, priority=EventPriority.HIGH))
         assert len(received) == 1
 
-    def test_event_history(self, event_bus) -> None:
+    def test_event_history(self, event_bus: EventBus) -> None:
         """EventBus should maintain event history."""
         for i in range(5):
             event_bus.publish(Event.create("test.history", "s", {"i": i}))
         history = event_bus.get_history()
         assert len(history) == 5
 
-    def test_history_topic_filter(self, event_bus) -> None:
+    def test_history_topic_filter(self, event_bus: EventBus) -> None:
         """get_history() should filter by topic."""
         event_bus.publish(Event.create("topic.a", "s", {}))
         event_bus.publish(Event.create("topic.b", "s", {}))
@@ -533,7 +534,7 @@ class TestEventBus:
         assert len(history_a) == 1
         assert history_a[0].topic == "topic.a"
 
-    def test_get_stats(self, event_bus) -> None:
+    def test_get_stats(self, event_bus: EventBus) -> None:
         """get_stats() should return meaningful statistics."""
         event_bus._async_dispatch = False
         event_bus.publish(Event.create("test.stats", "s", {}))
@@ -559,7 +560,7 @@ class TestEventBus:
         assert len(evt.event_id) == 36
         assert isinstance(evt.timestamp, datetime)
 
-    def test_shutdown_stops_executor(self, event_bus) -> None:
+    def test_shutdown_stops_executor(self, event_bus: EventBus) -> None:
         """shutdown() should stop the thread pool."""
         event_bus.shutdown()
         assert event_bus._executor is None
@@ -574,7 +575,7 @@ class TestHealthChecker:
     """Verify HealthChecker functionality."""
 
     @pytest.fixture
-    def mock_registry(self):
+    def mock_registry(self) -> MagicMock:
         """Create a mock ModuleRegistry with test modules."""
         registry = MagicMock(spec=ModuleRegistry)
 
@@ -620,7 +621,7 @@ class TestHealthChecker:
         }.get(name)
         return registry
 
-    def test_run_all_checks(self, mock_registry) -> None:
+    def test_run_all_checks(self, mock_registry: MagicMock) -> None:
         """run_all_checks() should check all modules and return reports."""
         checker = HealthChecker(mock_registry)
         reports = asyncio.run(checker.run_all_checks())
@@ -637,7 +638,7 @@ class TestHealthChecker:
         platform_report = next(r for r in reports if r.module_name == "platform")
         assert platform_report.status == HealthStatus.DEGRADED
 
-    def test_consecutive_failure_tracking(self, mock_registry) -> None:
+    def test_consecutive_failure_tracking(self, mock_registry: MagicMock) -> None:
         """HealthChecker should track consecutive failures."""
         checker = HealthChecker(mock_registry, config={"failure_threshold": 3})
         # Run checks 3 times
@@ -649,7 +650,7 @@ class TestHealthChecker:
         assert checker.is_degraded("unhealthy_mod") is True
         assert checker.is_degraded("healthy_mod") is False
 
-    def test_get_latest_report(self, mock_registry) -> None:
+    def test_get_latest_report(self, mock_registry: MagicMock) -> None:
         """get_latest_report() should return the most recent report."""
         checker = HealthChecker(mock_registry)
         asyncio.run(checker.run_all_checks())
@@ -659,7 +660,7 @@ class TestHealthChecker:
         assert report.module_name == "healthy_mod"
         assert report.status == HealthStatus.HEALTHY
 
-    def test_health_report_serialization(self, mock_registry) -> None:
+    def test_health_report_serialization(self, mock_registry: MagicMock) -> None:
         """HealthReport.to_dict() should serialize correctly."""
         checker = HealthChecker(mock_registry)
         reports = asyncio.run(checker.run_all_checks())
@@ -670,7 +671,7 @@ class TestHealthChecker:
         assert isinstance(d["response_time_ms"], float)
         assert "timestamp" in d
 
-    def test_functional_health_check_degrades_without_probe(self, mock_registry) -> None:
+    def test_functional_health_check_degrades_without_probe(self, mock_registry: MagicMock) -> None:
         """Modules without a probe degrade gracefully to a structural report."""
         checker = HealthChecker(mock_registry)
         report = asyncio.run(checker.functional_health_check("healthy_mod"))
@@ -683,7 +684,7 @@ class TestHealthChecker:
         assert functional.get("reason") == "no_probe"
         assert functional.get("result") is None
 
-    def test_functional_health_check_runs_real_probe(self, mock_registry) -> None:
+    def test_functional_health_check_runs_real_probe(self, mock_registry: MagicMock) -> None:  # noqa: ARG002  # unused fixture param
         """Modules exposing a probe get a real non-mutating functional result."""
 
         @module(name="probe_mod", version="1.0.0")
@@ -719,7 +720,10 @@ class TestHealthChecker:
         assert functional["ok"] is True
         assert functional["result"] == {"capable": True, "depth": 3}
 
-    def test_functional_health_check_probe_failure_flips_status(self, mock_registry) -> None:
+    def test_functional_health_check_probe_failure_flips_status(
+        self,
+        mock_registry: MagicMock,  # noqa: ARG002  # unused fixture param
+    ) -> None:
         """A probe that fails marks the module unhealthy (real capability loss)."""
 
         @module(name="flaky_mod", version="1.0.0")
@@ -756,7 +760,7 @@ class TestHealthChecker:
         assert functional["ok"] is False
         assert "probe failed" in functional["error"]
 
-    def test_run_all_checks_functional_flag(self, mock_registry) -> None:
+    def test_run_all_checks_functional_flag(self, mock_registry: MagicMock) -> None:
         """run_all_checks(functional=True) still returns full report set."""
         checker = HealthChecker(mock_registry)
         reports = asyncio.run(checker.run_all_checks(functional=True))
@@ -774,20 +778,20 @@ class TestHealthChecker:
 class TestMetricsCollector:
     """Verify MetricsCollector functionality."""
 
-    def test_increment_counter(self, metrics_collector) -> None:
+    def test_increment_counter(self, metrics_collector: MetricsCollector) -> None:
         """increment() should increase counter values."""
         metrics_collector.increment("requests", value=1, module="api")
         metrics_collector.increment("requests", value=2, module="api")
         assert metrics_collector.get_counter("requests") == 3.0
 
-    def test_increment_with_tags(self, metrics_collector) -> None:
+    def test_increment_with_tags(self, metrics_collector: MetricsCollector) -> None:
         """increment() should respect tag partitioning."""
         metrics_collector.increment("requests", tags={"method": "GET"})
         metrics_collector.increment("requests", tags={"method": "POST"})
         assert metrics_collector.get_counter("requests", tags={"method": "GET"}) == 1.0
         assert metrics_collector.get_counter("requests", tags={"method": "POST"}) == 1.0
 
-    def test_set_gauge(self, metrics_collector) -> None:
+    def test_set_gauge(self, metrics_collector: MetricsCollector) -> None:
         """set_gauge() should set a gauge value."""
         metrics_collector.set_gauge("memory_bytes", 1024)
         assert metrics_collector.get_gauge("memory_bytes") == 1024
@@ -795,7 +799,7 @@ class TestMetricsCollector:
         metrics_collector.set_gauge("memory_bytes", 2048)
         assert metrics_collector.get_gauge("memory_bytes") == 2048
 
-    def test_observe_histogram(self, metrics_collector) -> None:
+    def test_observe_histogram(self, metrics_collector: MetricsCollector) -> None:
         """observe() should record histogram values and compute stats."""
         metrics_collector.observe("latency", 10.0)
         metrics_collector.observe("latency", 20.0)
@@ -808,7 +812,7 @@ class TestMetricsCollector:
         assert stats["max"] == 30.0
         assert stats["avg"] == 20.0
 
-    def test_snapshot(self, metrics_collector) -> None:
+    def test_snapshot(self, metrics_collector: MetricsCollector) -> None:
         """snapshot() should return a full metrics snapshot."""
         metrics_collector.increment("counter_a", 5)
         metrics_collector.set_gauge("gauge_a", 42)
@@ -820,7 +824,7 @@ class TestMetricsCollector:
         assert "histograms" in snap
         assert "history_count" in snap
 
-    def test_get_recent(self, metrics_collector) -> None:
+    def test_get_recent(self, metrics_collector: MetricsCollector) -> None:
         """get_recent() should filter by name and limit."""
         for i in range(10):
             metrics_collector.increment("metric_x", i)
@@ -831,7 +835,7 @@ class TestMetricsCollector:
         assert len(recent_x) == 5
         assert all(p.name == "metric_x" for p in recent_x)
 
-    def test_reset(self, metrics_collector) -> None:
+    def test_reset(self, metrics_collector: MetricsCollector) -> None:
         """reset() should clear all metrics."""
         metrics_collector.increment("counter", 100)
         metrics_collector.set_gauge("gauge", 1.0)
@@ -896,14 +900,14 @@ class TestLoggingBridge:
 class TestConfigurationLoader:
     """Verify ConfigurationLoader functionality."""
 
-    def test_load_from_file(self, temp_config_file) -> None:
+    def test_load_from_file(self, temp_config_file: Path) -> None:
         """Load should read from a YAML config file."""
         loader = ConfigurationLoader(temp_config_file)
         config = loader.load()
         assert config["platform"]["name"] == "Test Platform"
         assert config["platform"]["environment"] == "testing"
 
-    def test_load_returns_defaults_when_file_missing(self, tmp_path) -> None:
+    def test_load_returns_defaults_when_file_missing(self, tmp_path: Path) -> None:
         """Load should return defaults when config file doesn't exist."""
         loader = ConfigurationLoader(tmp_path / "nonexistent.yaml")
         config = loader.load()
@@ -912,7 +916,7 @@ class TestConfigurationLoader:
         assert "logging" in config
         assert "health" in config
 
-    def test_get_dot_notation(self, temp_config_file) -> None:
+    def test_get_dot_notation(self, temp_config_file: Path) -> None:
         """get() should support dot notation for nested keys."""
         loader = ConfigurationLoader(temp_config_file)
         assert loader.get("platform.name") == "Test Platform"
@@ -920,7 +924,7 @@ class TestConfigurationLoader:
         assert loader.get("modules.test_module_a.enabled") is True
         assert loader.get("nonexistent.key", "default") == "default"
 
-    def test_reload(self, temp_config_file) -> None:
+    def test_reload(self, temp_config_file: Path) -> None:
         """reload() should re-read the config file."""
         loader = ConfigurationLoader(temp_config_file)
         config1 = loader.load()
@@ -929,7 +933,7 @@ class TestConfigurationLoader:
         config2 = loader.reload()
         assert config2["platform"]["name"] == config1["platform"]["name"]
 
-    def test_env_overrides(self, temp_config_file, monkeypatch) -> None:
+    def test_env_overrides(self, temp_config_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Environment variables should override config values."""
         monkeypatch.setenv("ENI_ENV", "staging")
         monkeypatch.setenv("ENI_LOG_LEVEL", "WARNING")
@@ -986,12 +990,16 @@ class TestLifecycleState:
 class TestPlatformOSLifecycle:
     """Verify PlatformOS lifecycle management."""
 
-    def test_initial_state(self, reset_platform_singleton) -> None:
+    def test_initial_state(self, reset_platform_singleton: None) -> None:  # noqa: ARG002  # unused fixture param
         """Platform starts in UNINITIALIZED state."""
         p = PlatformOS.instance()
         assert p.state == LifecycleState.UNINITIALIZED
 
-    def test_initialize_transitions(self, reset_platform_singleton, temp_modules_path) -> None:
+    def test_initialize_transitions(
+        self,
+        reset_platform_singleton: None,  # noqa: ARG002  # autouse fixture, unused
+        temp_modules_path: Path,
+    ) -> None:
         """initialize() should transition through states."""
         p = PlatformOS.instance()
         p.initialize(modules_path=temp_modules_path)
@@ -1004,7 +1012,11 @@ class TestPlatformOSLifecycle:
         assert p.metrics is not None
         assert p.logging is not None
 
-    def test_initialize_and_start(self, reset_platform_singleton, temp_modules_path) -> None:
+    def test_initialize_and_start(
+        self,
+        reset_platform_singleton: None,  # noqa: ARG002  # autouse fixture, unused
+        temp_modules_path: Path,
+    ) -> None:
         """Full initialize + start should reach RUNNING state."""
 
         @module(name="test_a", version="1.0.0")
@@ -1027,7 +1039,7 @@ class TestPlatformOSLifecycle:
 
         asyncio.run(_run())
 
-    def test_start_fails_without_initialize(self, reset_platform_singleton) -> None:
+    def test_start_fails_without_initialize(self, reset_platform_singleton: None) -> None:  # noqa: ARG002  # unused fixture param
         """start() should raise if initialize() wasn't called."""
         p = PlatformOS.instance()
 
@@ -1038,7 +1050,9 @@ class TestPlatformOSLifecycle:
         asyncio.run(_run())
 
     def test_shutdown_transitions_to_stopped(
-        self, reset_platform_singleton, temp_modules_path
+        self,
+        reset_platform_singleton: None,  # noqa: ARG002  # autouse fixture, unused
+        temp_modules_path: Path,
     ) -> None:
         """shutdown() should transition to STOPPED."""
 
@@ -1064,7 +1078,7 @@ class TestPlatformOSLifecycle:
 
         asyncio.run(_run())
 
-    def test_status_report(self, reset_platform_singleton, temp_modules_path) -> None:
+    def test_status_report(self, reset_platform_singleton: None, temp_modules_path: Path) -> None:  # noqa: ARG002  # unused fixture param
         """status_report() should return comprehensive platform state."""
         p = PlatformOS.instance()
         p.initialize(modules_path=temp_modules_path)
@@ -1076,7 +1090,7 @@ class TestPlatformOSLifecycle:
         assert "events" in report
         assert "metrics" in report
 
-    def test_state_history(self, reset_platform_singleton, temp_modules_path) -> None:
+    def test_state_history(self, reset_platform_singleton: None, temp_modules_path: Path) -> None:  # noqa: ARG002  # unused fixture param
         """state_history should record all transitions."""
 
         @module(name="test_a", version="1.0.0")
@@ -1135,7 +1149,7 @@ class TestHealthStatus:
 class TestCreatePlatform:
     """Verify create_platform convenience function."""
 
-    def test_create_platform_returns_initialized_instance(self, temp_modules_path) -> None:
+    def test_create_platform_returns_initialized_instance(self, temp_modules_path: Path) -> None:
         """create_platform() should return an initialized PlatformOS."""
         p = create_platform(modules_path=temp_modules_path)
         assert isinstance(p, PlatformOS)
@@ -1151,7 +1165,7 @@ class TestCreatePlatform:
 class TestPlatformIntegration:
     """End-to-end integration test of the platform kernel."""
 
-    def test_full_lifecycle(self, tmp_path) -> None:
+    def test_full_lifecycle(self, tmp_path: Path) -> None:
         """Test the full platform lifecycle with decorated modules."""
         # Create temp modules structure
         modules_dir = tmp_path / "modules"
@@ -1256,7 +1270,7 @@ health:
 
         asyncio.run(_run())
 
-    def test_degraded_startup(self, tmp_path) -> None:
+    def test_degraded_startup(self, tmp_path: Path) -> None:
         """Platform should start DEGRADED if a required module fails."""
         modules_dir = tmp_path / "modules"
         modules_dir.mkdir()

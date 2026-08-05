@@ -48,6 +48,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("enterprise.disaster_recovery.snapshot")
@@ -175,7 +176,7 @@ def _safe_dest(path: str, dest_dir: str) -> str:
     if rel is None:
         msg = f"unsafe member path in archive: {path!r}"
         raise ValueError(msg)
-    return os.path.normpath(os.path.join(dest_dir, rel))
+    return os.path.normpath(str(Path(dest_dir) / rel))
 
 
 # --------------------------------------------------------------------------
@@ -219,13 +220,13 @@ def _hmac_tag(data: bytes, key: bytes) -> bytes:
 def _write_archive(archive_bytes: bytes, target_path: str, key: bytes | None) -> None:
     """Persist ``archive_bytes`` to ``target_path``; transform+tag if keyed."""
     if key is None:
-        with open(target_path, "wb") as fh:
+        with Path(target_path).open("wb") as fh:
             fh.write(archive_bytes)
         return
     salt = os.urandom(_SALT_LEN)
     tag = _hmac_tag(archive_bytes, key)
     payload = _xor_transform(archive_bytes, key, salt)
-    with open(target_path, "wb") as fh:
+    with Path(target_path).open("wb") as fh:
         fh.write(_ENCRYPTED_MAGIC)
         fh.write(bytes([_SALT_LEN]))
         fh.write(salt)
@@ -239,7 +240,7 @@ def _read_archive(archive_path: str, key: bytes | None) -> bytes:
     Raises ValueError if the file is encrypted but no key was supplied, or if
     the HMAC integrity tag does not verify (tampered / wrong key).
     """
-    with open(archive_path, "rb") as fh:
+    with Path(archive_path).open("rb") as fh:
         blob = fh.read()
     if not blob.startswith(_ENCRYPTED_MAGIC):
         if key is not None:
@@ -337,11 +338,11 @@ class SnapshotEngine:
         archive is HMAC-tagged and XOR-transformed (see crypto honesty note) and
         stored with a ``.eni`` extension.
         """
-        source_dir = os.path.abspath(source_dir)
-        if not os.path.isdir(source_dir):
+        source_dir = str(Path(source_dir).resolve())
+        if not Path(source_dir).is_dir():
             msg = f"source_dir does not exist or is not a directory: {source_dir}"
             raise ValueError(msg)
-        os.makedirs(target_dir, exist_ok=True)
+        Path(target_dir).mkdir(parents=True, exist_ok=True)
 
         key = encrypt_key if encrypt_key is not None else self._default_key
         snapshot_id = _new_id()
@@ -358,13 +359,13 @@ class SnapshotEngine:
             rel_root = os.path.relpath(root, source_dir)
             # record directory entries (preserves empty dirs)
             for d in dirs:
-                rel_dir = d if rel_root == "." else os.path.join(rel_root, d)
+                rel_dir = d if rel_root == "." else str(Path(rel_root) / d)
                 entries.append(ManifestEntry(path=rel_dir, size=0, sha256="", entry_type="dir"))
             for fname in files:
-                abs_path = os.path.join(root, fname)
-                rel_path = fname if rel_root == "." else os.path.join(rel_root, fname)
+                abs_path = str(Path(root) / fname)
+                rel_path = fname if rel_root == "." else str(Path(rel_root) / fname)
                 try:
-                    fsize = os.path.getsize(abs_path)
+                    fsize = Path(abs_path).stat().st_size
                     digest = _file_sha256(abs_path)
                 except OSError as e:  # pragma: no cover - broken symlink/permission
                     logger.warning("skipping unreadable file %s: %s", abs_path, e)
@@ -399,25 +400,25 @@ class SnapshotEngine:
                 rel = _normalize_rel(e.path)
                 if rel is None:  # pragma: no cover - guarded upstream
                     continue
-                abs_src = os.path.join(source_dir, rel)
+                abs_src = str(Path(source_dir) / rel)
                 info = tarfile.TarInfo(rel)
                 info.size = e.size
                 info.mtime = int(time.time())
-                with open(abs_src, "rb") as fh:
+                with Path(abs_src).open("rb") as fh:
                     tf.addfile(info, fh)
 
         archive_bytes = buf.getvalue()
 
         suffix = ".eni" if key is not None else ".tar.gz"
         archive_name = f"{name}-{snapshot_id[:8]}{suffix}"
-        archive_path = os.path.join(target_dir, archive_name)
+        archive_path = str(Path(target_dir) / archive_name)
         _write_archive(archive_bytes, archive_path, key)
 
         snap = Snapshot(
             id=snapshot_id,
             name=name,
             path=archive_path,
-            size=os.path.getsize(archive_path),
+            size=Path(archive_path).stat().st_size,
             n_files=manifest["n_files"],
             manifest=manifest,
             created_at=created_at,
@@ -443,13 +444,13 @@ class SnapshotEngine:
         Requires a key for encrypted entries: use :meth:`SnapshotEngine.load`
         with a key or construct the engine with ``key=``.
         """
-        if not os.path.isdir(target_dir):
+        if not Path(target_dir).is_dir():
             return []
         snaps: list[Snapshot] = []
-        for fname in sorted(os.listdir(target_dir)):
+        for fname in sorted(p.name for p in Path(target_dir).iterdir()):
             if not (fname.endswith(".tar.gz") or fname.endswith(".eni")):
                 continue
-            archive_path = os.path.join(target_dir, fname)
+            archive_path = str(Path(target_dir) / fname)
             try:
                 snaps.append(self.load(archive_path))
             except Exception as e:  # pragma: no cover - skip undecodable
@@ -459,7 +460,7 @@ class SnapshotEngine:
 
     def load(self, archive_path: str, key: bytes | None = None) -> Snapshot:
         """Load a :class:`Snapshot` from an archive file (manifest only, no extract)."""
-        archive_path = os.path.abspath(archive_path)
+        archive_path = str(Path(archive_path).resolve())
         k = key if key is not None else self._default_key
         archive_bytes = _read_archive(archive_path, k)
         manifest = _load_manifest(archive_bytes)
@@ -467,7 +468,7 @@ class SnapshotEngine:
             id=manifest["snapshot_id"],
             name=manifest.get("name", ""),
             path=archive_path,
-            size=os.path.getsize(archive_path),
+            size=Path(archive_path).stat().st_size,
             n_files=int(manifest["n_files"]),
             manifest=manifest,
             created_at=manifest.get("created_at", ""),
@@ -548,8 +549,8 @@ class SnapshotEngine:
         already-extracted files remain (caller may choose to clean up). Path
         traversal outside ``dest_dir`` is rejected.
         """
-        dest_dir = os.path.abspath(dest_dir)
-        os.makedirs(dest_dir, exist_ok=True)
+        dest_dir = str(Path(dest_dir).resolve())
+        Path(dest_dir).mkdir(parents=True, exist_ok=True)
         k = key if key is not None else self._default_key
         archive_bytes = _read_archive(snapshot.path, k)
         manifest = _load_manifest(archive_bytes)
@@ -564,20 +565,20 @@ class SnapshotEngine:
                 if rel is None:
                     msg = f"unsafe member path in archive: {member.name!r}"
                     raise ValueError(msg)
-                full = os.path.normpath(os.path.join(dest_dir, rel))
+                full = os.path.normpath(str(Path(dest_dir) / rel))
                 # guard against escaping dest_dir
                 if os.path.commonpath([dest_dir, full]) != dest_dir:
                     msg = f"member escapes destination: {member.name!r}"
                     raise ValueError(msg)
                 if member.isdir():
-                    os.makedirs(full, exist_ok=True)
+                    Path(full).mkdir(parents=True, exist_ok=True)
                     continue
                 src = tf.extractfile(member)
                 if src is None:
                     continue
-                os.makedirs(os.path.dirname(full) or dest_dir, exist_ok=True)
+                Path(Path(full).parent or dest_dir).mkdir(parents=True, exist_ok=True)
                 data = src.read()
-                with open(full, "wb") as fh:
+                with Path(full).open("wb") as fh:
                     fh.write(data)
                 report.restored += 1
                 report.total_bytes += len(data)
@@ -599,7 +600,7 @@ class SnapshotEngine:
             rel = _normalize_rel(e["path"])
             if rel is None:
                 continue
-            os.makedirs(_safe_dest(rel, dest_dir), exist_ok=True)
+            Path(_safe_dest(rel, dest_dir)).mkdir(parents=True, exist_ok=True)
         logger.info(
             "Restored snapshot %s -> %s: %d files, %d verified, %d failed",
             snapshot.id,
@@ -614,7 +615,7 @@ class SnapshotEngine:
 def _file_sha256(path: str) -> str:
     """Compute the sha256 of a file's real bytes on disk."""
     h = hashlib.sha256()
-    with open(path, "rb") as fh:
+    with Path(path).open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()

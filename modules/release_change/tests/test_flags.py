@@ -99,7 +99,7 @@ class TestRolloutPercentDeterministic(unittest.TestCase):
             if e.is_enabled("f", {"id": i}):
                 hits += 1
         ratio = hits / n
-        self.assertAlmostEqual(ratio, 0.5, delta=0.05)
+        assert abs(ratio - 0.5) <= 0.05
 
     def test_set_rollout_changes_coverage(self) -> None:
         e = FlagEngine(seed="t")
@@ -127,8 +127,8 @@ class TestVariantByWeight(unittest.TestCase):
         for i in range(n):
             v = self.engine.get_variant("ui_theme", {"id": i})
             counts[v] = counts.get(v, 0) + 1
-        self.assertAlmostEqual(counts["control"] / n, 0.9, delta=0.05)
-        self.assertAlmostEqual(counts["experimental"] / n, 0.1, delta=0.05)
+        self.assertAlmostEqual(counts["control"] / n, 0.9, delta=0.05)  # noqa: PT009
+        self.assertAlmostEqual(counts["experimental"] / n, 0.1, delta=0.05)  # noqa: PT009
 
     def test_variant_stable_for_same_context(self) -> None:
         v1 = self.engine.get_variant("ui_theme", {"id": "u-7"})

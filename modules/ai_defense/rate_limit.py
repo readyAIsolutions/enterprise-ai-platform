@@ -200,7 +200,7 @@ class AttackerStore:
     )
     """
 
-    def __init__(self, db_path: Any | None = None) -> None:
+    def __init__(self, db_path: str | Path | None = None) -> None:
         self.db_path = None if db_path is None else str(db_path)
         if self.db_path and self.db_path != ":memory:":
             parent = Path(self.db_path).parent
@@ -309,7 +309,8 @@ class AttackerStore:
                 flags.append(flag)
             if existing is None:
                 self._conn.execute(
-                    "INSERT INTO attackers (key, first_seen, last_seen, attempt_count, block_until, flags) "
+                    "INSERT INTO attackers (key, first_seen, last_seen, "
+                    "attempt_count, block_until, flags) "
                     "VALUES (?, ?, ?, 0, ?, ?)",
                     (key, now, now, float(until), json.dumps(flags)),
                 )
@@ -397,7 +398,7 @@ class ThrottleGate:
         window: float = 60.0,
         threshold: int = 50,
         block_seconds: float = 300.0,
-        db_path: Any | None = None,
+        db_path: str | Path | None = None,
         clock: Callable[[], float] = DEFAULT_CLOCK,
         limiter: SlidingWindowRateLimiter | None = None,
         store: AttackerStore | None = None,

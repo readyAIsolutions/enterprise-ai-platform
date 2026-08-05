@@ -33,6 +33,7 @@ import tempfile
 import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -73,41 +74,41 @@ def _log_gamma(x: float) -> float:
 
 def _betacf(a: float, b: float, x: float) -> float:
     """Continued-fraction evaluation of the incomplete beta function."""
-    MAXIT = 200
-    EPS = 3.0e-12
-    FPMIN = 1.0e-300
+    max_it = 200
+    eps = 3.0e-12
+    fpmin = 1.0e-300
 
     qab = a + b
     qap = a + 1.0
     qam = a - 1.0
     c = 1.0
     d = 1.0 - qab * x / qap
-    if abs(d) < FPMIN:
-        d = FPMIN
+    if abs(d) < fpmin:
+        d = fpmin
     d = 1.0 / d
     h = d
-    for m in range(1, MAXIT + 1):
+    for m in range(1, max_it + 1):
         m2 = 2 * m
         aa = m * (b - m) * x / ((qam + m2) * (a + m2))
         d = 1.0 + aa * d
-        if abs(d) < FPMIN:
-            d = FPMIN
+        if abs(d) < fpmin:
+            d = fpmin
         c = 1.0 + aa / c
-        if abs(c) < FPMIN:
-            c = FPMIN
+        if abs(c) < fpmin:
+            c = fpmin
         d = 1.0 / d
         h *= d * c
         aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
         d = 1.0 + aa * d
-        if abs(d) < FPMIN:
-            d = FPMIN
+        if abs(d) < fpmin:
+            d = fpmin
         c = 1.0 + aa / c
-        if abs(c) < FPMIN:
-            c = FPMIN
+        if abs(c) < fpmin:
+            c = fpmin
         d = 1.0 / d
         delta = d * c
         h *= delta
-        if abs(delta - 1.0) < EPS:
+        if abs(delta - 1.0) < eps:
             break
     return h
 
@@ -450,9 +451,9 @@ class ExperimentRegistry:
         autocommit: bool = True,
     ) -> None:
         if db_path is None:
-            db_path = os.path.join(
-                tempfile.gettempdir(),
-                f"eni_innovation_rd_{os.getpid()}_{uuid4().hex[:8]}.db",
+            db_path = str(
+                Path(tempfile.gettempdir())
+                / f"eni_innovation_rd_{os.getpid()}_{uuid4().hex[:8]}.db"
             )
         self._db_path = str(db_path)
         self._autocommit = autocommit
@@ -647,7 +648,7 @@ class ExperimentRegistry:
         return int(row["n"]) if row else 0
 
     # -- internals ----------------------------------------------------------
-    def _update(self, experiment_id: str, **fields: Any) -> bool:
+    def _update(self, experiment_id: str, **fields: object) -> bool:
         cols = [k for k in fields if k not in ("id",)]
         if not cols:
             return False
@@ -690,7 +691,7 @@ class ExperimentRegistry:
     def __enter__(self) -> ExperimentRegistry:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
 
@@ -787,7 +788,7 @@ class ExperimentRunner:
         self.fallback_to_bootstrap = fallback_to_bootstrap
 
     @staticmethod
-    def _coerce_samples(value: Any) -> list[float]:
+    def _coerce_samples(value: Any) -> list[float]:  # noqa: ANN401  (int/float or any number sequence)
         if isinstance(value, (int, float)):
             return [float(value)]
         try:
@@ -797,7 +798,7 @@ class ExperimentRunner:
                 f"Runner callables must return a number or sequence of numbers, "
                 f"got {type(value).__name__}"
             )
-            raise ValueError(msg)
+            raise ValueError(msg) from None
 
     def run(
         self,

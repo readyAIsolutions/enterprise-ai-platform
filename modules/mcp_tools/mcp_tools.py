@@ -85,12 +85,12 @@ class ValidationError(ToolCallError):
 # =========================================================================
 
 
-def _is_none_type(annotation: Any) -> bool:
+def _is_none_type(annotation: Any) -> bool:  # noqa: ANN401  (runtime type object)
     """Return True if ``annotation`` is the ``None`` type."""
     return annotation is type(None) or annotation is None
 
 
-def _derive_type(annotation: Any) -> dict[str, Any]:
+def _derive_type(annotation: Any) -> dict[str, Any]:  # noqa: ANN401  (runtime type object)
     """Map a Python type annotation onto a minimal JSON Schema fragment.
 
     Supports primitives, ``Optional[T]`` / ``T | None``, ``list[T]`` and
@@ -129,7 +129,7 @@ def _derive_type(annotation: Any) -> dict[str, Any]:
     return {"type": "any"}
 
 
-def _annotation_is_optional(annotation: Any) -> bool:
+def _annotation_is_optional(annotation: Any) -> bool:  # noqa: ANN401  (runtime type object)
     """Return True if ``annotation`` includes ``None`` (i.e. is optional)."""
     origin = get_origin(annotation)
     if origin in _UNION_ORIGINS:
@@ -320,7 +320,7 @@ def tool(
     return decorator
 
 
-def _tool_of(candidate: Any) -> Tool:
+def _tool_of(candidate: Any) -> Tool:  # noqa: ANN401  (Tool or arbitrary callable)
     """Resolve a :class:`Tool` from a Tool, a decorated fn or a bare fn."""
     if isinstance(candidate, Tool):
         return candidate
@@ -370,7 +370,7 @@ class ToolRegistry:
 
     def register(
         self,
-        tool_or_decorator: Any,
+        tool_or_decorator: Any,  # noqa: ANN401  (Tool or arbitrary callable)
         name: str | None = None,
     ) -> Tool:
         """Register a Tool (or decorated/bare callable), returning the Tool.
@@ -471,7 +471,7 @@ class ToolRegistry:
         tool_: Tool,
         key: str,
         prop: dict[str, Any],
-        value: Any,
+        value: Any,  # noqa: ANN401  (arbitrary runtime argument value)
     ) -> None:
         """Check a single value against its JSON type; raise on mismatch."""
         if value is None and prop.get("nullable"):
@@ -492,7 +492,7 @@ class ToolRegistry:
 
     # -- Dispatch -----------------------------------------------------------
 
-    def call(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
+    def call(self, name: str, arguments: dict[str, Any] | None = None) -> Any:  # noqa: ANN401  (arbitrary tool result)
         """Synchronously execute the tool named ``name`` with ``arguments``.
 
         Async handlers are awaited transparently (via the running loop, or a
@@ -508,7 +508,11 @@ class ToolRegistry:
             return _run_awaitable(result)
         return result
 
-    async def acall(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
+    async def acall(
+        self,
+        name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> Any:  # noqa: ANN401  (arbitrary tool result)
         """Asynchronously execute the tool named ``name`` with ``arguments``."""
         tool_ = self.get(name)
         if tool_ is None:
@@ -526,7 +530,7 @@ class ToolRegistry:
         self,
         method: str,
         params: dict[str, Any] | None = None,
-        request_id: Any = None,
+        request_id: Any = None,  # noqa: ANN401  (JSON-RPC id: str/int/None)
     ) -> dict[str, Any]:
         """Handle an MCP/JSON-RPC request, returning a JSON-RPC 2.0 response.
 
@@ -557,7 +561,7 @@ class ToolRegistry:
     async def _handle_call(
         self,
         params: dict[str, Any],
-        request_id: Any,
+        request_id: Any,  # noqa: ANN401  (JSON-RPC id: str/int/None)
     ) -> dict[str, Any]:
         """Execute an MCP ``tools/call`` request."""
         name = params.get("name")
@@ -586,7 +590,7 @@ class ToolRegistry:
         return self.get(name) is not None
 
     @staticmethod
-    def _call_error(request_id: Any, message: str, code: int = -32602) -> dict[str, Any]:
+    def _call_error(request_id: Any, message: str, code: int = -32602) -> dict[str, Any]:  # noqa: ANN401  (JSON-RPC id)
         """Build a JSON-RPC error envelope for a failed tool call."""
         return {
             "jsonrpc": _JSONRPC_VERSION,
@@ -608,7 +612,7 @@ def _rename(tool_: Tool, new_name: str) -> Tool:
     )
 
 
-def _type_matches(expected: str, value: Any) -> bool:
+def _type_matches(expected: str, value: Any) -> bool:  # noqa: ANN401  (arbitrary runtime value)
     """Check whether ``value`` matches a JSON Schema ``type`` keyword."""
     if expected == "string":
         return isinstance(value, str)
@@ -625,7 +629,7 @@ def _type_matches(expected: str, value: Any) -> bool:
     return True
 
 
-def _content_for(output: Any) -> dict[str, Any]:
+def _content_for(output: Any) -> dict[str, Any]:  # noqa: ANN401  (arbitrary tool result)
     """Wrap a tool result as an MCP ``text`` content item."""
     if isinstance(output, str):
         text = output
@@ -637,10 +641,10 @@ def _content_for(output: Any) -> dict[str, Any]:
     return {"type": "text", "text": text}
 
 
-def _run_awaitable(awaitable: Any) -> Any:
+def _run_awaitable(awaitable: Any) -> Any:  # noqa: ANN401  (arbitrary awaitable/result)
     """Execute an awaitable from synchronous code without deadlocking."""
 
-    async def _unwrap() -> Any:
+    async def _unwrap() -> Any:  # noqa: ANN401  (mirrors awaitable result)
         return await awaitable
 
     try:
@@ -788,7 +792,7 @@ class ToolServer:
 
     # -- Registry passthrough ---------------------------------------------
 
-    def register(self, tool_or_decorator: Any, name: str | None = None) -> Tool:
+    def register(self, tool_or_decorator: Any, name: str | None = None) -> Tool:  # noqa: ANN401  (Tool or arbitrary callable)
         """Register a Tool / decorated / bare callable and return the Tool."""
         return self.registry.register(tool_or_decorator, name=name)
 
@@ -814,7 +818,7 @@ class ToolServer:
 
     # -- Dispatch ----------------------------------------------------------
 
-    def call(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
+    def call(self, name: str, arguments: dict[str, Any] | None = None) -> Any:  # noqa: ANN401  (arbitrary tool result)
         """Synchronously dispatch to the tool named ``name``.
 
         Async handlers are awaited transparently. Raises :class:`ToolCallError`
@@ -822,7 +826,11 @@ class ToolServer:
         """
         return self.registry.call(name, arguments=arguments)
 
-    async def acall(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
+    async def acall(
+        self,
+        name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> Any:  # noqa: ANN401  (arbitrary tool result)
         """Asynchronously dispatch to the tool named ``name``."""
         return await self.registry.acall(name, arguments=arguments)
 
@@ -832,7 +840,7 @@ class ToolServer:
         self,
         method: str,
         params: dict[str, Any] | None = None,
-        request_id: Any = None,
+        request_id: Any = None,  # noqa: ANN401  (JSON-RPC id: str/int/None)
     ) -> dict[str, Any]:
         """Serve ``tools/list`` / ``tools/call`` as JSON-RPC 2.0 responses."""
         return await self.registry.handle_request(method, params=params, request_id=request_id)
@@ -936,7 +944,7 @@ class StdioTransport(Transport):
     the server reads a request line, writes a response line, and exits on EOF.
     """
 
-    def __init__(self, stdin: Any = None, stdout: Any = None) -> None:
+    def __init__(self, stdin: Any = None, stdout: Any = None) -> None:  # noqa: ANN401  (file-like objects)
         self._stdin = stdin if stdin is not None else sys.stdin
         self._stdout = stdout if stdout is not None else sys.stdout
         self._eof = False

@@ -20,6 +20,7 @@ import json
 import sqlite3
 import sys
 from pathlib import Path
+from typing import Any
 
 # Ensure project root is importable for `enterprise` package.
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -228,7 +229,7 @@ class TestJsonSourceAdapter:
         bad = tmp_path / "bad.json"
         bad.write_text('{"not": "an array"}', encoding="utf-8")
         adapter = JsonSourceAdapter(str(bad))
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="expects a JSON array"):
             adapter.list_docs()
         adapter.close()
 
@@ -252,7 +253,7 @@ class TestSourceRegistry:
     def test_duplicate_register_raises(self, file_dir: Path) -> None:
         reg = SourceRegistry()
         reg.register(FileSourceAdapter(str(file_dir), source_id="dup"))
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="already registered"):
             reg.register(FileSourceAdapter(str(file_dir), source_id="dup"))
         reg.close()
 
@@ -290,13 +291,17 @@ class TestKbMerger:
             id = "fake"
             type = "fake"
 
-            def query(self, query, filters=None):
+            def query(
+                self,
+                query: str,
+                filters: dict[str, Any] | None = None,  # noqa: ARG002
+            ) -> list[KbDoc]:
                 return [
                     KbDoc(id="doc1", text=query, source=self.id, score=3.0),
                     KbDoc(id="doc2", text=query, source=self.id, score=1.0),
                 ]
 
-            def list_docs(self, limit=None):
+            def list_docs(self, limit: int | None = None) -> list[KbDoc]:  # noqa: ARG002
                 return []
 
             def close(self) -> None:
@@ -305,7 +310,11 @@ class TestKbMerger:
         class Fake2(Fake):
             id = "fake2"
 
-            def query(self, query, filters=None):
+            def query(
+                self,
+                query: str,
+                filters: dict[str, Any] | None = None,  # noqa: ARG002
+            ) -> list[KbDoc]:
                 return [KbDoc(id="doc1", text=query, source=self.id, score=9.0)]
 
         reg.register(Fake())

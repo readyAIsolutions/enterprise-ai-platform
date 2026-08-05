@@ -34,8 +34,11 @@ import json
 import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 from .mcp_tools import StdioTransport, ToolServer, Transport
 
@@ -52,9 +55,9 @@ SSE_CONTENT_TYPE = "text/event-stream"
 
 
 def _json_rpc_response(
-    request_id: Any,
+    request_id: Any,  # noqa: ANN401  (opaque JSON-RPC id)
     *,
-    result: Any = None,
+    result: Any = None,  # noqa: ANN401  (any JSON-serializable result)
     error: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a JSON-RPC 2.0 success or error envelope."""
@@ -66,11 +69,11 @@ def _json_rpc_response(
     return response
 
 
-def _parse_error(request_id: Any = None, message: str = "Parse error") -> dict[str, Any]:
+def _parse_error(request_id: Any = None, message: str = "Parse error") -> dict[str, Any]:  # noqa: ANN401
     return _json_rpc_response(request_id, error={"code": -32700, "message": message})
 
 
-def _invalid_request(request_id: Any = None, message: str = "Invalid Request") -> dict[str, Any]:
+def _invalid_request(request_id: Any = None, message: str = "Invalid Request") -> dict[str, Any]:  # noqa: ANN401
     return _json_rpc_response(request_id, error={"code": -32600, "message": message})
 
 
@@ -105,7 +108,7 @@ class _MCPHTTPHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_json(self, payload: Any, status: int = 200) -> None:
+    def _send_json(self, payload: Any, status: int = 200) -> None:  # noqa: ANN401  (JSON-serializable)
         body = json.dumps(payload, default=str).encode("utf-8")
         self._send_bytes(body, status=status, content_type="application/json")
 
@@ -115,7 +118,7 @@ class _MCPHTTPHandler(BaseHTTPRequestHandler):
             return b""
         return self.rfile.read(length)
 
-    def _parse_body(self) -> Any | None:
+    def _parse_body(self) -> Any | None:  # noqa: ANN401  (arbitrary decoded JSON)
         """Parse the request body into JSON, or None if the JSON is malformed."""
         raw = self._read_body()
         if not raw:
@@ -125,7 +128,7 @@ class _MCPHTTPHandler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError):
             return None
 
-    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+    def log_message(self, format: str, *args: object) -> None:  # noqa: A002
         _logger.debug("HTTP %s", format % args)
 
     # -- routes -----------------------------------------------------------
@@ -210,7 +213,7 @@ class MCPServer:
 
     # -- JSON-RPC dispatch (sync, thread-safe per request) ------------------
 
-    def process_message(self, payload: Any) -> dict[str, Any]:
+    def process_message(self, payload: Any) -> dict[str, Any]:  # noqa: ANN401  (raw JSON-RPC message)
         """Dispatch a full JSON-RPC request message and return its response.
 
         Handles ``tools/list``, ``tools/call`` and unknown methods, surfacing
@@ -242,7 +245,7 @@ class MCPServer:
         self,
         method: str,
         params: dict[str, Any] | None = None,
-        request_id: Any = None,
+        request_id: Any = None,  # noqa: ANN401  (opaque JSON-RPC id)
     ) -> dict[str, Any]:
         """Async JSON-RPC dispatch — delegates to :meth:`ToolServer.handle_request`."""
         return await self.tool_server.handle_request(method, params=params, request_id=request_id)
@@ -312,7 +315,11 @@ class SSETransport:
     # -- SSE encoding ------------------------------------------------------
 
     @staticmethod
-    def format_event(data: Any, event: str = "message", event_id: Any = None) -> bytes:
+    def format_event(
+        data: Any,  # noqa: ANN401  (opaque SSE data / id)
+        event: str = "message",
+        event_id: Any = None,  # noqa: ANN401  (opaque SSE event id)
+    ) -> bytes:
         """Encode ``data`` as one SSE frame (event + data lines + blank line)."""
         lines: list[str] = []
         if event_id is not None:
@@ -356,7 +363,7 @@ class SSETransport:
             return False
         return bool(tool is not None and inspect.iscoroutinefunction(tool.handler))
 
-    def stream(self, request_payload: dict[str, Any] | None) -> Any:
+    def stream(self, request_payload: dict[str, Any] | None) -> Iterator[bytes]:
         """Yield SSE frames (bytes) for a single JSON-RPC request.
 
         For ``tools/call`` an initial ``progress`` event is emitted first
@@ -396,8 +403,8 @@ class StdioServer:
         self,
         mcp_server: MCPServer | None = None,
         *,
-        stdin: Any = None,
-        stdout: Any = None,
+        stdin: object | None = None,
+        stdout: object | None = None,
     ) -> None:
         self.mcp_server = mcp_server if mcp_server is not None else MCPServer()
         self.transport: Transport = StdioTransport(stdin=stdin, stdout=stdout)

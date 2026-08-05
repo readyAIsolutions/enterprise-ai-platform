@@ -42,7 +42,7 @@ Python: 3.11+
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Any  # noqa: F401
 
 from enterprise.platform_kernel import (
     EventBus,

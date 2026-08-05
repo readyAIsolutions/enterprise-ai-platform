@@ -241,7 +241,7 @@ __all__ = [
 import asyncio  # noqa: F401
 import logging
 import threading
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Any  # noqa: F401
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 

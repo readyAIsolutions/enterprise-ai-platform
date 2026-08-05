@@ -40,7 +40,7 @@ from __future__ import annotations
 import time as _time
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from .task_harness import TaskCard, TaskHarness, TaskStatus
 
@@ -142,7 +142,7 @@ class ErrorClassifier:
 # ===========================================================================
 # Retry policy
 # ===========================================================================
-def _DEFAULT_BACKOFF(attempt: int) -> float:
+def _default_backoff(attempt: int) -> float:
     return 2.0 ** (attempt - 1)
 
 
@@ -184,7 +184,7 @@ class RetryPolicy:
         if self._fn is not None:
             raw = float(self._fn(attempt))
         else:
-            raw = self._base * _DEFAULT_BACKOFF(attempt)
+            raw = self._base * _default_backoff(attempt)
         if self.jitter:
             import random
 
@@ -382,7 +382,7 @@ class WorkerRunner:
         self.stats = RunnerStats()
 
     @staticmethod
-    def _default_executor(card: TaskCard) -> Any:  # pragma: no cover - default
+    def _default_executor(card: TaskCard) -> NoReturn:  # pragma: no cover - default
         msg = f"no executor configured for task {card.id!r}; inject one"
         raise PermanentError(msg)
 
@@ -565,7 +565,7 @@ def build_runner(
     heartbeat_timeout: float | None = None,
     clock: Callable[[], float] | None = None,
     sleep: Callable[[float], None] | None = None,
-    **kwargs: Any,
+    **kwargs: Any,  # noqa: ANN401
 ) -> WorkerRunner:
     """Convenience factory wiring retry/deadline/heartbeat from simple args."""
     clock = clock or _time.monotonic

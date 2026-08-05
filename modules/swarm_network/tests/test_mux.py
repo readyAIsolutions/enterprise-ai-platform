@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from collections.abc import Callable
 from typing import Never
 
 import pytest
@@ -84,7 +85,7 @@ class TestConnectionScorer(unittest.TestCase):
 
     def test_custom_weights_normalise_to_1(self) -> None:
         s = ConnectionScorer(weights={"signal": 2, "bandwidth": 1})
-        self.assertAlmostEqual(sum(s.weights.values()), 1.0, places=6)
+        assert abs(sum(s.weights.values()) - 1.0) < 1e-6
         # signal-only weighting dominates
         high_signal = s.score(signal=1.0, bandwidth=0.0)
         low_signal = s.score(signal=0.0, bandwidth=1.0)
@@ -177,8 +178,8 @@ class TestMuxer(unittest.TestCase):
         self.mgr.register_new("wifi0", link_type="wifi", metric=1)
         self.calls = []
 
-    def _sink(self, link_id):
-        def fn(data, **kw) -> str:
+    def _sink(self, link_id: str) -> Callable[..., str]:
+        def fn(data: bytes, **kw: object) -> str:
             self.calls.append((link_id, data, kw))
             return f"sent-{link_id}"
 
@@ -198,7 +199,7 @@ class TestMuxer(unittest.TestCase):
         assert result == "sent-wifi0"
 
     def test_falls_back_when_primary_fails(self) -> None:
-        def failing(data, **kw) -> Never:
+        def failing(_data: bytes, **_kw: object) -> Never:
             self.calls.append("eth0-fail")
             msg = "eth0 down"
             raise ConnectionError(msg)
@@ -213,7 +214,7 @@ class TestMuxer(unittest.TestCase):
         assert self.calls[-1][0] == "wifi0"
 
     def test_fallback_count_incremented(self) -> None:
-        def failing(data, **kw) -> Never:
+        def failing(_data: bytes, **_kw: object) -> Never:
             msg = "boom"
             raise OSError(msg)
 
@@ -234,7 +235,7 @@ class TestMuxer(unittest.TestCase):
         assert self.mux.total_success == 2
 
     def test_all_links_fail_raises(self) -> None:
-        def failing(data, **kw) -> Never:
+        def failing(_data: bytes, **_kw: object) -> Never:
             msg = "dead"
             raise ConnectionError(msg)
 
@@ -253,7 +254,7 @@ class TestMuxer(unittest.TestCase):
             mux.route(b"x")
 
     def test_task_kwarg_forwarded(self) -> None:
-        def fn(data, task=None, **kw) -> str:
+        def fn(data: bytes, task: str | None = None, **_kw: object) -> str:
             self.calls.append((data, task))
             return "ok"
 
@@ -265,7 +266,7 @@ class TestMuxer(unittest.TestCase):
         """Link goes down then recovers — routing resumes to it."""
         state = {"ok": True}
 
-        def flaky(data, **kw) -> str:
+        def flaky(_data: bytes, **_kw: object) -> str:
             if state["ok"]:
                 return "ok-eth"
             msg = "down"

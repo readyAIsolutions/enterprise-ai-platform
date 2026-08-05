@@ -28,7 +28,10 @@ _PROJECT_ROOT: Path = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from typing import Never
+from typing import TYPE_CHECKING, Never  # noqa: E402
+
+if TYPE_CHECKING:
+    from collections.abc import Callable  # noqa: E402
 
 from enterprise.modules.task_harness import (  # noqa: E402
     Deadline,
@@ -39,6 +42,7 @@ from enterprise.modules.task_harness import (  # noqa: E402
     RetryableError,
     RetryPolicy,
     RunningStatus,
+    TaskCard,
     TaskHarness,
     WorkerRunner,
 )
@@ -96,13 +100,13 @@ def sleeper() -> RecordingSleep:
 def _runner(
     harness: TaskHarness,
     *,
-    executor=None,
+    executor: Callable[[TaskCard], str] | None = None,
     clock: FakeClock | None = None,
     sleeper: RecordingSleep | None = None,
     retry_policy: RetryPolicy | None = None,
     max_runtime: float | None = None,
     heartbeat_timeout: float | None = None,
-    **kwargs,
+    **kwargs,  # noqa: ANN003  (forwarded to WorkerRunner)
 ) -> WorkerRunner:
     clock = clock or FakeClock()
     sleeper = sleeper or RecordingSleep()
@@ -141,7 +145,7 @@ class TestPolicyAndClassifier:
         assert policy.delay(3) == 30
 
     def test_retry_policy_rejects_invalid_input(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="max_attempts"):
             RetryPolicy(max_attempts=0)
         with pytest.raises(TypeError):
             RetryPolicy(backoff="nope")  # type: ignore[arg-type]
@@ -195,7 +199,7 @@ class TestRunnerRetry:
     ) -> None:
         calls: list[int] = []
 
-        def flaky(card) -> str:
+        def flaky(card: TaskCard) -> str:
             calls.append(card.id)
             if len(calls) < 3:
                 msg = "transient"
@@ -222,7 +226,7 @@ class TestRunnerRetry:
         calls: list[int] = []
         policy = RetryPolicy(max_attempts=4, backoff=1.0)
 
-        def always_flaky(card) -> Never:
+        def always_flaky(card: TaskCard) -> Never:
             calls.append(card.id)
             msg = "down"
             raise ConnectionError(msg)
@@ -249,7 +253,7 @@ class TestRunnerRetry:
     ) -> None:
         calls: list[int] = []
 
-        def bad_logic(card) -> Never:
+        def bad_logic(card: TaskCard) -> Never:
             calls.append(card.id)
             msg = "bad input"
             raise ValueError(msg)
@@ -272,7 +276,7 @@ class TestRunnerDeadline:
     ) -> None:
         calls: list[int] = []
 
-        def slow(card) -> str:
+        def slow(card: TaskCard) -> str:
             calls.append(card.id)
             return "not done"
 
@@ -303,7 +307,7 @@ class TestRunnerHeartbeat:
     ) -> None:
         calls: list[int] = []
 
-        def work(card) -> str:
+        def work(card: TaskCard) -> str:
             calls.append(card.id)
             return "done"
 
@@ -335,7 +339,7 @@ class TestRunnerHeartbeat:
         task = harness.create_card("watch")
         runner = _runner(
             harness,
-            executor=lambda c: "ok",
+            executor=lambda _c: "ok",
             clock=clock,
             heartbeat_timeout=5.0,
         )
@@ -355,7 +359,7 @@ class TestRunnerOrdering:
         high = harness.create_card("high", priority=10)
         mid = harness.create_card("mid", priority=5)
 
-        runner = _runner(harness, executor=lambda c: "ok", clock=clock)
+        runner = _runner(harness, executor=lambda _c: "ok", clock=clock)
         first = runner.claim()
         assert first.id == high.id
         second = runner.claim()
@@ -367,7 +371,7 @@ class TestRunnerOrdering:
         dep = harness.create_card("dep")
         child = harness.create_card("child", depends_on=[dep.id])
 
-        runner = _runner(harness, executor=lambda c: "ok", clock=clock)
+        runner = _runner(harness, executor=lambda _c: "ok", clock=clock)
         # Only the dependency is runnable at first.
         assert runner.claim().id == dep.id
         # child still blocked until dep completes.
@@ -393,7 +397,7 @@ class TestRunnerLifecycle:
         )
 
     def test_run_once_returns_none_when_idle(self, harness: TaskHarness, clock: FakeClock) -> None:
-        runner = _runner(harness, executor=lambda c: "ok", clock=clock)
+        runner = _runner(harness, executor=lambda _c: "ok", clock=clock)
         assert runner.run_once() is None
         assert runner.stats.claimed == 0
 
@@ -403,7 +407,7 @@ class TestRunnerLifecycle:
         # One transient task that succeeds on the 2nd attempt, one permanent.
         transient_calls: list[int] = []
 
-        def transient(card) -> str:
+        def transient(card: TaskCard) -> str:
             transient_calls.append(card.id)
             if len(transient_calls) < 2:
                 msg = "retry me"
@@ -414,7 +418,7 @@ class TestRunnerLifecycle:
         t_bad = harness.create_card("bad")
         seen: set[str] = set()
 
-        def dispatch(card):
+        def dispatch(card: TaskCard) -> str:
             seen.add(card.id)
             if card.id == t_bad.id:
                 msg = "nope"

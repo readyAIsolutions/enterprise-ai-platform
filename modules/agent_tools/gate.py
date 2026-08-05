@@ -30,6 +30,7 @@ import json
 import re
 import threading
 import time
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -137,10 +138,8 @@ class ToolRule:
                 if isinstance(val, str):
                     haystacks.append(val)
                 elif val is not None:
-                    try:
+                    with suppress(Exception):
                         haystacks.append(_serialize_args(val))
-                    except Exception:  # noqa: BLE001
-                        pass
         if self.arg_deny:
             for pattern in self.arg_deny:
                 try:
@@ -459,7 +458,7 @@ class ToolAudit:
         with self._lock:
             return list(self._records[-n:])
 
-    def search(self, **kwargs: Any) -> list[AuditRecord]:
+    def search(self, **kwargs: object) -> list[AuditRecord]:
         """Filter records by exact field equality; empty kwargs -> all.
 
         Supported fields: tool, allowed, decision, outcome, caller, seq.
@@ -637,7 +636,7 @@ class ToolGate:
         args: dict[str, Any] | None,
         afn: Callable[[], Any],
         caller: str = "anonymous",
-    ):
+    ) -> GateResult:
         """Async variant of :meth:`run` (used by the synchronous promise below)."""
         return self.run(tool, args, afn, caller)
 

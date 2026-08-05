@@ -710,7 +710,7 @@ class JourneyAnalytics:
         self.nps.record(score, customer_id=customer_id)
         return self
 
-    def update_churn(self, customer_id: str, **signals) -> JourneyAnalytics:
+    def update_churn(self, customer_id: str, **signals: int) -> JourneyAnalytics:
         """Record churn-risk signals; returns self for chaining."""
         self.churn.update(customer_id, **signals)
         return self

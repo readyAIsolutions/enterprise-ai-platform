@@ -30,14 +30,14 @@ Python: 3.10+
 
 from __future__ import annotations
 
-import os as _os
 import sys as _sys
+from pathlib import Path as _Path
 
 __version__ = "2.0.0"
 
 # Ensure enterprise path is available
-_ENTERPRISE_DIR = _os.path.dirname(_os.path.dirname(__file__))
-_PARENT = _os.path.dirname(_ENTERPRISE_DIR)
+_ENTERPRISE_DIR = str(_Path(__file__).resolve().parent.parent)
+_PARENT = str(_Path(_ENTERPRISE_DIR).parent)
 if _PARENT not in _sys.path:
     _sys.path.insert(0, _PARENT)
 
@@ -47,23 +47,23 @@ except ImportError:
     from platform_kernel import HealthStatus, Module, module
 
 # ── Core Engine ────────────────────────────────────────────────────────────
-import contextlib
+import contextlib  # noqa: E402  (imports follow sys.path bootstrap below)
 
-from .context_manager import (
+from .context_manager import (  # noqa: E402
     CompressionEngine,
     ContextTier,
     EmbeddingCache,
     SmartContext,
     WindowManager,
 )
-from .coordinator import (
+from .coordinator import (  # noqa: E402
     ExecutionDAG,
     ExecutionNode,
     ParallelDispatch,
     SchedulePolicy,
     TaskCoordinator,
 )
-from .hooks_engine import (
+from .hooks_engine import (  # noqa: E402
     HookPlugin,
     HookPriority,
     HookResult,
@@ -73,7 +73,7 @@ from .hooks_engine import (
 )
 
 # ── Provider Transport & Model Backends ─────────────────────────────────────
-from .providers import (
+from .providers import (  # noqa: E402
     AnthropicProvider,
     ChatProvider,
     EchoProvider,
@@ -85,7 +85,7 @@ from .providers import (
     RetryPolicy,
     get_provider,
 )
-from .query_engine import (
+from .query_engine import (  # noqa: E402
     AnthropicBackend,
     ModelBackend,
     ModelRouter,
@@ -97,7 +97,7 @@ from .query_engine import (
     SuperiorQueryEngine,
     ToolCallResult,
 )
-from .services import (
+from .services import (  # noqa: E402
     AuthService,
     AuthToken,
     MemoryEntry,
@@ -108,14 +108,14 @@ from .services import (
     ToolDefinition,
     ToolService,
 )
-from .state_manager import (
+from .state_manager import (  # noqa: E402
     CRDTStore,
     DistributedLock,
     MergeStrategy,
     StateManager,
     StateVersion,
 )
-from .task_system import (
+from .task_system import (  # noqa: E402
     BackgroundTask,
     SwarmTaskBridge,
     Task,

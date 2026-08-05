@@ -93,10 +93,10 @@ class Guard:
     def __post_init__(self) -> None:
         self.validators = list(self.validators)
 
-    def __call__(self, value: Any, metadata: dict[str, Any] | None = None) -> GuardResult:
+    def __call__(self, value: Any, metadata: dict[str, Any] | None = None) -> GuardResult:  # noqa: ANN401
         return self.run(value, metadata)
 
-    def run(self, value: Any, metadata: dict[str, Any] | None = None) -> GuardResult:
+    def run(self, value: Any, metadata: dict[str, Any] | None = None) -> GuardResult:  # noqa: ANN401
         """Run all validators declaratively, honouring per-validator on_fail
         actions: 'fix' applies fix_value (re-validating the repaired value to
         confirm), 'block' rejects (no fix applied) and 'raise' raises
@@ -193,7 +193,7 @@ class Validator(abc.ABC):
         self.data_type = data_type
 
     @abc.abstractmethod
-    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
+    def validate(self, value: Any, _metadata: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         raise NotImplementedError  # pragma: no cover
 
 
@@ -216,7 +216,7 @@ class NoPIIValidator(Validator):
         self.redact = redact
         self.redaction_token = redaction_token
 
-    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
+    def validate(self, text: str, _context: dict[str, Any] | None = None) -> ValidationResult:
         reasons: list[str] = []
         fixed = text
         for label, regex, _token in (
@@ -277,7 +277,7 @@ class ProfanityValidator(Validator):
         super().__init__(name or "ProfanityValidator")
         self.words = list(words) if words is not None else TOXIC_WORDS.copy()
 
-    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
+    def validate(self, text: str, _context: dict[str, Any] | None = None) -> ValidationResult:
         found = _contains_any_word(text, self.words)
         if not found:
             return ValidationResult(passed=True, score=1.0)
@@ -295,7 +295,7 @@ class NoToxicValidator(Validator):
         super().__init__(name or "NoToxicValidator")
         self.words = list(words) if words is not None else TOXIC_WORDS.copy()
 
-    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
+    def validate(self, text: str, _context: dict[str, Any] | None = None) -> ValidationResult:
         found = _contains_any_word(text, self.words)
         if not found:
             return ValidationResult(passed=True, score=1.0)
@@ -316,7 +316,7 @@ class LengthValidator(Validator):
         self.min = min
         self.max = max
 
-    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
+    def validate(self, text: str, _context: dict[str, Any] | None = None) -> ValidationResult:
         length = len(text)
         reasons: list[str] = []
         if self.min is not None and length < self.min:
@@ -344,7 +344,7 @@ class RegexValidator(Validator):
         self.pattern = pattern
         self._regex = re.compile(pattern)
 
-    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
+    def validate(self, text: str, _context: dict[str, Any] | None = None) -> ValidationResult:
         if self._regex.search(text):
             return ValidationResult(passed=True, score=1.0)
         return ValidationResult(
@@ -369,7 +369,7 @@ class NoPromptInjectionValidator(Validator):
         super().__init__(name or "NoPromptInjectionValidator")
         self._compiled = [re.compile(p) for p in self.PATTERNS]
 
-    def validate(self, text: str, context: dict[str, Any] | None = None) -> ValidationResult:
+    def validate(self, text: str, _context: dict[str, Any] | None = None) -> ValidationResult:
         reasons: list[str] = []
         for regex in self._compiled:
             if regex.search(text):
@@ -386,7 +386,7 @@ class JSONSchemaValidator(Validator):
         super().__init__(name or "JSONSchemaValidator", data_type="json")
         self.params = params or {}
 
-    def validate(self, text: Any, context: dict[str, Any] | None = None) -> ValidationResult:
+    def validate(self, text: Any, _context: dict[str, Any] | None = None) -> ValidationResult:  # noqa: ANN401
         # Accept either a raw JSON string (classic path) or an already-parsed
         # value (Guardrails-AI data_type='json' dispatch path).
         if isinstance(text, str):
@@ -405,7 +405,7 @@ class JSONSchemaValidator(Validator):
             return ValidationResult(passed=False, score=0.0, failure_reasons=errors)
         return ValidationResult(passed=True, score=1.0)
 
-    def _check(self, data: Any, schema: Any, path: str) -> list[str]:
+    def _check(self, data: Any, schema: Any, path: str) -> list[str]:  # noqa: ANN401
         if not isinstance(schema, dict):
             return []
         errors: list[str] = []
@@ -428,10 +428,13 @@ class JSONSchemaValidator(Validator):
                 if key in data:
                     errors.extend(self._check(data[key], sub, f"{path}.{key}"))
 
-        if schema_type == "array" or "items" in schema:
-            if isinstance(data, list) and "items" in schema:
-                for i, item in enumerate(data):
-                    errors.extend(self._check(item, schema["items"], f"{path}[{i}]"))
+        if (
+            (schema_type == "array" or "items" in schema)
+            and isinstance(data, list)
+            and "items" in schema
+        ):
+            for i, item in enumerate(data):
+                errors.extend(self._check(item, schema["items"], f"{path}[{i}]"))
 
         if "minLength" in schema and isinstance(data, str) and len(data) < schema["minLength"]:
             errors.append(f"{path}: too short")
@@ -441,7 +444,7 @@ class JSONSchemaValidator(Validator):
         return errors
 
 
-def _matches_type(data: Any, schema_type: str) -> bool:
+def _matches_type(data: Any, schema_type: str) -> bool:  # noqa: ANN401
     if schema_type == "object":
         return isinstance(data, dict)
     if schema_type == "array":
@@ -459,7 +462,7 @@ def _matches_type(data: Any, schema_type: str) -> bool:
     return True
 
 
-def _py_type(data: Any) -> str:
+def _py_type(data: Any) -> str:  # noqa: ANN401
     if isinstance(data, bool):
         return "boolean"
     if isinstance(data, int):
@@ -517,7 +520,15 @@ class GuardRailRunner:
             guard_name=guard.name,
         )
 
-    def _pass(self, guard, text, context, validations, actions, violation):
+    def _pass(
+        self,
+        guard: Guard,
+        text: str,
+        context: dict[str, Any] | None,
+        validations: list[ValidationResult],
+        actions: list[str],
+        violation: bool,
+    ) -> tuple[str, list[ValidationResult], list[str], bool, bool]:
         """Run one sweep of all validators. Returns (text, validations, actions,
         violation, done). 'done' True means no refix restart is needed."""
         current = text
@@ -647,7 +658,7 @@ class FailResult:
     score: float = 0.0
 
 
-def _coerce(value: Any, data_type: str) -> Any:
+def _coerce(value: Any, data_type: str) -> Any:  # noqa: ANN401
     """data_type dispatch: coerce input before invoking a typed validator."""
     if data_type == "json" and isinstance(value, str):
         try:
@@ -665,7 +676,7 @@ def _coerce(value: Any, data_type: str) -> Any:
     return value
 
 
-def _canonical_text(value: Any) -> str:
+def _canonical_text(value: Any) -> str:  # noqa: ANN401
     """Render any value as text for GuardResult.final_text."""
     if isinstance(value, str):
         return value
@@ -690,7 +701,9 @@ class _RunOutcome:
 
 
 def _evaluate_validator(
-    validator: Validator, value: Any, metadata: dict[str, Any] | None = None
+    validator: Validator,
+    value: Any,  # noqa: ANN401
+    metadata: dict[str, Any] | None = None,
 ) -> _RunOutcome:
     """Validate ``value`` through ``validator`` after applying data_type
     coercion, normalising the result (PassResult / FailResult / ValidationResult)
@@ -760,7 +773,7 @@ class PIIValidator(Validator):
         super().__init__(name or "PIIValidator", data_type="string")
         self.redact = redact
 
-    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
+    def validate(self, value: Any, _metadata: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         text = str(value)
         reasons: list[str] = []
         for label, regex in (
@@ -805,7 +818,7 @@ class PromptInjectionValidator(Validator):
         super().__init__(name or "PromptInjectionValidator", data_type="string")
         self._compiled = [re.compile(p) for p in _PROMPT_INJECTION_PATTERNS]
 
-    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
+    def validate(self, value: Any, _metadata: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         text = str(value)
         reasons = ["prompt injection detected" for p in self._compiled if p.search(text)]
         if not reasons:
@@ -835,7 +848,7 @@ class JailbreakValidator(Validator):
         super().__init__(name or "JailbreakValidator", data_type="string")
         self._compiled = [re.compile(p) for p in _JAILBREAK_PATTERNS]
 
-    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
+    def validate(self, value: Any, _metadata: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         text = str(value)
         reasons = [f"jailbreak marker: {p.pattern}" for p in self._compiled if p.search(text)]
         if not reasons:
@@ -865,7 +878,7 @@ class ShellInjectionValidator(Validator):
         super().__init__(name or "ShellInjectionValidator", data_type="string")
         self._compiled = [re.compile(p) for p in _SHELL_INJECTION_PATTERNS]
 
-    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
+    def validate(self, value: Any, _metadata: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         text = str(value)
         reasons = [f"shell injection: {p.pattern}" for p in self._compiled if p.search(text)]
         if not reasons:
@@ -896,7 +909,7 @@ class SQLInjectionValidator(Validator):
         super().__init__(name or "SQLInjectionValidator", data_type="string")
         self._compiled = [re.compile(p) for p in _SQL_INJECTION_PATTERNS]
 
-    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
+    def validate(self, value: Any, _metadata: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         text = str(value)
         reasons = [f"sql injection: {p.pattern}" for p in self._compiled if p.search(text)]
         if not reasons:
@@ -916,7 +929,7 @@ class ToxicLanguageValidator(Validator):
         super().__init__(name or "ToxicLanguageValidator", data_type="string")
         self.words = list(words) if words is not None else TOXIC_WORDS.copy()
 
-    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
+    def validate(self, value: Any, _metadata: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         text = str(value)
         found = _contains_any_word(text, self.words)
         if not found:
@@ -940,7 +953,7 @@ class SecretLeakValidator(Validator):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name or "SecretLeakValidator", data_type="string")
 
-    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
+    def validate(self, value: Any, _metadata: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         text = str(value)
         reasons: list[str] = []
         if self._AWS_KEY_RE.search(text):
@@ -971,7 +984,7 @@ class URLValidator(Validator):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name or "URLValidator", data_type="string")
 
-    def validate(self, value: Any, metadata: dict[str, Any] | None = None) -> Any:
+    def validate(self, value: Any, _metadata: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
         text = str(value)
         reasons: list[str] = []
         for match in _URL_SCHEME_RE.finditer(text):
@@ -1033,7 +1046,7 @@ class ValidatorRegistry:
         """Return the data_type registered for a validator name ('' if unknown)."""
         return self._data_types.get(name, "")
 
-    def instantiate(self, name: str, *args: Any, **kwargs: Any) -> Validator:
+    def instantiate(self, name: str, *args: Any, **kwargs: Any) -> Validator:  # noqa: ANN401
         cls = self._validators.get(name)
         if cls is None:
             msg = f"Unknown validator: {name}"
@@ -1079,7 +1092,9 @@ def build_default_registry() -> ValidatorRegistry:
 _DEFAULT_REGISTRY = build_default_registry()
 
 
-def register_validator(name: str, data_type: str = "string"):
+def register_validator(
+    name: str, data_type: str = "string"
+) -> Callable[[type[Validator]], type[Validator]]:
     """Module-level convenience: register a validator into the default registry."""
     return _DEFAULT_REGISTRY.register_validator(name, data_type)
 
@@ -1134,7 +1149,9 @@ class Guardrails:
         self._guards: dict[str, Guard] = {}
 
     # -- registry plumbing -------------------------------------------------
-    def register_validator(self, name: str, data_type: str = "string"):
+    def register_validator(
+        self, name: str, data_type: str = "string"
+    ) -> Callable[[type[Validator]], type[Validator]]:
         return self.registry.register_validator(name, data_type)
 
     def list_validators(self) -> list[str]:
@@ -1161,7 +1178,7 @@ class Guardrails:
     # -- validation --------------------------------------------------------
     def validate(
         self,
-        value: Any,
+        value: Any,  # noqa: ANN401
         guard_names: str | list[str],
         metadata: dict[str, Any] | None = None,
     ) -> GuardResult:

@@ -33,6 +33,7 @@ import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 
 
 class CertificationLevel(Enum):
@@ -170,11 +171,11 @@ def score_reliability_v2(test_pass_rate: float, is_platform_core: bool) -> float
     return min(1.0, base)
 
 
-def score_scalability_v2(module_name: str) -> float:
+def score_scalability_v2(_module_name: str) -> float:
     return 1.0
 
 
-def score_security_v2(module_name: str) -> float:
+def score_security_v2(_module_name: str) -> float:
     return 1.0
 
 
@@ -186,23 +187,23 @@ def score_maintainability_v2(source_lines: int, test_count: int) -> float:
     return 1.0
 
 
-def score_observability_v2(module_name: str) -> float:
+def score_observability_v2(_module_name: str) -> float:
     return 1.0
 
 
-def score_performance_v2(module_name: str) -> float:
+def score_performance_v2(_module_name: str) -> float:
     return 1.0
 
 
-def score_cost_efficiency_v2(source_lines: int) -> float:
+def score_cost_efficiency_v2(_source_lines: int) -> float:
     return 1.0
 
 
-def score_documentation_v2(source_lines: int) -> float:
+def score_documentation_v2(_source_lines: int) -> float:
     return 1.0
 
 
-def score_ai_quality_v2(module_name: str) -> float:
+def score_ai_quality_v2(_module_name: str) -> float:
     return 1.0
 
 
@@ -266,10 +267,11 @@ def measure_recursive_self_improve() -> float:
     bonus = 0.0
 
     # Skills directory exists
-    if os.path.isdir(os.path.expanduser("~/.hermes/skills")):
+    skills_dir = Path("~/.hermes/skills").expanduser()
+    if skills_dir.is_dir():
         # Count skills
         count = 0
-        for _root, _dirs, files in os.walk(os.path.expanduser("~/.hermes/skills")):
+        for _root, _dirs, files in os.walk(skills_dir):
             for f in files:
                 if f == "SKILL.md":
                     count += 1
@@ -284,9 +286,9 @@ def measure_recursive_self_improve() -> float:
 
     # Cron jobs exist
     try:
-        cron_dir = os.path.expanduser("~/.hermes/cron/")
-        if os.path.isdir(cron_dir):
-            cron_count = len([f for f in os.listdir(cron_dir) if f.endswith(".json")])
+        cron_dir = Path("~/.hermes/cron/").expanduser()
+        if cron_dir.is_dir():
+            cron_count = len([f for f in cron_dir.iterdir() if f.name.endswith(".json")])
             if cron_count >= 5:
                 bonus += 3
             elif cron_count >= 1:
@@ -295,7 +297,7 @@ def measure_recursive_self_improve() -> float:
                 bonus += 1
         else:
             bonus += 1
-    except:
+    except Exception:
         bonus += 1
 
     # Self-validation
@@ -317,19 +319,19 @@ def measure_compression_transcend() -> float:
     """
     bonus = 0.0
 
-    omega_path = os.path.expanduser("~/Desktop/Eni Builder/eni_compression/core/omega.py")
-    if os.path.exists(omega_path):
+    omega_path = Path("~/Desktop/Eni Builder/eni_compression/core/omega.py").expanduser()
+    if omega_path.exists():
         bonus += 4  # OMEGA exists
 
     # Check for ratio in omega.py
     try:
-        with open(omega_path) as f:
+        with omega_path.open() as f:
             content = f.read()
             if "22.53" in content or "22.5" in content:
                 bonus += 3  # transcendent ratio
             else:
                 bonus += 1
-    except:
+    except Exception:
         pass
 
     # Compression bridge has 12 modes
@@ -354,7 +356,7 @@ def measure_zero_cost_operation() -> float:
 
         with urllib.request.urlopen("http://localhost:8920/health", timeout=3):
             bonus += 4
-    except:
+    except Exception:
         pass
 
     # Multiple providers (from memory: nemotron-nano, DeepSeek-V3.1, solar-pro, glm-5.2)
@@ -392,7 +394,7 @@ def measure_adaptive_resilience() -> float:
         )
         if result.returncode == 0:
             bonus += 2
-    except:
+    except Exception:
         pass
 
     # Platform health checks
@@ -414,23 +416,23 @@ def measure_cross_domain_intelligence() -> float:
     domains = 0
 
     # 3D printing
-    demiurge = os.path.expanduser("~/Desktop/Eni Builder/Demiurge_Trading")
-    if os.path.isdir(demiurge):
+    demiurge = Path("~/Desktop/Eni Builder/Demiurge_Trading").expanduser()
+    if demiurge.is_dir():
         domains += 2
 
     # Swarm floor
-    swarm_floor = os.path.expanduser("~/Desktop/Eni Builder/ENI_Swarm_NEW")
-    if os.path.isdir(swarm_floor):
+    swarm_floor = Path("~/Desktop/Eni Builder/ENI_Swarm_NEW").expanduser()
+    if swarm_floor.is_dir():
         domains += 2
 
     # Knowledge base
-    eni_kb = os.path.expanduser("~/Desktop/Eni Builder/ENI_KB")
-    if os.path.isdir(eni_kb):
+    eni_kb = Path("~/Desktop/Eni Builder/ENI_KB").expanduser()
+    if eni_kb.is_dir():
         domains += 2
 
     # Compression
-    eni_comp = os.path.expanduser("~/Desktop/Eni Builder/eni_compression")
-    if os.path.isdir(eni_comp):
+    eni_comp = Path("~/Desktop/Eni Builder/eni_compression").expanduser()
+    if eni_comp.is_dir():
         domains += 2
 
     # Enterprise platform itself (research, validation)
@@ -450,17 +452,17 @@ def measure_hermeneutic_closure() -> float:
     bonus = 0.0
 
     # Self-validation exists
-    val_path = os.path.expanduser(
+    val_path = Path(
         "~/Desktop/Eni Builder/enterprise/modules/enterprise_validation/validation_engine.py"
-    )
-    if os.path.exists(val_path):
+    ).expanduser()
+    if val_path.exists():
         bonus += 5
 
     # It has its own tests
-    val_tests = os.path.expanduser(
+    val_tests = Path(
         "~/Desktop/Eni Builder/enterprise/modules/enterprise_validation/tests/"
-    )
-    if os.path.isdir(val_tests):
+    ).expanduser()
+    if val_tests.is_dir():
         bonus += 3
 
     # Evidence-based
@@ -480,14 +482,14 @@ def measure_temporal_autonomy() -> float:
     bonus = 0.0
 
     # Check cron jobs
-    cron_dir = os.path.expanduser("~/.hermes/cron/")
+    cron_dir = Path("~/.hermes/cron/").expanduser()
     try:
-        if os.path.isdir(cron_dir):
-            cron_count = len([f for f in os.listdir(cron_dir) if f.endswith(".json")])
+        if cron_dir.is_dir():
+            cron_count = len([f for f in cron_dir.iterdir() if f.name.endswith(".json")])
             bonus += min(3, cron_count)
         else:
             bonus += 1
-    except:
+    except Exception:
         bonus += 1
 
     # Background daemons
@@ -601,7 +603,7 @@ class ValidationEngine:
             pass
         return signal, concurrency
 
-    async def validate_all(self, evidence_dir: str = "") -> ValidationReport:
+    async def validate_all(self, evidence_dir: str = "") -> ValidationReport:  # noqa: ARG002
         report = ValidationReport()
 
         signal, concurrency = self._read_wifi_signal()
@@ -649,13 +651,25 @@ class ValidationEngine:
 
         # Build recommendations
         report.recommendations = [
-            f"BASE SCORE: {report.platform_score}/100 — all {report.total_test_count} tests passing at 100%",
+            (
+                f"BASE SCORE: {report.platform_score}/100 — all "
+                f"{report.total_test_count} tests passing at 100%"
+            ),
             f"TRANSCENDENT BONUS: +{report.transcendent_bonus:.1f} from 8 singularity axes",
-            f"  Swarm Intelligence: +{bonuses.swarm_intelligence:.1f} (parallel autonomous coordination)",
-            f"  Recursive Self-Improve: +{bonuses.recursive_self_improve:.1f} (platform improves itself)",
+            (
+                f"  Swarm Intelligence: +{bonuses.swarm_intelligence:.1f} "
+                "(parallel autonomous coordination)"
+            ),
+            (
+                f"  Recursive Self-Improve: +{bonuses.recursive_self_improve:.1f} "
+                "(platform improves itself)"
+            ),
             f"  Compression Transcend: +{bonuses.compression_transcend:.1f} (OMEGA 22.53x)",
             f"  Zero-Cost Operation: +{bonuses.zero_cost_operation:.1f} (free-router, $0 API)",
-            f"  Adaptive Resilience: +{bonuses.adaptive_resilience:.1f} (self-healing, auto-recovery)",
+            (
+                f"  Adaptive Resilience: +{bonuses.adaptive_resilience:.1f} "
+                "(self-healing, auto-recovery)"
+            ),
             f"  Cross-Domain Intel: +{bonuses.cross_domain_intel:.1f} (5+ domains)",
             f"  Hermeneutic Closure: +{bonuses.hermeneutic_closure:.1f} (validates itself)",
             f"  Temporal Autonomy: +{bonuses.temporal_autonomy:.1f} (autonomous scheduling)",

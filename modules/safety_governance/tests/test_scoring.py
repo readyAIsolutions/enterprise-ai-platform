@@ -19,7 +19,7 @@ _MODULE_PARENT = str(Path(__file__).resolve().parents[2])
 if _MODULE_PARENT not in sys.path:
     sys.path.insert(0, _MODULE_PARENT)
 
-from safety_governance.scoring import (
+from safety_governance.scoring import (  # noqa: E402
     CooccurrenceModel,
     RefusalScorer,
     SafetyResult,

@@ -1,9 +1,9 @@
 """Master-class masking & tokenization engine tests."""
 
-import os
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, "/home/hunter/Desktop/Enterprise Builder")
 
@@ -197,7 +197,7 @@ class TestDataMaskerFacade(unittest.TestCase):
         assert out["phone"].endswith("7890")
 
     def test_requires_policy(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="No MaskingPolicy"):
             DataMasker().apply({"a": 1})
 
 
@@ -205,7 +205,7 @@ class TestDataMaskerFacade(unittest.TestCase):
 
 
 class TestTokenizationEngine(unittest.TestCase):
-    def _engine(self, **kw):
+    def _engine(self, **kw: object) -> TokenizationEngine:
         return TokenizationEngine(secret=b"tests-secret-key-001", **kw)
 
     def test_deterministic_token(self) -> None:
@@ -236,12 +236,12 @@ class TestTokenizationEngine(unittest.TestCase):
 
     def test_detokenize_unknown_raises(self) -> None:
         e = self._engine()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Unknown token"):
             e.detokenize("tok_does_not_exist")
 
     def test_sqlite_vault_persistence(self) -> None:
         with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, "vault.db")
+            path = str(Path(d) / "vault.db")
             v = SQLiteVault(path)
             e1 = TokenizationEngine(secret=b"key-for-sqlite-test", vault=v)
             tok = e1.tokenize("42")
@@ -271,7 +271,7 @@ class TestTokenizationEngine(unittest.TestCase):
         assert e.detokenize(out["card"]) == rec["card"]
 
     def test_short_secret_rejected(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="at least 16 bytes"):
             TokenizationEngine(secret=b"short")
 
     def test_reverse_lookup(self) -> None:
@@ -281,7 +281,7 @@ class TestTokenizationEngine(unittest.TestCase):
 
     def test_tokenize_none_raises(self) -> None:
         e = self._engine()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Cannot tokenize None"):
             e.tokenize(None)
 
 
@@ -294,7 +294,7 @@ class TestLifecycle(unittest.TestCase):
             assert t in MASKER_REGISTRY
 
     def test_unknown_mask_type_raises(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Unknown mask type"):
             MaskingPolicy({"x": "not_a_real_type"})
 
     def test_masking_is_type_preserving_for_masked_strings(self) -> None:

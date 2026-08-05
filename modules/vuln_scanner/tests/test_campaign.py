@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from ..campaign import (
+from ..campaign import (  # noqa: TID252  # repo packages use relative imports
     CampaignReport,
     CampaignRunner,
     ProbeAffinity,
@@ -26,7 +26,7 @@ from ..campaign import (
     SeverityMapping,
     SeverityWeight,
 )
-from ..vuln_scanner import (
+from ..vuln_scanner import (  # noqa: TID252  # repo packages use relative imports
     DataExfilProbe,
     JailbreakProbe,
     PIILeakProbe,
@@ -35,10 +35,10 @@ from ..vuln_scanner import (
     ToxicityProbe,
     default_probes,
 )
-from .test_vuln_scanner import CLEAN_TEXT
+from .test_vuln_scanner import CLEAN_TEXT  # noqa: TID252  # sibling test helper
 
 
-def _clean(prompt: str) -> str:
+def _clean(_prompt: str) -> str:
     return CLEAN_TEXT
 
 
@@ -55,7 +55,7 @@ _VULN_TEXT = (
 )
 
 
-def _vuln(prompt: str) -> str:
+def _vuln(_prompt: str) -> str:
     return _VULN_TEXT
 
 
@@ -262,7 +262,7 @@ def test_runner_registry_roundtrip() -> None:
 
 
 def test_campaign_requires_name_and_probes() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="campaign needs a name"):
         ScanCampaign(name="", probes=default_probes(), target=_clean)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="at least one probe"):
         ScanCampaign(name="x", probes=[], target=_clean)

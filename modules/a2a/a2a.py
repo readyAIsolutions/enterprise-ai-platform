@@ -7,6 +7,7 @@ TaskManager, AgentRegistry, A2AExchange, handoff helpers and A2AFacade).
 """
 
 import builtins
+import contextlib
 import json
 import logging
 import os
@@ -582,7 +583,7 @@ class TaskManager:
             task.updated_at = _now_iso()
             return task
 
-    def set_context(self, task_id: str, key: str, value: Any) -> Task:
+    def set_context(self, task_id: str, key: str, value: Any) -> Task:  # noqa: ANN401
         with self._lock:
             task = self.get_task(task_id)
             task.context[key] = value
@@ -661,7 +662,7 @@ class A2AExchange:
 
 
 def handoff(
-    exchange_or_registry: Any,
+    exchange_or_registry: Any,  # noqa: ANN401
     tasks: TaskManager | None,
     parent_task: Task,
     target: AgentKey,
@@ -749,7 +750,7 @@ class A2AFacade:
     def create_task(
         self,
         agent_ref: str,
-        message: Any | None = None,
+        message: Any | None = None,  # noqa: ANN401
         *,
         idempotency_key: str | None = None,
         parent_task_id: str | None = None,
@@ -789,7 +790,7 @@ class A2AFacade:
     def send_message(
         self,
         task_id: str,
-        message: Any,
+        message: Any,  # noqa: ANN401
         *,
         role: MessageRole = MessageRole.USER,
         context: dict[str, Any] | None = None,
@@ -822,7 +823,7 @@ class A2AFacade:
         self,
         task_id: str,
         target_ref: str,
-        message: Any = None,
+        message: Any = None,  # noqa: ANN401
         *,
         context: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
@@ -863,7 +864,7 @@ class A2AFacade:
         return key
 
 
-def _coerce_message(message: Any) -> Message | None:
+def _coerce_message(message: Any) -> Message | None:  # noqa: ANN401
     """Normalise a message argument into a Message or None."""
     if message is None or isinstance(message, Message):
         return message
@@ -883,14 +884,14 @@ def _merged_context(
 
 # ============================================================ SQLite TaskStore
 
-_DEFAULT_TASK_DB = os.path.join("data", "a2a_tasks.db")
+_DEFAULT_TASK_DB = os.path.join("data", "a2a_tasks.db")  # noqa: PTH118
 
 
-def _json_dumps(value: Any) -> str:
+def _json_dumps(value: Any) -> str:  # noqa: ANN401
     return json.dumps(value, separators=(",", ":"))
 
 
-def _json_loads(value: str | None, fallback: Any) -> Any:
+def _json_loads(value: str | None, fallback: Any) -> Any:  # noqa: ANN401
     if value is None:
         return fallback
     try:
@@ -960,9 +961,9 @@ class TaskStore:
             return self
         try:
             if self._db_path != ":memory:":
-                parent = os.path.dirname(os.path.abspath(self._db_path))
+                parent = os.path.dirname(os.path.abspath(self._db_path))  # noqa: PTH100, PTH120
                 if parent:
-                    os.makedirs(parent, exist_ok=True)
+                    os.makedirs(parent, exist_ok=True)  # noqa: PTH103
             conn = sqlite3.connect(self._db_path, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.executescript(self._SCHEMA)
@@ -1027,20 +1028,16 @@ class TaskStore:
         """Flush and close the SQLite connection (idempotent)."""
         with self._lock:
             if self._conn is not None:
-                try:
+                with contextlib.suppress(sqlite3.Error):
                     self._conn.commit()
-                except sqlite3.Error:  # noqa: BLE001
-                    pass
-                try:
+                with contextlib.suppress(sqlite3.Error):
                     self._conn.close()
-                except sqlite3.Error:  # noqa: BLE001
-                    pass
                 self._conn = None
 
     def __enter__(self) -> "TaskStore":
         return self.initialize()
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: Any) -> None:  # noqa: ANN401
         self.close()
 
     # -- write-through persistence helpers ------------------------------
@@ -1233,7 +1230,7 @@ class TaskStore:
             self._update_row(task)
             return task
 
-    def set_context(self, task_id: str, key: str, value: Any) -> Task:
+    def set_context(self, task_id: str, key: str, value: Any) -> Task:  # noqa: ANN401
         with self._lock:
             task = self.get_task(task_id)
             task.context[key] = value
@@ -1267,7 +1264,7 @@ class InMemoryTransport:
     def send(
         self,
         to: str,
-        payload: Any,
+        payload: Any,  # noqa: ANN401
         *,
         _from: str | None = None,
         task_id: str | None = None,
@@ -1343,7 +1340,7 @@ class InMemoryTransport:
 
     # -- async wrappers -------------------------------------------------
 
-    async def asend(self, to: str, payload: Any, **kw: Any) -> dict[str, Any]:
+    async def asend(self, to: str, payload: Any, **kw: Any) -> dict[str, Any]:  # noqa: ANN401
         return self.send(to, payload, **kw)
 
     async def aget(self, address: str, timeout: float = 0.0) -> dict[str, Any] | None:
@@ -1392,7 +1389,7 @@ class TaskRouter:
     def __init__(
         self,
         registry: AgentRegistry | None = None,
-        store: Any | None = None,
+        store: Any | None = None,  # noqa: ANN401
     ) -> None:
         self.registry = registry if registry is not None else AgentRegistry()
         self.store = store if store is not None else TaskManager()
@@ -1411,7 +1408,7 @@ class TaskRouter:
     def route(
         self,
         capability: str,
-        message: Any = None,
+        message: Any = None,  # noqa: ANN401
         *,
         session_id: str | None = None,
         context: dict[str, Any] | None = None,
@@ -1438,14 +1435,14 @@ class TaskRouter:
             transitions=transitions,
         )
 
-    async def aroute(self, capability: str, message: Any = None, **kw: Any) -> RouteResult:
+    async def aroute(self, capability: str, message: Any = None, **kw: Any) -> RouteResult:  # noqa: ANN401
         """Async variant of :meth:`route`."""
         return self.route(capability, message, **kw)
 
     def route_to_agent(
         self,
         agent_ref: str,
-        message: Any = None,
+        message: Any = None,  # noqa: ANN401
         *,
         session_id: str | None = None,
         context: dict[str, Any] | None = None,
@@ -1516,7 +1513,7 @@ def decode_artifact(text: str) -> dict[str, Any]:
     return dict(data)
 
 
-def encode_sse(event: str, data: Any) -> str:
+def encode_sse(event: str, data: Any) -> str:  # noqa: ANN401
     """Encode an SSE (HTTP/SSE-style) frame: ``event`` + ``json`` data lines."""
     lines = [f"event: {event}"]
     payload = data if isinstance(data, str) else _json_dumps(data)
@@ -1526,7 +1523,7 @@ def encode_sse(event: str, data: Any) -> str:
     return "\n".join(lines)
 
 
-def decode_sse(text: str):
+def decode_sse(text: str) -> tuple[str | None, Any]:  # noqa: ANN401
     """Decode an SSE frame into ``(event, data)`` where data is parsed as JSON.
 
     Returns ``(event, None)`` when no ``event:`` line is present.

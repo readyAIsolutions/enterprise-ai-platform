@@ -234,7 +234,7 @@ class LinkManager:
 
     # -- scoring & selection ----------------------------------------------
 
-    def score_link(self, link: Link, **signals) -> float:
+    def score_link(self, link: Link, **signals) -> float:  # noqa: ANN003  (dynamic signal payloads)
         """Score a specific link. Provider signals override defaults."""
         if not link.up:
             return 0.0
@@ -319,7 +319,7 @@ class Muxer:
 
     # -- routing -----------------------------------------------------------
 
-    def resolve_order(self, prefer: str | None = None, **signals) -> list[Link]:
+    def resolve_order(self, prefer: str | None = None, **signals) -> list[Link]:  # noqa: ANN003
         """Deterministic candidate order: preferred first, then by score, then metric."""
         scored = []
         for link in self.manager.links():
@@ -336,7 +336,7 @@ class Muxer:
         data: object = b"",
         prefer: str | None = None,
         task: str | None = None,
-        **signals,
+        **signals,  # noqa: ANN003  (dynamic signal payloads)
     ) -> object:
         """Route ``data`` through the best UP link, auto-falling back on failure.
 
@@ -397,7 +397,7 @@ def select_route(
     """
     scorer = scorer or ConnectionScorer()
     signals = signals or {}
-    up = [l for l in candidates if l.up]
+    up = [link for link in candidates if link.up]
     if not up:
         return None
 

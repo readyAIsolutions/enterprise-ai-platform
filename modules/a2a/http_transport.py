@@ -71,7 +71,7 @@ class A2ATransportError(A2AError):
     """Raised when a transport-level exchange cannot be completed."""
 
 
-class A2ATransportTimeout(A2ATransportError):
+class A2ATransportTimeout(A2ATransportError):  # noqa: N818 - public API name re-exported in __init__
     """Raised when a request is dropped / times out (a retryable fault)."""
 
 
@@ -84,7 +84,7 @@ class OutOfOrderError(A2ATransportError):
 # ---------------------------------------------------------------------------
 
 
-def _coerce_message(payload: Any) -> Message:
+def _coerce_message(payload: object) -> Message:
     """Coerce a decoded JSON message payload into a :class:`Message`."""
     if isinstance(payload, Message):
         return payload
@@ -175,7 +175,7 @@ class MemoryFailureInjector:
             return self._drop > 0 or self._timeout > 0 or self._reorder > 0
 
     # -- hooks ----------------------------------------------------------
-    def intercept(self, method: str, path: str) -> str | None:
+    def intercept(self, _method: str, _path: str) -> str | None:
         """Return a fault kind (drop/timeout/reorder) for this request or None.
 
         Consumed one-shot: each armed fault is decremented when matched.
@@ -229,7 +229,7 @@ class _A2AHTTPHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"  # keep-alive friendly, still stdlib
 
     # -- helpers ----------------------------------------------------------
-    def _send_json(self, code: int, obj: Any) -> None:
+    def _send_json(self, code: int, obj: object) -> None:
         payload = json.dumps(obj).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -240,7 +240,7 @@ class _A2AHTTPHandler(BaseHTTPRequestHandler):
     def _send_error_json(self, code: int, message: str) -> None:
         self._send_json(code, {"error": {"code": code, "message": message}})
 
-    def _read_json(self) -> Any:
+    def _read_json(self) -> object:
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
             msg = "Empty request body: expected JSON payload"
@@ -276,7 +276,7 @@ class _A2AHTTPHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 (http.server API)
         self._dispatch("POST")
 
-    def _dispatch(self, method: str) -> None:
+    def _dispatch(self, _method: str) -> None:
         logic = self._server_logic()
         if logic is None:
             return self._send_error_json(500, "Server not initialised")
@@ -292,7 +292,7 @@ class _A2AHTTPHandler(BaseHTTPRequestHandler):
             _logger.exception("Unhandled A2A HTTP error")
             self._send_error_json(500, f"Internal error: {exc}")
 
-    def log_message(self, fmt: str, *args: Any) -> None:  # silence by default
+    def log_message(self, fmt: str, *args: object) -> None:  # silence by default
         if _logger.isEnabledFor(logging.DEBUG):
             _logger.debug("a2a http: " + fmt, *args)
 
@@ -355,7 +355,7 @@ class A2AHttpServer:
         port: int = 0,
         *,
         router: TaskRouter | None = None,
-        store: Any | None = None,
+        store: TaskStore | None = None,
     ) -> None:
         self.host = host
         self.port = int(port)
@@ -426,11 +426,11 @@ class A2AHttpServer:
         return self._router
 
     @property
-    def store(self) -> Any:
+    def store(self) -> TaskStore:
         return self._store
 
     # -- store-facing operations (used by the handler) --------------------
-    def create_task(self, agent_id: str, message: Message, **kwargs: Any) -> Task:
+    def create_task(self, agent_id: str, message: Message, **kwargs: object) -> Task:
         return self._store.create_task(agent_id, message, **kwargs)
 
     def get_task(self, task_id: str) -> Task:
@@ -442,7 +442,7 @@ class A2AHttpServer:
     def __enter__(self) -> A2AHttpServer:
         return self.start()
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.stop()
 
 
@@ -474,7 +474,7 @@ class A2AHttpClient:
         self.injector = injector
 
     # -- raw transport -----------------------------------------------------
-    def _raw(self, method: str, path: str, payload: Any = None):
+    def _raw(self, method: str, path: str, payload: object = None) -> tuple[int, str]:
         url = self.base_url + path
         data = None
         headers: dict[str, str] = {"Accept": "application/json"}
@@ -496,7 +496,7 @@ class A2AHttpClient:
             raise A2ATransportTimeout(msg) from exc
 
     def _request(
-        self, method: str, path: str, payload: Any = None, expected_task_id: str | None = None
+        self, method: str, path: str, payload: object = None, expected_task_id: str | None = None
     ) -> dict[str, Any]:
         """Issue one request with retry-once-then-surface semantics.
 
@@ -563,7 +563,7 @@ class A2AHttpClient:
     def send_task(
         self,
         agent_id: str,
-        message: Any,
+        message: object,
         *,
         session_id: str | None = None,
         idempotency_key: str | None = None,

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+from typing import TYPE_CHECKING
 
 import pytest
 from enterprise.modules.agent_core.providers import (
@@ -33,6 +34,9 @@ from enterprise.modules.agent_core.query_engine import (
     QueryConfig,
 )
 
+if TYPE_CHECKING:
+    from urllib.request import Request
+
 # =============================================================================
 # Fake urllib transport (offline)
 # =============================================================================
@@ -53,11 +57,11 @@ class FakeResponse:
 class FakeOpener:
     """Injectable opener. ``responses`` is a list; an Exception entry is raised."""
 
-    def __init__(self, responses) -> None:
+    def __init__(self, responses: list[FakeResponse | Exception]) -> None:
         self.responses = list(responses)
         self.calls: list = []
 
-    def open(self, request, timeout=None):
+    def open(self, request: Request, timeout: float | None = None) -> FakeResponse:
         self.calls.append((request, timeout))
         item = self.responses[0]
         if len(self.responses) > 1:
@@ -71,7 +75,7 @@ class FakeOpener:
         return len(self.calls)
 
 
-def _openai_body(text="Hello!", model="gpt-4o"):
+def _openai_body(text: str = "Hello!", model: str = "gpt-4o") -> bytes:
     return json.dumps(
         {
             "id": "chatcmpl-test",
@@ -86,7 +90,7 @@ def _openai_body(text="Hello!", model="gpt-4o"):
     ).encode()
 
 
-def _anthropic_body(text="Hi!", model="claude-sonnet-4-20250514"):
+def _anthropic_body(text: str = "Hi!", model: str = "claude-sonnet-4-20250514") -> bytes:
     return json.dumps(
         {
             "model": model,
@@ -96,7 +100,7 @@ def _anthropic_body(text="Hi!", model="claude-sonnet-4-20250514"):
     ).encode()
 
 
-def _msgs(*texts):
+def _msgs(*texts: str) -> list[dict[str, str]]:
     return [{"role": "user", "content": t} for t in texts]
 
 

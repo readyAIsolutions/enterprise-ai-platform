@@ -30,6 +30,7 @@ only (hashlib, sqlite3, json, dataclasses).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import sqlite3
@@ -66,7 +67,7 @@ DEFAULT_ENV_EXCLUDE = {
 }
 
 
-def _canonical(value: Any) -> Any:
+def _canonical(value: Any) -> Any:  # noqa: ANN401
     """Recursively normalize an arbitrary value into a JSON-stable primitive.
 
     Dict keys are sorted, Enums collapse to their value, datetimes collapse to
@@ -147,7 +148,7 @@ class RunFingerprint:
         inputs: dict[str, Any] | None = None,
         code_version: str = "",
         params: dict[str, Any] | None = None,
-        seed: Any | None = None,
+        seed: Any | None = None,  # noqa: ANN401
         env: dict[str, Any] | None = None,
         env_exclude: list[str] | None = None,
     ) -> str:
@@ -177,10 +178,10 @@ class RunFingerprint:
     @classmethod
     def from_experiment(
         cls,
-        experiment: Any,
+        experiment: Any,  # noqa: ANN401
         *,
         code_version: str = "",
-        seed: Any | None = None,
+        seed: Any | None = None,  # noqa: ANN401
         env: dict[str, Any] | None = None,
         env_exclude: list[str] | None = None,
     ) -> RunFingerprint:
@@ -233,7 +234,7 @@ def filter_env_snapshot(
     }
 
 
-def run_is_reproducible(run_a: Any, run_b: Any) -> bool:
+def run_is_reproducible(run_a: Any, run_b: Any) -> bool:  # noqa: ANN401
     """Compare two runs for reproducibility.
 
     Accepts :class:`RunFingerprint` objects, fingerprint hex digest strings, or
@@ -252,7 +253,7 @@ def run_is_reproducible(run_a: Any, run_b: Any) -> bool:
     return digest_a == digest_b and digest_a is not None
 
 
-def _coerce_digest(run: Any) -> str | None:
+def _coerce_digest(run: Any) -> str | None:  # noqa: ANN401
     """Coerce a run object into a fingerprint hex digest (or None)."""
     if isinstance(run, RunFingerprint):
         return run.compute()
@@ -498,15 +499,13 @@ class IntegrityLedger:
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""
-        try:
+        with contextlib.suppress(sqlite3.Error):
             self._conn.close()
-        except sqlite3.Error:  # pragma: no cover - defensive
-            pass
 
     def __enter__(self) -> IntegrityLedger:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: Any) -> None:  # noqa: ANN401
         self.close()
 
     # -- testing/tamper-simulation helpers (NOT a public mutation API) ---

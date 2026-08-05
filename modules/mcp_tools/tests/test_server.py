@@ -62,7 +62,7 @@ class TestHTTPServer:
         yield server
         server.shutdown()
 
-    def _post(self, mcp: MCPServer, payload: Any) -> tuple[int, dict[str, Any]]:
+    def _post(self, mcp: MCPServer, payload: Any) -> tuple[int, dict[str, Any]]:  # noqa: ANN401
         conn = http.client.HTTPConnection("127.0.0.1", mcp.port, timeout=5)
         try:
             body = json.dumps(payload).encode("utf-8")
@@ -182,13 +182,17 @@ class TestHTTPServer:
         port = server.port
         server.shutdown()
         assert server.port is None
-        with pytest.raises((ConnectionRefusedError, OSError)):
+
+        def probe() -> None:
             conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
             try:
                 conn.request("GET", "/health")
                 conn.getresponse()
             finally:
                 conn.close()
+
+        with pytest.raises((ConnectionRefusedError, OSError)):
+            probe()
 
 
 # ---------------------------------------------------------------------------

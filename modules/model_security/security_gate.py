@@ -16,8 +16,13 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from enterprise.modules.model_security.probe_detector import ScanReport
+
 
 from enterprise.modules.model_security.model_security import (
     PipelineResult,
@@ -160,7 +165,11 @@ class SecurityGate:
 
     # -- Garak-style probe/detector scan facade ----------------------------- #
 
-    def run_scan(self, probe_names=None, target=None):
+    def run_scan(
+        self,
+        probe_names: list[str] | None = None,
+        target: Callable[[str], str] | None = None,
+    ) -> ScanReport:
         """Run a Garak-style probe/detector scan through a pluggable model adapter.
 
         `target` is a callable ``str -> str`` modelling the target model. It may

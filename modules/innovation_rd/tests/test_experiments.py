@@ -10,6 +10,7 @@ import contextlib
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from typing import Never
 
 import pytest
@@ -112,8 +113,8 @@ class TestExperimentRegistry(unittest.TestCase):
     def tearDown(self) -> None:
         with contextlib.suppress(Exception):
             self.reg.close()
-        if os.path.exists(self.path):
-            os.remove(self.path)
+        if Path(self.path).exists():
+            Path(self.path).unlink()
 
     def test_register_and_get(self) -> None:
         exp = self.reg.register_experiment("Caching reduces latency")
@@ -199,13 +200,13 @@ class TestExperimentRunner(unittest.TestCase):
     def tearDown(self) -> None:
         with contextlib.suppress(Exception):
             self.reg.close()
-        if os.path.exists(self.path):
-            os.remove(self.path)
+        if Path(self.path).exists():
+            Path(self.path).unlink()
 
-    def _control(self):
+    def _control(self) -> list[int]:
         return [1, 2, 3, 4, 5]
 
-    def _treatment(self):
+    def _treatment(self) -> list[int]:
         return [10, 11, 12, 13, 14]
 
     def test_runner_records_before_and_after(self) -> None:

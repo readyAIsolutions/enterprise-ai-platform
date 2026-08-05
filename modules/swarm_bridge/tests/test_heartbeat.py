@@ -19,8 +19,8 @@ Covers:
 
 from __future__ import annotations
 
-import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -47,7 +47,7 @@ from modules.swarm_bridge.heartbeat import (
 )
 
 
-def make_member(member_id: str, role: str = "worker", **kw) -> SwarmMember:
+def make_member(member_id: str, role: str = "worker", **kw: object) -> SwarmMember:
     return SwarmMember(member_id=member_id, role=role, addr=f"tcp://127.0.0.1:{member_id}", **kw)
 
 
@@ -55,22 +55,22 @@ def make_member(member_id: str, role: str = "worker", **kw) -> SwarmMember:
 # Fixtures
 # ---------------------------------------------------------------------------
 @pytest.fixture
-def clock():
+def clock() -> FixedClock:
     return FixedClock(start=1000.0)
 
 
 @pytest.fixture
-def registry(clock):
+def registry(clock: FixedClock) -> MemberRegistry:
     return MemberRegistry(clock=clock)
 
 
 @pytest.fixture
-def protocol(registry):
+def protocol(registry: MemberRegistry) -> HeartbeatProtocol:
     return HeartbeatProtocol(registry)
 
 
 @pytest.fixture
-def populated(registry):
+def populated(registry: MemberRegistry) -> MemberRegistry:
     """registry pre-loaded with 3 workers + 1 coordinator."""
     for i in range(3):
         registry.register(make_member(f"w{i}", role="worker", capabilities=["build", "test"]))
@@ -81,7 +81,10 @@ def populated(registry):
 # ---------------------------------------------------------------------------
 # Registry: register / list / unregister / get
 # ---------------------------------------------------------------------------
-def test_register_adds_member_and_stamps_liveness(registry, clock) -> None:
+def test_register_adds_member_and_stamps_liveness(
+    registry: MemberRegistry,
+    clock: FixedClock,  # noqa: ARG001
+) -> None:
     m = registry.register(make_member("w0", role="worker"))
     assert registry.contains("w0")
     assert registry.get("w0") is m
@@ -91,7 +94,7 @@ def test_register_adds_member_and_stamps_liveness(registry, clock) -> None:
     assert m.status == STATUS_ALIVE
 
 
-def test_register_is_upsert(registry) -> None:
+def test_register_is_upsert(registry: MemberRegistry) -> None:
     registry.register(make_member("w0"))
     registry.register(make_member("w0", role="builder"))
     m = registry.get("w0")
@@ -99,20 +102,22 @@ def test_register_is_upsert(registry) -> None:
     assert len(registry) == 1
 
 
-def test_list_default_all_and_ordered(registry) -> None:
+def test_list_default_all_and_ordered(registry: MemberRegistry) -> None:
     registry.register(make_member("b", role="builder"))
     registry.register(make_member("a", role="worker"))
     ids = [m.member_id for m in registry.list()]
     assert ids == ["a", "b"]
 
 
-def test_list_filter_by_role(registry, populated) -> None:
+def test_list_filter_by_role(registry: MemberRegistry, populated: MemberRegistry) -> None:  # noqa: ARG001
     workers = registry.list(role="worker")
     assert len(workers) == 3
     assert all(m.role == "worker" for m in workers)
 
 
-def test_list_filter_by_status_and_role(populated, protocol, clock) -> None:
+def test_list_filter_by_status_and_role(
+    populated: MemberRegistry, protocol: HeartbeatProtocol, clock: FixedClock
+) -> None:
     clock.advance(100)  # everyone stale
     protocol.check_liveness(timeout=DEFAULT_HEARTBEAT_TIMEOUT)
     stagnant = populated.list(status=STATUS_ABSENT)
@@ -121,7 +126,7 @@ def test_list_filter_by_status_and_role(populated, protocol, clock) -> None:
     assert populated.list(status=STATUS_ALIVE) == []
 
 
-def test_unregister_removes_member(registry) -> None:
+def test_unregister_removes_member(registry: MemberRegistry) -> None:
     registry.register(make_member("w0"))
     removed = registry.unregister("w0")
     assert removed is not None
@@ -130,14 +135,16 @@ def test_unregister_removes_member(registry) -> None:
     assert registry.unregister("w0") is None  # not an error
 
 
-def test_get_unknown_returns_none(registry) -> None:
+def test_get_unknown_returns_none(registry: MemberRegistry) -> None:
     assert registry.get("nope") is None
 
 
 # ---------------------------------------------------------------------------
 # Heartbeat reception
 # ---------------------------------------------------------------------------
-def test_send_heartbeat_updates_liveness(registry, protocol, clock) -> None:
+def test_send_heartbeat_updates_liveness(
+    registry: MemberRegistry, protocol: HeartbeatProtocol, clock: FixedClock
+) -> None:
     registry.register(make_member("w0"))
     clock.advance(5)
     protocol.send_heartbeat("w0")
@@ -146,7 +153,9 @@ def test_send_heartbeat_updates_liveness(registry, protocol, clock) -> None:
     assert m.status == STATUS_ALIVE
 
 
-def test_send_heartbeat_revives_absent_member(populated, protocol, clock) -> None:
+def test_send_heartbeat_revives_absent_member(
+    populated: MemberRegistry, protocol: HeartbeatProtocol, clock: FixedClock
+) -> None:
     clock.advance(100)
     protocol.check_liveness(timeout=DEFAULT_HEARTBEAT_TIMEOUT)
     assert populated.get("w0").status == STATUS_ABSENT
@@ -155,7 +164,10 @@ def test_send_heartbeat_revives_absent_member(populated, protocol, clock) -> Non
     assert populated.get("w0").last_heartbeat == 1100.0
 
 
-def test_send_heartbeat_unknown_raises(registry, protocol) -> None:
+def test_send_heartbeat_unknown_raises(
+    registry: MemberRegistry,  # noqa: ARG001
+    protocol: HeartbeatProtocol,
+) -> None:
     with pytest.raises(KeyError):
         protocol.send_heartbeat("ghost")
 
@@ -163,13 +175,21 @@ def test_send_heartbeat_unknown_raises(registry, protocol) -> None:
 # ---------------------------------------------------------------------------
 # Stale -> absent/lost after timeout
 # ---------------------------------------------------------------------------
-def test_fresh_member_survives_liveness_check(populated, protocol, clock) -> None:
+def test_fresh_member_survives_liveness_check(
+    populated: MemberRegistry,
+    protocol: HeartbeatProtocol,
+    clock: FixedClock,  # noqa: ARG001
+) -> None:
     affected = protocol.check_liveness(timeout=30.0)
     assert affected == []
     assert all(m.status == STATUS_ALIVE for m in populated.list())
 
 
-def test_stale_member_becomes_absent_after_timeout(populated, protocol, clock) -> None:
+def test_stale_member_becomes_absent_after_timeout(
+    populated: MemberRegistry,  # noqa: ARG001
+    protocol: HeartbeatProtocol,
+    clock: FixedClock,
+) -> None:
     clock.advance(31)  # past 30s default timeout
     affected = protocol.check_liveness(timeout=DEFAULT_HEARTBEAT_TIMEOUT)
     assert len(affected) == 4
@@ -180,7 +200,7 @@ def test_stale_member_becomes_absent_after_timeout(populated, protocol, clock) -
     assert all(m.status == STATUS_LOST for m in escalated)
 
 
-def test_floor_misses_escalates_absent_to_lost(registry, clock) -> None:
+def test_floor_misses_escalates_absent_to_lost(registry: MemberRegistry, clock: FixedClock) -> None:
     registry.register(make_member("w0"))
     prot = HeartbeatProtocol(registry, floor_misses=2)
     clock.advance(100)
@@ -190,7 +210,9 @@ def test_floor_misses_escalates_absent_to_lost(registry, clock) -> None:
     assert [m.status for m in second] == [STATUS_LOST]
 
 
-def test_heartbeat_resets_miss_streak(registry, protocol, clock) -> None:
+def test_heartbeat_resets_miss_streak(
+    registry: MemberRegistry, protocol: HeartbeatProtocol, clock: FixedClock
+) -> None:
     registry.register(make_member("w0"))
     clock.advance(100)
     protocol.check_liveness(timeout=30.0)  # -> absent
@@ -204,7 +226,11 @@ def test_heartbeat_resets_miss_streak(registry, protocol, clock) -> None:
 # ---------------------------------------------------------------------------
 # Health aggregation
 # ---------------------------------------------------------------------------
-def test_health_healthy(registry, protocol, clock) -> None:
+def test_health_healthy(
+    registry: MemberRegistry,
+    protocol: HeartbeatProtocol,  # noqa: ARG001
+    clock: FixedClock,  # noqa: ARG001
+) -> None:
     aggregator = HealthAggregator(registry, required=3)
     for i in range(3):
         registry.register(make_member(f"w{i}"))
@@ -216,7 +242,11 @@ def test_health_healthy(registry, protocol, clock) -> None:
     assert h.absent_count == 0
 
 
-def test_health_degrades_below_required(populated, protocol, clock) -> None:
+def test_health_degrades_below_required(
+    populated: MemberRegistry,
+    protocol: HeartbeatProtocol,  # noqa: ARG001
+    clock: FixedClock,
+) -> None:
     aggregator = HealthAggregator(populated, required=4)
     clock.advance(100)
     h = aggregator.health()  # 4 members alive but all now stale -> dead
@@ -227,7 +257,9 @@ def test_health_degrades_below_required(populated, protocol, clock) -> None:
     assert h.absent_count == 4
 
 
-def test_health_degrades_not_down_with_partial_alive(populated, protocol, clock) -> None:
+def test_health_degrades_not_down_with_partial_alive(
+    populated: MemberRegistry, protocol: HeartbeatProtocol, clock: FixedClock
+) -> None:
     aggregator = HealthAggregator(populated, required=4)
     clock.advance(100)
     aggregator.health()  # consume first pass -> all absent
@@ -241,14 +273,22 @@ def test_health_degrades_not_down_with_partial_alive(populated, protocol, clock)
     assert h.missing_required == 3
 
 
-def test_health_never_applies_liveness_when_disabled(populated, protocol, clock) -> None:
+def test_health_never_applies_liveness_when_disabled(
+    populated: MemberRegistry,
+    protocol: HeartbeatProtocol,  # noqa: ARG001
+    clock: FixedClock,
+) -> None:
     aggregator = HealthAggregator(populated, required=3)
     clock.advance(1000)
     h = aggregator.health(apply_liveness=False)
     assert h.status == "healthy"  # raw registered state, liveness not enforced
 
 
-def test_health_critical_role_loss(populated, protocol, clock) -> None:
+def test_health_critical_role_loss(
+    populated: MemberRegistry,
+    protocol: HeartbeatProtocol,  # noqa: ARG001
+    clock: FixedClock,
+) -> None:
     aggregator = HealthAggregator(populated, required=1, critical_roles={"coordinator"})
     clock.advance(100)
     h = aggregator.health()
@@ -257,7 +297,11 @@ def test_health_critical_role_loss(populated, protocol, clock) -> None:
     assert h.healthy is False
 
 
-def test_health_critical_role_present_stays_healthy(populated, protocol, clock) -> None:
+def test_health_critical_role_present_stays_healthy(
+    populated: MemberRegistry,
+    protocol: HeartbeatProtocol,  # noqa: ARG001
+    clock: FixedClock,  # noqa: ARG001
+) -> None:
     aggregator = HealthAggregator(populated, required=1, critical_roles={"coordinator"})
     # all fresh
     h = aggregator.health()
@@ -265,7 +309,7 @@ def test_health_critical_role_present_stays_healthy(populated, protocol, clock) 
     assert h.status == "healthy"
 
 
-def test_health_empty_swarm_down(registry, clock) -> None:
+def test_health_empty_swarm_down(registry: MemberRegistry, clock: FixedClock) -> None:  # noqa: ARG001
     aggregator = HealthAggregator(registry, required=1)
     h = aggregator.health()
     assert h.status == "down"
@@ -292,7 +336,7 @@ def test_injectable_clock_fully_deterministic() -> None:
 # ---------------------------------------------------------------------------
 def test_sqlite_persistence_round_trip() -> None:
     with tempfile.TemporaryDirectory() as d:
-        db = os.path.join(d, "swarm.db")
+        db = str(Path(d) / "swarm.db")
         reg = MemberRegistry(db_path=db)
         reg.register(make_member("w0", role="builder", capabilities=["x", "y"]))
         reg.register(make_member("w1", role="worker"))
@@ -306,7 +350,7 @@ def test_sqlite_persistence_round_trip() -> None:
         assert m.capabilities == ["x", "y"]
 
 
-def test_persistence_skipped_when_no_db_path(registry) -> None:
+def test_persistence_skipped_when_no_db_path(registry: MemberRegistry) -> None:
     """No db_path -> persistence is a no-op (optional)."""
     registry.register(make_member("w0"))
     registry.unregister("w0")

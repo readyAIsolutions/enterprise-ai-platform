@@ -115,7 +115,7 @@ def default_opener() -> urllib.request.OpenerDirector:
 class HttpError(Exception):
     """Raised for non-2xx HTTP responses."""
 
-    def __init__(self, status: int, body: Any = None) -> None:
+    def __init__(self, status: int, body: Any = None) -> None:  # noqa: ANN401  # arbitrary response body
         self.status = status
         self.body = body
         super().__init__(f"HTTP {status}: {body if body is not None else ''}")
@@ -131,7 +131,7 @@ def _should_retry(status: int) -> bool:
 # =============================================================================
 
 
-class ChatProvider(ABC):
+class ChatProvider(ABC):  # noqa: B024  # interface marker; subclasses implement hooks
     """Abstract chat-completion provider."""
 
     name: str = "base"
@@ -144,10 +144,10 @@ class ChatProvider(ABC):
         api_key_env: str | None = None,
         api_key: str | None = None,
         timeout: float = 60.0,
-        opener: Any = None,
+        opener: Any = None,  # noqa: ANN401  # injectable transport object
         retry: RetryPolicy | None = None,
         fallback: ChatProvider | None = None,
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ARG002, ANN401  # subclasses accept extra ctor kwargs
     ) -> None:
         self.base_url = (base_url or self.default_base_url()).rstrip("/")
         self.api_key_env = api_key_env or self.api_key_env
@@ -168,7 +168,10 @@ class ChatProvider(ABC):
 
     # ---- request building (subclasses override) --------------------------
     def build_request(
-        self, messages: list[dict[str, Any]], model: str, **kw: Any
+        self,
+        messages: list[dict[str, Any]],
+        model: str,
+        **kw: Any,  # noqa: ANN401
     ) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -270,7 +273,7 @@ class ChatProvider(ABC):
         self,
         messages: list[dict[str, Any]],
         model: str,
-        **kw: Any,
+        **kw: Any,  # noqa: ANN401
     ) -> ProviderResponse:
         """Complete a chat. Blocking I/O runs in a worker thread."""
         t0 = time.monotonic()
@@ -286,7 +289,7 @@ class ChatProvider(ABC):
         self,
         messages: list[dict[str, Any]],
         model: str,
-        **kw: Any,
+        **kw: Any,  # noqa: ANN401
     ) -> ProviderResponse:
         payload = self.build_request(messages, model, **kw)
         body = json.dumps(payload).encode("utf-8")
@@ -331,7 +334,10 @@ class OpenAICompatibleProvider(ChatProvider):
         return headers
 
     def build_request(
-        self, messages: list[dict[str, Any]], model: str, **kw: Any
+        self,
+        messages: list[dict[str, Any]],
+        model: str,
+        **kw: Any,  # noqa: ANN401
     ) -> dict[str, Any]:
         request: dict[str, Any] = {
             "model": model,
@@ -422,7 +428,10 @@ class AnthropicProvider(ChatProvider):
         return headers
 
     def build_request(
-        self, messages: list[dict[str, Any]], model: str, **kw: Any
+        self,
+        messages: list[dict[str, Any]],
+        model: str,
+        **kw: Any,  # noqa: ANN401
     ) -> dict[str, Any]:
         system_parts = [m["content"] for m in messages if m.get("role") == "system"]
         api_messages = [
@@ -492,7 +501,12 @@ class ResilientProvider(ChatProvider):
         self.primary = primary
         self.fallback = fallback
 
-    async def complete(self, messages, model, **kw):
+    async def complete(
+        self,
+        messages: list[dict[str, Any]],
+        model: str,
+        **kw: Any,  # noqa: ANN401
+    ) -> ProviderResponse:
         try:
             return await self.primary.complete(messages, model, **kw)
         except Exception as exc:
@@ -516,7 +530,12 @@ class EchoProvider(ChatProvider):
     def default_base_url(self) -> str:
         return "mock://echo"
 
-    async def complete(self, messages, model, **kw):
+    async def complete(
+        self,
+        messages: list[dict[str, Any]],
+        model: str,
+        **kw: Any,  # noqa: ANN401, ARG002
+    ) -> ProviderResponse:
         text = ""
         for m in reversed(messages):
             if m.get("role") == "user":
@@ -544,7 +563,12 @@ class MockProvider(ChatProvider):
     name = "mock"
     requires_api_key = False
 
-    def __init__(self, responses=None, failures=None, **kw) -> None:
+    def __init__(
+        self,
+        responses: list[ProviderResponse] | None = None,
+        failures: list[Exception | int] | None = None,
+        **kw: Any,  # noqa: ANN401
+    ) -> None:
         super().__init__(**kw)
         #: list of ProviderResponse to return in order (last repeats)
         self.responses = list(responses or [])
@@ -555,7 +579,12 @@ class MockProvider(ChatProvider):
     def default_base_url(self) -> str:
         return "mock://mock"
 
-    async def complete(self, messages, model, **kw):
+    async def complete(
+        self,
+        messages: list[dict[str, str]],
+        model: str,
+        **kw: Any,  # noqa: ANN401
+    ) -> ProviderResponse:
         self.calls.append({"model": model, "messages": messages, "kw": kw})
         if self.failures:
             failure = self.failures[0]
@@ -602,7 +631,7 @@ class ProviderRegistry:
         self.register("mock", MockProvider)
         self.register("echo", EchoProvider)
 
-    def register(self, name: str, builder: Any) -> None:
+    def register(self, name: str, builder: Any) -> None:  # noqa: ANN401  # provider class/factory
         self._builders[name] = builder
 
     def has(self, name: str) -> bool:

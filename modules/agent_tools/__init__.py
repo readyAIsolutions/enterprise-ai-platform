@@ -54,12 +54,12 @@ License: Proprietary — ENI AI OS
 
 from __future__ import annotations
 
-import os
 import sys
+from pathlib import Path
 
 # Ensure enterprise path is available
-_ENTERPRISE_DIR = os.path.dirname(os.path.dirname(__file__))
-_PARENT = os.path.dirname(_ENTERPRISE_DIR)
+_ENTERPRISE_DIR = Path(__file__).resolve().parent.parent
+_PARENT = str(_ENTERPRISE_DIR.parent)
 if _PARENT not in sys.path:
     sys.path.insert(0, _PARENT)
 
@@ -70,7 +70,7 @@ except ImportError:
     from platform_kernel import HealthStatus, Module, module
 
 # Tool registry
-from .agent_tools import (
+from .agent_tools import (  # noqa: E402
     AgentResult,
     AgentTool,
     SkillResult,
@@ -82,8 +82,8 @@ from .agent_tools import (
 )
 
 # All tools
-from .bash import BashResult, BashSandboxConfig, BashTool
-from .file_tools import (
+from .bash import BashResult, BashSandboxConfig, BashTool  # noqa: E402
+from .file_tools import (  # noqa: E402
     FileEditResult,
     FileEditTool,
     FileReadResult,
@@ -97,7 +97,7 @@ from .file_tools import (
 )
 
 # ── Master-class tool gate + audit ─────────────────────────────────────────
-from .gate import (
+from .gate import (  # noqa: E402
     AuditRecord,
     Decision,
     GateResult,
@@ -106,14 +106,14 @@ from .gate import (
     ToolPolicy,
     ToolRule,
 )
-from .mcp_lsp import (
+from .mcp_lsp import (  # noqa: E402
     LSPResult,
     LSPTool,
     MCPResult,
     MCPServerConfig,
     MCPTool,
 )
-from .specialty_tools import (
+from .specialty_tools import (  # noqa: E402
     APIResult,
     APITool,
     BrowserResult,
@@ -137,7 +137,7 @@ from .specialty_tools import (
     ToolDiscoveryResult,
     ToolDiscoveryTool,
 )
-from .tool_registry import (
+from .tool_registry import (  # noqa: E402
     PermissionGate,
     ProgressEvent,
     ToolExecutionContext,
@@ -145,7 +145,7 @@ from .tool_registry import (
     ToolPermission,
     ToolRegistry,
 )
-from .web_tools import (
+from .web_tools import (  # noqa: E402
     WebCacheEntry,
     WebFetchResult,
     WebFetchTool,

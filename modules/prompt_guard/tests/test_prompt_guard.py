@@ -154,7 +154,7 @@ def test_audit_log_fifo_capacity() -> None:
     log = AuditLog(capacity=5)
     pg = PromptGuard(audit_log=log)
     for i in range(20):
-        pg.run("prompt number %d OK" % i, Policy())
+        pg.run(f"prompt number {i} OK", Policy())
     assert log.count() == 5
 
 

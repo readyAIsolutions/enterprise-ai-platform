@@ -898,7 +898,7 @@ class AnthropicBackend(ModelBackend):
         self,
         api_key: str | None = None,
         base_url: str | None = None,
-        provider: Any | None = None,
+        provider: Any | None = None,  # noqa: ANN401
         api_key_env: str = "ANTHROPIC_API_KEY",
     ) -> None:
         self._api_key = api_key
@@ -909,7 +909,7 @@ class AnthropicBackend(ModelBackend):
             fixed_response="[Anthropic backend: no API key configured; response simulated]"
         )
 
-    def _resolve_provider(self) -> Any | None:
+    def _resolve_provider(self) -> Any | None:  # noqa: ANN401
         """Build the AnthropicProvider if an API key is available."""
         if self._provider is not None:
             return self._provider
@@ -928,7 +928,13 @@ class AnthropicBackend(ModelBackend):
             self._provider = None
         return self._provider
 
-    async def generate(self, messages, config, tools=None, stream=None):
+    async def generate(
+        self,
+        messages: list[Message],
+        config: QueryConfig,
+        tools: list[dict[str, Any]] | None = None,
+        stream: StreamingResponse | None = None,
+    ) -> Message:
         provider = self._resolve_provider()
         if provider is None:
             logger.warning("Anthropic backend not configured; using simulation")
@@ -957,7 +963,12 @@ class AnthropicBackend(ModelBackend):
             logger.warning("Anthropic backend call failed (%s); simulating", exc)
             return await self._sim.generate(messages, config, tools, stream)
 
-    async def generate_stream(self, messages, config, tools=None):
+    async def generate_stream(
+        self,
+        messages: list[Message],
+        config: QueryConfig,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> AsyncGenerator[StreamEvent, None]:
         provider = self._resolve_provider()
         if provider is None:
             async for ev in self._sim.generate_stream(messages, config, tools):
@@ -989,7 +1000,7 @@ class AnthropicBackend(ModelBackend):
                 )
         yield StreamEvent(StreamEventType.FINISH, "")
 
-    async def count_tokens(self, text):
+    async def count_tokens(self, text: str) -> int:
         return max(1, len(text) // 4)
 
     def supports_tools(self) -> bool:
@@ -1013,7 +1024,7 @@ class OpenAICompatibleBackend(ModelBackend):
         self,
         api_key: str | None = None,
         base_url: str | None = None,
-        provider: Any | None = None,
+        provider: Any | None = None,  # noqa: ANN401
         api_key_env: str = "OPENAI_API_KEY",
     ) -> None:
         self._api_key = api_key
@@ -1024,7 +1035,7 @@ class OpenAICompatibleBackend(ModelBackend):
             fixed_response="[OpenAI backend: no API key configured; response simulated]"
         )
 
-    def _resolve_provider(self) -> Any | None:
+    def _resolve_provider(self) -> Any | None:  # noqa: ANN401
         if self._provider is not None:
             return self._provider
         key = self._api_key or os.environ.get(self._api_key_env)
@@ -1042,7 +1053,13 @@ class OpenAICompatibleBackend(ModelBackend):
             self._provider = None
         return self._provider
 
-    async def generate(self, messages, config, tools=None, stream=None):
+    async def generate(
+        self,
+        messages: list[Message],
+        config: QueryConfig,
+        tools: list[dict[str, Any]] | None = None,
+        stream: StreamingResponse | None = None,
+    ) -> Message:
         provider = self._resolve_provider()
         if provider is None:
             logger.warning("OpenAI backend not configured; using simulation")
@@ -1071,7 +1088,12 @@ class OpenAICompatibleBackend(ModelBackend):
             logger.warning("OpenAI backend call failed (%s); simulating", exc)
             return await self._sim.generate(messages, config, tools, stream)
 
-    async def generate_stream(self, messages, config, tools=None):
+    async def generate_stream(
+        self,
+        messages: list[Message],
+        config: QueryConfig,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> AsyncGenerator[StreamEvent, None]:
         provider = self._resolve_provider()
         if provider is None:
             async for ev in self._sim.generate_stream(messages, config, tools):
@@ -1103,7 +1125,7 @@ class OpenAICompatibleBackend(ModelBackend):
                 )
         yield StreamEvent(StreamEventType.FINISH, "")
 
-    async def count_tokens(self, text):
+    async def count_tokens(self, text: str) -> int:
         return max(1, len(text) // 4)
 
     def supports_tools(self) -> bool:
@@ -1124,12 +1146,23 @@ class SimulationBackend(ModelBackend):
         self._fixed = fixed_response
         self._call_count = 0
 
-    async def generate(self, messages, config, tools=None, stream=None):
+    async def generate(
+        self,
+        messages: list[Message],
+        config: QueryConfig,  # noqa: ARG002
+        tools: list[dict[str, Any]] | None = None,
+        stream: StreamingResponse | None = None,  # noqa: ARG002
+    ) -> Message:
         self._call_count += 1
         text = await self._build_response(messages, tools)
         return Message(role=MessageRole.ASSISTANT, content=text)
 
-    async def generate_stream(self, messages, config, tools=None):
+    async def generate_stream(
+        self,
+        messages: list[Message],
+        config: QueryConfig,  # noqa: ARG002
+        tools: list[dict[str, Any]] | None = None,
+    ) -> AsyncGenerator[StreamEvent, None]:
         self._call_count += 1
         text = await self._build_response(messages, tools)
         words = text.split()
@@ -1157,7 +1190,11 @@ class SimulationBackend(ModelBackend):
 
         yield StreamEvent(event_type=StreamEventType.FINISH, data="")
 
-    async def _build_response(self, messages, tools=None):
+    async def _build_response(
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]] | None = None,  # noqa: ARG002
+    ) -> str:
         if self._fixed:
             return self._fixed
 
@@ -1171,7 +1208,7 @@ class SimulationBackend(ModelBackend):
             f"Call #{self._call_count}."
         )
 
-    async def count_tokens(self, text):
+    async def count_tokens(self, text: str) -> int:
         return max(1, len(text) // 4)
 
     def supports_tools(self) -> bool:

@@ -14,6 +14,10 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
@@ -42,13 +46,19 @@ METRIC_NAMES = (
 
 
 @pytest.fixture(autouse=True)
-def _isolate():
+def _isolate() -> Generator[None, None, None]:
     reset_otel()
     yield
     reset_otel()
 
 
-def _record_and_flush(pipeline, system="openai", model="gpt-4o", input_tokens=10, output_tokens=20):
+def _record_and_flush(
+    pipeline: ExportPipeline,
+    system: str = "openai",
+    model: str = "gpt-4o",
+    input_tokens: int = 10,
+    output_tokens: int = 20,
+) -> int:
     """Record a gen_ai span and flush it through the pipeline."""
     span = start_genai_span(
         system,

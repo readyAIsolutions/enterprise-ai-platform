@@ -16,7 +16,7 @@ All components are stdlib-only, zero external dependencies.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional  # noqa: F401  (re-exported API types)
+from typing import Any, Dict, List, Optional  # noqa: F401, UP035  (re-exported API types)
 
 from enterprise.platform_kernel import (
     EventBus,  # noqa: F401
@@ -59,7 +59,7 @@ __version__ = "1.1.0"
 __module__ = "compliance"
 
 
-def create_compliance_module(config=None):
+def create_compliance_module(config: dict | None = None) -> ComplianceModule:
     """Factory: build a :class:`ComplianceModule` instance from a config dict."""
     return ComplianceModule(config)
 

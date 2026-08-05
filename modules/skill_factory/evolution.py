@@ -31,7 +31,10 @@ import math
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "SkillFeedbackStore",
@@ -404,7 +407,7 @@ class EvolutionEngine:
     def __init__(
         self,
         store: SkillFeedbackStore,
-        refiner: Any | None = None,
+        refiner: Callable[[str], object] | None = None,
         threshold: float = DEFAULT_PROMOTE_THRESHOLD,
         scorer: SkillScore | None = None,
     ) -> None:
@@ -516,10 +519,8 @@ class EvolutionEngine:
         if promoted:
             self.promotions[skill] = {"weight": weight, "reason": result["reason"]}
             if self.refiner is not None:
-                try:
+                with contextlib.suppress(Exception):  # pragma: no cover - defensive
                     self.refiner(skill)
-                except Exception:  # pragma: no cover - defensive
-                    pass
         else:
             # No longer needing refinement once it scores well.
             self.promotions.pop(skill, None)

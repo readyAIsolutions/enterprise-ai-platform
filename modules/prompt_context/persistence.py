@@ -28,11 +28,11 @@ Stdlib only: ``sqlite3``, ``json``, ``random``, ``threading``.
 from __future__ import annotations
 
 import json
-import os
 import random
 import sqlite3
 import threading
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -99,11 +99,11 @@ class PromptStore:
     def _resolve_path(db_path: str | None) -> str:
         if db_path is None:
             return ":memory:"
-        path = db_path if db_path.endswith(".db") else os.path.join(db_path, DEFAULT_DB_FILENAME)
+        path = db_path if db_path.endswith(".db") else str(Path(db_path) / DEFAULT_DB_FILENAME)
         # Make directory-relative paths relative to CWD as-is; ensure parent exists.
-        parent = os.path.dirname(os.path.abspath(path))
-        if parent and not os.path.isdir(parent):
-            os.makedirs(parent, exist_ok=True)
+        parent = Path(path).resolve().parent
+        if str(parent) != "." and not parent.is_dir():
+            parent.mkdir(parents=True, exist_ok=True)
         return path
 
     def _init_schema(self) -> None:
@@ -302,7 +302,7 @@ class PromptStore:
     def __enter__(self) -> PromptStore:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: Any) -> None:  # noqa: ANN401
         self.close()
 
 
