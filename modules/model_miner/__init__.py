@@ -22,7 +22,7 @@ import logging
 from typing import Any
 
 try:
-    from eni_controller import model_miner as _miner_pkg
+    from eni_controller import model_miner as _miner_pkg, model_trainer as _trainer_pkg
 
     _HAVE_MINER = True
 except Exception:  # pragma: no cover - controller not installed on this box
@@ -48,6 +48,12 @@ class MinerFacade:
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         self._config = config or {}
         self._miner = _miner_pkg.get_miner() if _HAVE_MINER else None
+        self._trainer = _trainer_pkg.get_trainer() if _HAVE_MINER else None
+        self._ripple = (
+            _trainer_pkg.CloudRipple(store=_trainer_pkg.get_trainer().store)
+            if _HAVE_MINER
+            else None
+        )
 
     def available(self) -> bool:
         return self._miner is not None
@@ -82,6 +88,58 @@ class MinerFacade:
         if self._miner is None:
             return {"ok": False, "error": "model_miner package unavailable"}
         return self._miner.infinite_loop(interval=interval, max_passes=max_passes)
+
+    # -- Model Trainer (download -> serve -> rip -> delete) ---------------
+    def train_and_rip(
+        self,
+        model: str,
+        delete_after: bool = True,
+        topics: list[dict[str, str]] | None = None,
+    ) -> dict[str, Any]:
+        """Download a HF model, rip its training, delete it after."""
+        if self._trainer is None:
+            return {"ok": False, "error": "model_trainer package unavailable"}
+        return self._trainer.train_and_rip(model, delete_after=delete_after, topics=topics)
+
+    def run_batch(
+        self,
+        models: list[str] | None = None,
+        max_models: int | None = None,
+        delete_after: bool = True,
+    ) -> dict[str, Any]:
+        """Rip through many models, deleting each after (the 'SHIT tons' loop)."""
+        if self._trainer is None:
+            return {"ok": False, "error": "model_trainer package unavailable"}
+        return self._trainer.run_batch(
+            models=models, max_models=max_models, delete_after=delete_after
+        )
+
+    def drives(self) -> list[dict[str, Any]]:
+        if self._trainer is None:
+            return []
+        return self._trainer.drive_status()
+
+    def cloud_capture(
+        self,
+        *,
+        model: str,
+        provider: str,
+        prompt: str,
+        response: str,
+        topic: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Persist a cloud-model exchange as a KB entry (consistent rip)."""
+        if self._ripple is None:
+            return {"ok": False, "error": "model_trainer package unavailable"}
+        return self._ripple.capture(
+            model=model,
+            provider=provider,
+            prompt=prompt,
+            response=response,
+            topic=topic,
+            tags=tags,
+        )
 
     def status(self) -> dict[str, Any]:
         models = self.discover()

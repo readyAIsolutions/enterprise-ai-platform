@@ -1,73 +1,78 @@
 # STATUS_DEMIURGE_MODEL_MINER.md
 
-## Build: ENI Model Miner + ever-expanding catalog + universal-boot Hermes controller
+## Build: ENI Model Miner + Trainer + ever-expanding catalog + universal boot
 
-### What was built
+### Capabilities delivered
 1. **ENI Model Miner — enterprise module** (`modules/model_miner/`)
-   - Scans local models that have training worth using (ollama, local OpenAI-compat
-     endpoints, HF-cache safetensors). Found on this box: controller-free-router,
-     Mistral-7B-Instruct-v0.2, all-MiniLM-L6-v2, LLMLingua.
+   - Scans local models with usable training (ollama, local OpenAI-compat, HF-cache).
    - Rips each chat-capable model's trained knowledge via a curated 8-topic battery,
-     saves each answer to the local KB (deduped, tagged, provenance=model).
-   - Exposes each model to Hermes via a local MCP-style tool descriptor + LSP note.
-   - Runs as a proper enterprise `@module(name="model_miner")` with initialize /
-     health_check / shutdown lifecycle + graceful-degradation facade.
-2. **ENI Hermes Controller — module** (`modules/hermes_controller/`, from earlier)
-   - Facade over the controller package (expand / route / reinforce).
-3. **Ever-expanding catalog** (`eni_controller/enterprise.py`)
-   - Change-detection fingerprint: when a new module dir appears, the catalog
-     re-scans automatically (no hardcoded list). Verified 42 → 43 on boot.
-   - Introspects README/docstrings for modules without static hints.
-4. **Universal-boot Hermes controller** (`~/.. /hermes/controller/`)
-   - Cross-platform boot: `miner.bat` / `miner.ps1` (Windows), `miner.sh` / `miner.py`
-     (Linux) → all delegate to `eni_miner_boot.py` (pure stdlib, works on any CWD/OS).
-   - Infinite ever-expanding loop: `--daemon` re-scans + rips new models forever
-     (`max_passes=None` = infinite iterations; bounded for tests).
-   - Runs as systemd user service `eni-controller.service` (auto-boot via linger).
-   - Desktop launcher `.desktop` (boot via double-click).
+     saved to the local KB (deduped, tagged, provenance).
+   - Exposes each model to Hermes via a local MCP tool descriptor + LSP note.
+   - `@module(name="model_miner")` lifecycle + graceful-degradation facade.
+
+2. **ENI Model Trainer — download → serve → rip → delete** (`eni_controller/model_trainer.py`)
+   - Downloads small HF models THE USER NAMES (Qwen, Gemma, CPM, phi, TinyLlama, etc.)
+     → serves locally (transformers/bitsandbytes, GPU or CPU) → rips training → **DELETES
+     the model afterward** so disk is freed for the next / a bigger one.
+   - `TRAINABLE_MODELS` list: 16 small models, all fitting 8GB VRAM.
+   - `run_batch()` = the "SHIT tons of training" loop — rips N models, deleting each.
+   - `--no-delete` keeps models; default deletes after rip.
+   - Infinite loop: `--daemon` re-scans + rips forever (ever-expanding).
+
+3. **Multi-drive storage**
+   - `DriveScanner.discover()` finds every writable drive; batch round-robins downloads
+     across them. Detected on this box: `/` (131GB free) + `/media/hunter/Backup`
+     (1239GB free). Qwen rip was downloaded to the Backup drive, proving it.
+
+4. **Cloud-ripple — consistently rip cloud-model training**
+   - `CloudRipple.capture()` persists every cloud-model query/response (sanitized) as a
+     KB entry as Hermes uses them ("consistently rip training from cloud models as we
+     use them in Hermes"). Wired into the enterprise MinerFacade.
+
+5. **Ever-expanding catalog** (`eni_controller/enterprise.py`)
+   - Change-detection: new module dir auto-triggers re-scan (42 → 43 verified).
+
+6. **Universal boot**
+   - `miner.bat` / `miner.ps1` (Windows), `miner.sh` / `miner.py` (Linux) → all delegate
+     to `eni_miner_boot.py` (pure stdlib, any CWD/OS). `--train`, `--train-batch`,
+     `--drives`, `--daemon` added.
+   - systemd `eni-controller.service` (the local Hermes-handling model) auto-boots.
 
 ### Verification (real numbers)
 | Check | Result |
 |---|---|
-| enterprise full pytest | **4188 passed, 1 skipped** (was 4177; +11 from 2 new modules) |
+| enterprise full pytest | **4188 passed, 1 skipped** |
 | modules/model_miner tests | **5 passed** |
 | modules/hermes_controller tests | **5 passed** |
-| integration boot (registry discovery) | **1 passed** (model_miner discovered) |
-| controller package tests | **17 passed** |
-| ruff (controller pkg) | **All checks passed** |
-| ruff (new enterprise modules) | **All checks passed** |
-| ruff format idempotency | clean on all changed files |
-| catalog growth | 42 → 43 modules auto-discovered (no code change needed) |
-| model rip E2E (free-router) | 8/8 topics extracted + saved to KB |
-| eni-controller.service | active + enabled (auto-boot) |
+| controller package tests | **23 passed** (incl. 6 trainer/cloud-ripple tests) |
+| ruff (controller pkg) | clean + format-idempotent |
+| ruff (enterprise modules) | clean + format-idempotent |
+| **Real Qwen rip (E2E)** | download → GPU serve → 8 topics → KB → **deleted, freed ~2GB** |
+| Multi-drive | Qwen downloaded to `/media/hunter/Backup` (.eni_hf_models) |
+| Cloud-ripple | KB entry created via `cloud_capture` test |
+| catalog growth | 42 → 43 auto-discovered |
 
-### Live model discovery on this box (scan)
-- `controller-free-router` (openai_compat, chat-capable) — used for E2E rip
-- `mistralai/Mistral-7B-Instruct-v0.2` (hf_cache, trainable) — rippable when served
-- `sentence-transformers/all-MiniLM-L6-v2` (hf_cache, trainable)
-- `microsoft/llmlingua-2-xlm-roberta-large-meetingbank` (hf_cache, trainable)
-
-### How to boot
-- **Linux terminal:** `python3 ~/.hermes/controller/eni_miner_boot.py --daemon --interval 300`
-- **Windows:** `miner.bat --daemon` (or `miner.ps1 --daemon`)
-- **systemd:** `systemctl --user start eni-controller` (already enabled)
-- **Desktop:** "ENI Model Miner" launcher
+### How to boot (cross-platform)
+- **Rip one model:** `python3 eni_miner_boot.py --train Qwen/Qwen2.5-0.5B-Instruct`
+- **Rip many (delete each after):** `python3 eni_miner_boot.py --train-batch --limit 5`
+- **Keeps models:** add `--no-delete`
+- **Infinite loop:** `--daemon`
+- **Windows:** `miner.bat --train-batch` / `miner.ps1 --train-batch`
+- **Drives:** `--drives` shows free space across mounts
 
 ### What adds R / what to drop
-- ADD: every module dir is auto-picked-up — catalog stays evergreen as LO adds
-  modules. This is the highest-leverage design choice.
-- KEEP: infinite loop bounded only by `max_passes` (default infinite) so new
-  downloads get ripped automatically.
-- DROP: nothing — the facades degrade gracefully when the controller package isn't
-  installed, so the enterprise repo stays importable on any box.
+- ADD: **delete-after-rip** is the key unlock — lets us cycle through arbitrarily many /
+  larger models on finite disk. Highest-value design choice for "SHIT tons of training."
+- ADD: multi-drive round-robin spreads downloads so no single disk fills up.
+- ADD: cloud-ripple means every Hermes cloud call does double duty as KB growth.
+- KEEP: ever-expanding catalog (change-detection) so new modules are always picked up.
+- DROP: nothing — facades degrade gracefully without the controller package.
 
 ### UNVALIDATED
-- **Real local-GPU rip** (Mistral on :8913) not run live — the E2E used the
-  free-router chat endpoint. The identical pipeline will work against a local
-  endpoint once airllm/transformers server is running; the `/chat` call is generic
-  OpenAI-compatible.
-- **Windows boot** not executed (no Windows box here) — scripts are pure-stdlib and
-  follow the standard python-invocation pattern, but untested on an actual Windows
-  host.
-- Full ripping of ALL local models into KB not yet done at scale (only free-router
-  was ripped in the smoke test).
+- Batch rips of Gemma/CPM/other models were mid-run at commit time (single Qwen 0.5B is
+  the fully proven E2E). Each model adds ~6 min (download+GPU load+rip).
+- Windows boot not executed (no Windows box); pure-stdlib, standard invocation, untested.
+- `huggingface_hub` download uses `snapshot_download`; a missing HF network/rate-limit
+  would fail per-model (isolated, not fatal to the batch).
+- Cloud-ripple is a callable API; it is NOT yet auto-wired into every Hermes request —
+  needs a hook in the router/controller to fire on each cloud call. (Next push.)
