@@ -618,13 +618,38 @@ class ComplianceFacade:
         self,
         evaluator: Optional[ComplianceEvaluator] = None,
         analyzer: Optional[GapAnalyzer] = None,
+        register: Optional["EvidenceRegister"] = None,
     ) -> None:
         self._evaluator = evaluator or ComplianceEvaluator()
         self._analyzer = analyzer or GapAnalyzer()
+        from .evidence import EvidenceRegister, GapAnalysis
+        self._register = register if register is not None else EvidenceRegister()
+        self._gap_analysis = GapAnalysis(self._register)
 
     @property
     def evaluator(self) -> ComplianceEvaluator:
         return self._evaluator
+
+    @property
+    def register(self) -> "EvidenceRegister":
+        """The live evidence register backing evidence-based assessment."""
+        return self._register
+
+    def add_evidence(self, evidence) -> int:
+        """Record a :class:`ControlEvidence` (or dict) into the register."""
+        return self._register.add(evidence)
+
+    def ingest(self, results, source: str = "scan",
+               framework: Optional[str] = None) -> int:
+        """Bulk-add evidence from a scan-results mapping."""
+        from .evidence import ingest as _ingest
+        return _ingest(results, self._register, source=source, framework=framework)
+
+    def assess(self, framework: Optional[str] = None,
+               top_n: int = 5) -> Dict[str, Any]:
+        """Produce a live evidence-based gap report for a framework (or all)."""
+        return self._gap_analysis.analyze(framework=framework, top_n=top_n)
+
 
     def list_controls(self, framework: Optional[str] = None) -> List[Control]:
         """Return the control catalogue, optionally filtered by framework."""
@@ -681,9 +706,14 @@ class ComplianceModule(Module):
 
     def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         super().__init__(config)
+        from .evidence import EvidenceRegister
         self._evaluator = ComplianceEvaluator()
         self._analyzer = GapAnalyzer()
-        self._facade = ComplianceFacade(self._evaluator, self._analyzer)
+        db_path = (config or {}).get("db_path")
+        self._register = EvidenceRegister(db_path=db_path)
+        self._facade = ComplianceFacade(
+            self._evaluator, self._analyzer, self._register
+        )
         self._event_bus: Optional[EventBus] = None
 
     async def initialize(self) -> None:
@@ -692,11 +722,19 @@ class ComplianceModule(Module):
         default_config = {
             "framework": None,
             "target": DEFAULT_TARGET,
+            "db_path": None,
         }
         default_config.update(self._config or {})
         target = default_config.get("target", DEFAULT_TARGET)
+        db_path = default_config.get("db_path")
+        from .evidence import EvidenceRegister, GapAnalysis
         self._evaluator = ComplianceEvaluator(target=target)
-        self._facade = ComplianceFacade(self._evaluator, self._analyzer)
+        # Recreate register on re-init (keeps db_path from config).
+        self._register = EvidenceRegister(db_path=db_path)
+        self._facade = ComplianceFacade(
+            self._evaluator, self._analyzer, self._register
+        )
+        self._gap_analysis = GapAnalysis(self._register)
         self._status = HealthStatus.HEALTHY
         logger.info("Compliance Module initialized")
 
@@ -744,6 +782,27 @@ class ComplianceModule(Module):
         target: Optional[Union[str, float]] = None,
     ) -> ComplianceReport:
         return self._facade.report(status_map, framework, target)
+
+    # -- live evidence-based assessment -------------------------------------
+
+    @property
+    def register(self):
+        """The module's live :class:`EvidenceRegister`."""
+        return self._register
+
+    def add_evidence(self, evidence) -> int:
+        """Record evidence into the module's register."""
+        return self._facade.add_evidence(evidence)
+
+    def ingest(self, results, source: str = "scan",
+               framework: Optional[str] = None) -> int:
+        """Bulk-add evidence from a scan-results mapping."""
+        return self._facade.ingest(results, source=source, framework=framework)
+
+    def assess(self, framework: Optional[str] = None,
+               top_n: int = 5) -> Dict[str, Any]:
+        """Produce a live evidence-based gap report."""
+        return self._facade.assess(framework=framework, top_n=top_n)
 
 
 __all__ = [

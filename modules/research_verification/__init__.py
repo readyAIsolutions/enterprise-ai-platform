@@ -120,6 +120,26 @@ from .evidence_synthesizer import (
     generate_recommendations,
 )
 
+# Hardened verifier + evidence-chain report layer
+from .verifier import (
+    Source,
+    SourceCredibility,
+    Verdict,
+    EvidenceChain,
+    Verifier,
+    VerificationReport,
+    verify_report,
+    verify_claim,
+    VALID_TIERS,
+    TIER_BASE_CREDIBILITY,
+    PRIMARY_TIER,
+    GOV_TIER,
+    ACADEMIC_TIER,
+    NEWS_TIER,
+    UNKNOWN_TIER,
+    BANNED_TIER,
+)
+
 # ── Module class registered with the platform kernel ──────────────────────
 
 
@@ -288,6 +308,23 @@ __all__ = [
     "aggregate_confidence",
     "synthesize_evidence",
     "generate_recommendations",
+    # Verifier / evidence-chain layer
+    "Source",
+    "SourceCredibility",
+    "Verdict",
+    "EvidenceChain",
+    "Verifier",
+    "VerificationReport",
+    "verify_report",
+    "verify_claim",
+    "VALID_TIERS",
+    "TIER_BASE_CREDIBILITY",
+    "PRIMARY_TIER",
+    "GOV_TIER",
+    "ACADEMIC_TIER",
+    "NEWS_TIER",
+    "UNKNOWN_TIER",
+    "BANNED_TIER",
 ]
 
 __version__ = "1.0.0"

@@ -62,6 +62,15 @@ from .skills_import import (
     import_skill_from_markdown,
     parse_skill_markdown,
 )
+from .evolution import (
+    DEFAULT_PROMOTE_THRESHOLD,
+    EvolutionEngine,
+    RESULT_FAIL,
+    RESULT_SUCCESS,
+    SkillFeedbackStore,
+    SkillScore,
+    compute_evolution_score,
+)
 
 __all__ = [
     "__version__",
@@ -84,6 +93,14 @@ __all__ = [
     "SkillsImportFacade",
     "import_skill_from_markdown",
     "parse_skill_markdown",
+    # Real outcome-based evolution (master-class)
+    "EvolutionEngine",
+    "SkillFeedbackStore",
+    "SkillScore",
+    "compute_evolution_score",
+    "RESULT_SUCCESS",
+    "RESULT_FAIL",
+    "DEFAULT_PROMOTE_THRESHOLD",
 ]
 
 # ---------------------------------------------------------------------------

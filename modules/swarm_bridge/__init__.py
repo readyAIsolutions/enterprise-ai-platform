@@ -54,6 +54,21 @@ from .__module__ import (
     SwarmHealthCheck,
 )
 
+from .heartbeat import (
+    SwarmMember,
+    MemberRegistry,
+    HeartbeatProtocol,
+    HealthAggregator,
+    HealthReport,
+    SwarmHealth,
+    SwarmClock,
+    FixedClock,
+    STATUS_ALIVE,
+    STATUS_ABSENT,
+    STATUS_LOST,
+    DEFAULT_HEARTBEAT_TIMEOUT,
+)
+
 __all__ = [
     # Core module class
     "ENISwarmModule",
@@ -67,4 +82,17 @@ __all__ = [
     # PromptForge wrapper
     "PromptForgeBridge",
     "EnhancedTask",
+    # Member heartbeat + liveness registry
+    "SwarmMember",
+    "MemberRegistry",
+    "HeartbeatProtocol",
+    "HealthAggregator",
+    "HealthReport",
+    "SwarmHealth",
+    "SwarmClock",
+    "FixedClock",
+    "STATUS_ALIVE",
+    "STATUS_ABSENT",
+    "STATUS_LOST",
+    "DEFAULT_HEARTBEAT_TIMEOUT",
 ]

@@ -95,6 +95,18 @@ from enterprise.modules.developer_experience.metrics import (
     track_build_duration,
     track_deploy_frequency,
 )
+from enterprise.modules.developer_experience.validation import (
+    GoldenCheck,
+    GoldenPath as GoldenPathChecklist,
+    GoldenPathValidator,
+    ValidationReport,
+    CheckResult,
+    DeliveryBand,
+    DeployEvent,
+    DeliveryMetrics,
+    DXScore,
+    letter_grade,
+)
 
 __all__ = [
     # Journey
@@ -165,6 +177,17 @@ __all__ = [
     "track_setup_time",
     "track_build_duration",
     "track_deploy_frequency",
+    # Validation (golden-path + delivery metrics)
+    "GoldenCheck",
+    "GoldenPathChecklist",
+    "GoldenPathValidator",
+    "ValidationReport",
+    "CheckResult",
+    "DeliveryBand",
+    "DeployEvent",
+    "DeliveryMetrics",
+    "DXScore",
+    "letter_grade",
 ]
 
 # --------------------------------------------------------------------------

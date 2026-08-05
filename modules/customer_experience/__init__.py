@@ -43,6 +43,16 @@ from .templates import (
     CommsTemplate,
     TemplateManager,
 )
+from .analytics import (
+    FunnelAnalyst,
+    StageConversion,
+    NPS,
+    NPSBand,
+    ChurnRisk,
+    ChurnRiskLevel,
+    CustomerSignals,
+    JourneyAnalytics,
+)
 
 __all__ = [
     # journey
@@ -71,6 +81,15 @@ __all__ = [
     "TemplateType",
     "CommsTemplate",
     "TemplateManager",
+    # analytics
+    "FunnelAnalyst",
+    "StageConversion",
+    "NPS",
+    "NPSBand",
+    "ChurnRisk",
+    "ChurnRiskLevel",
+    "CustomerSignals",
+    "JourneyAnalytics",
 ]
 
 # --------------------------------------------------------------------------

@@ -516,7 +516,7 @@ KNOWN_MODULES = {
     "compression_bridge":       {"src": 952,   "tests": 64},
     "agent_core":      {"src": 5211,  "tests": 78},
     "agent_tools":     {"src": 4371,  "tests": 33},
-    "agent_infra":     {"src": 3280,  "tests": 32},
+    "agent_infra":     {"src": 4290,  "tests": 50},
     "research_verification": {"src": 1924,  "tests": 33},
     "enterprise_validation": {"src": 3000,  "tests": 33},
     "swarm_network":         {"src": 2500,  "tests": 23},

@@ -9,6 +9,16 @@ from .evaluator import SafetyEvaluator, AccuracyScorer
 from .governance import GovernanceBoard, RiskRegister
 from .monitoring import SafetyMonitor, Alert
 from .incident import IncidentManager, IncidentSeverity
+from .scoring import (
+    ToxicityCategory,
+    SafetyVerdict,
+    ToxicityScorer as ScoringToxicityScorer,
+    RefusalScorer,
+    CooccurrenceModel,
+    SafetyResult as ScoringSafetyResult,
+    SafetyScorer,
+    create_safety_scorer,
+)
 
 __all__ = [
     "SafetyGuardrail", "GuardrailResult",
@@ -16,6 +26,11 @@ __all__ = [
     "GovernanceBoard", "RiskRegister",
     "SafetyMonitor", "Alert",
     "IncidentManager", "IncidentSeverity",
+    # SafetyScoring engine
+    "ToxicityCategory", "SafetyVerdict",
+    "ScoringToxicityScorer", "RefusalScorer",
+    "CooccurrenceModel", "ScoringSafetyResult",
+    "SafetyScorer", "create_safety_scorer",
 ]
 
 # --------------------------------------------------------------------------

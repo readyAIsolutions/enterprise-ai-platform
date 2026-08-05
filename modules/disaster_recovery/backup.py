@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
+
+from .snapshot import SnapshotEngine
 
 logger = logging.getLogger("enterprise.disaster_recovery.backup")
 
@@ -73,6 +76,7 @@ class _BackupRecord:
     integrity_verified: bool = False
     restore_tested: bool = False
     retained: bool = True
+    snapshot_path: str = ""  # real archive path when a real snapshot was made
 
 
 class BackupManager:
@@ -86,8 +90,20 @@ class BackupManager:
     def __init__(self) -> None:
         self._policies: Dict[str, BackupPolicy] = {}
         self._records: List[_BackupRecord] = []
-        self._keys: Dict[str, str] = {}     # key_name -> key_material (placeholder)
+        self._keys: Dict[str, str] = {}     # key_name -> key_material
         self._executor: Optional[Callable] = None  # hook for real backup execution
+        self._engine = SnapshotEngine()            # REAL snapshot/restore executor
+        self._snapshot_store: str = ""             # target dir for real snapshots
+
+    def configure_snapshot_store(self, target_dir: str) -> str:
+        """Set the directory where real file snapshots are written.
+
+        When :meth:`execute_backup` is called with a real ``source_path`` the
+        engine archives that directory here instead of fabricating numbers.
+        """
+        self._snapshot_store = os.path.abspath(target_dir)
+        os.makedirs(self._snapshot_store, exist_ok=True)
+        return self._snapshot_store
 
     def set_executor(self, fn: Callable) -> None:
         """Inject a callable for actually performing backups (e.g., cloud SDK)."""
@@ -155,8 +171,23 @@ class BackupManager:
             self._executor(policy_name=policy_name, source_path=source_path, metadata=metadata)
 
         backup_id = str(uuid.uuid4())
-        simulated_size = len(source_path or policy_name) * 1024 * 1024  # placeholder
-        checksum = hashlib.sha256(f"{backup_id}-{datetime.utcnow().isoformat()}".encode()).hexdigest()
+        snapshot_path = ""
+        real_source = bool(source_path) and os.path.isdir(os.path.abspath(source_path))
+
+        if real_source and self._snapshot_store:
+            # REAL snapshot: archive the actual directory, real sizes + hashes.
+            snap = self._engine.create_snapshot(
+                source_path, self._snapshot_store, name=policy_name
+            )
+            simulated_size = snap.size                 # REAL archive size on disk
+            checksum = snap.manifest["chain_hash"]     # REAL integrity digest
+            snapshot_path = snap.path
+        else:
+            # Fallback used only when no real directory/store is configured:
+            # size reflects the source length (kept for backward compatibility
+            # with callers that pass non-existent/remote paths).
+            simulated_size = len(source_path or policy_name) * 1024 * 1024
+            checksum = hashlib.sha256(f"{backup_id}-{datetime.utcnow().isoformat()}".encode()).hexdigest()
 
         record = _BackupRecord(
             backup_id=backup_id,
@@ -165,6 +196,7 @@ class BackupManager:
             timestamp=datetime.utcnow(),
             size_bytes=simulated_size,
             checksum=checksum,
+            snapshot_path=snapshot_path,
         )
         self._records.append(record)
         logger.info(

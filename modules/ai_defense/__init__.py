@@ -46,6 +46,12 @@ from .ai_defense import (
     ModelExtractionShield,
     StuffingConfig,
 )
+from .rate_limit import (
+    Allowance,
+    AttackerStore,
+    SlidingWindowRateLimiter,
+    ThrottleGate,
+)
 
 __version__ = "1.0.0"
 __module__ = "ai_defense"

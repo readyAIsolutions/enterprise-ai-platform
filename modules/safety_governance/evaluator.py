@@ -26,6 +26,15 @@ from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 from collections import defaultdict, deque, Counter
 
+# Optional real SafetyScoring engine. Kept import-safe so the legacy evaluator
+# surface is untouched when the engine is not requested.
+try:  # pragma: no cover - import guard kept deterministic
+    from .scoring import SafetyScorer, CooccurrenceModel, SafetyResult
+except Exception:  # pragma: no cover - fall back if engine unavailable
+    SafetyScorer = None  # type: ignore
+    CooccurrenceModel = None  # type: ignore
+    SafetyResult = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -1364,27 +1373,36 @@ class BiasDetector:
     @staticmethod
     def word_association_test(target_words: List[str], attribute_words: List[str]) -> float:
         """
-        Simplified Word Association Test (WAT).
+        Word Association Test (WAT).
 
         Measures associative strength between *target_words* and *attribute_words*
-        based on co-occurrence statistics (placeholder; production systems use
-        embedding cosine similarities).
+        using a real learnable co-occurrence model (CooccurrenceModel from the
+        SafetyScoring engine) fed with the Cartesian association data. This
+        replaces the former placeholder that used character n-gram Jaccard as a
+        "weak proxy".
 
         Returns a score in [0, 1] representing association strength.
         """
-        if not target_words or not attribute_words:
+        from .scoring import CooccurrenceModel
+
+        targets = [t.strip().lower() for t in target_words if t.strip()]
+        attrs = [a.strip().lower() for a in attribute_words if a.strip()]
+        if not targets or not attrs:
             return 0.0
-        # Jaccard similarity of character n-grams as a weak proxy
-        targets = set()
-        attrs = set()
-        for w in target_words:
-            targets.update(_char_ngrams(w.lower(), 3))
-        for w in attribute_words:
-            attrs.update(_char_ngrams(w.lower(), 3))
-        union = targets | attrs
-        if not union:
+
+        model = CooccurrenceModel()
+        # Learn each (target, attribute) pair as an observed co-occurrence so the
+        # association is genuinely frequency-driven.
+        pairs = [(t, a) for t in targets for a in attrs]
+        model.learn(pairs)
+
+        # Measure how much each target associates with the attribute set, then
+        # average over targets.
+        scores = [model.association(t, a) for t in targets for a in attrs]
+        positive = [s for s in scores if s > 0.0]
+        if not positive:
             return 0.0
-        return round(len(targets & attrs) / len(union), 4)
+        return round(min(1.0, (sum(positive) / len(positive)) * len(targets)), 4)
 
     # ------------------------------------------------------------------
     def to_dict(self) -> dict:
@@ -2700,6 +2718,16 @@ class SafetyEvaluator:
             sla_target=self.config.get("sla_target", 99.9)
         )
 
+        # Optional real SafetyScoring engine (see scoring.py). Enabled when the
+        # config requests it; the legacy sub-evaluators remain the default and
+        # the public API stays fully backward compatible.
+        self.safety_scorer: Optional[SafetyScorer] = None
+        if SafetyScorer is not None and self.config.get("use_safety_scoring", False):
+            self.safety_scorer = SafetyScorer(
+                flag_threshold=self.config.get("safety_flag_threshold", 0.4),
+                block_threshold=self.config.get("safety_block_threshold", 0.75),
+            )
+
         logger.info(
             "SafetyEvaluator initialized with config keys: %s",
             list(self.config.keys()),
@@ -2858,6 +2886,22 @@ class SafetyEvaluator:
     def run_toxicity_eval(self, texts: List[str]) -> ToxicityResult:
         """Run toxicity scoring on texts."""
         return self.toxicity_scorer.score(texts)
+
+    # ------------------------------------------------------------------
+    def run_safety_score_eval(
+        self,
+        text: str,
+        context: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Run the real SafetyScoring engine on a single *text*.
+
+        Enabled only when ``config={"use_safety_scoring": True}``. Returns the
+        SafetyResult's dict form, or None when the engine is not configured.
+        """
+        if self.safety_scorer is None:
+            return None
+        result = self.safety_scorer.evaluate(text, context)
+        return result.to_dict()
 
     # ------------------------------------------------------------------
     def run_security_eval(self, config: Dict[str, Any]) -> SecurityPostureResult:

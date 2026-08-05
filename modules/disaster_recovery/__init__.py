@@ -30,6 +30,12 @@ __all__ = [
     "BackupType",
     "BackupPolicy",
     "BackupManager",
+    # Snapshot / restore (real backup executor)
+    "SnapshotEngine",
+    "Snapshot",
+    "ManifestEntry",
+    "RestoreReport",
+    "snapshot_to_dict",
     # Recovery
     "RecoveryMode",
     "RecoveryPlan",
@@ -57,6 +63,7 @@ from .bia import CriticalityLevel, ImpactCategory, BIAAsset, BIAEngine
 from .rto_rpo import RecoveryTier, RTOPlan, RTOPlanner
 from .scenarios import ScenarioType, Scenario, ScenarioLibrary
 from .backup import BackupType, BackupPolicy, BackupManager
+from .snapshot import SnapshotEngine, Snapshot, ManifestEntry, RestoreReport, snapshot_to_dict
 from .recovery import RecoveryMode, RecoveryPlan, RecoveryEngine
 from .cyber_recovery import CyberRecoveryPhase, CyberRecoveryPlan, CyberRecoveryManager
 from .ai_continuity import AIDisruptionType, AIContinuityPlan, AIContinuityManager

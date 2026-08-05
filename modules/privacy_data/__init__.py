@@ -95,6 +95,22 @@ __all__ = [
     "MetricSnapshot",
     "AccessEvent",
     "MonitorRule",
+    # Masking / Tokenization engine
+    "MaskType",
+    "Masker",
+    "EmailMasker",
+    "PhoneMasker",
+    "SsnMasker",
+    "CreditCardMasker",
+    "NameMasker",
+    "GenericMasker",
+    "MaskingPolicy",
+    "Vault",
+    "InMemoryVault",
+    "SQLiteVault",
+    "TokenizationEngine",
+    "MASKER_REGISTRY",
+    "PolicyDataMasker",
 ]
 
 # Convenience imports
@@ -184,6 +200,27 @@ from .monitoring import (
     AccessEvent,
     MonitorRule,
 )
+from . import masking
+from .masking import (
+    MaskType,
+    Masker,
+    EmailMasker,
+    PhoneMasker,
+    SsnMasker,
+    CreditCardMasker,
+    NameMasker,
+    GenericMasker,
+    MaskingPolicy,
+    Vault,
+    InMemoryVault,
+    SQLiteVault,
+    TokenizationEngine,
+    MASKER_REGISTRY,
+)
+# The masker facade is exposed under an unambiguous alias to keep the
+# pre-existing security.DataMasker (strategy-based masker) export intact.
+PolicyDataMasker = masking.DataMasker
+
 
 # --------------------------------------------------------------------------
 

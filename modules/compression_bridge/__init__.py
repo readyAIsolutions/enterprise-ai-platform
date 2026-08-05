@@ -43,6 +43,16 @@ from .compression_bridge import (
     CompressionBridge,
     CompressionHealthCheck,
 )
+from .codecs import (
+    Codec,
+    XZCodec,
+    GzipCodec,
+    Bz2Codec,
+    JsonCodec,
+    NOOPCodec,
+    CodecRegistry,
+    negotiate_ratio,
+)
 
 # ── Module class registered with the platform kernel ──────────────────────
 
@@ -114,12 +124,32 @@ class CompressionBridgeModule(Module):
         return self._bridge
 
 
+# ── Module factory (platform contract) ─────────────────────────────────────
+
+def create_compression_bridge_module(config: dict | None = None) -> CompressionBridgeModule:
+    """Create and return a CompressionBridgeModule instance.
+
+    This is the standard platform factory entrypoint (see MODULE CONTRACT).
+    """
+    return CompressionBridgeModule(config=config)
+
+
 # ── Public API surface ──────────────────────────────────────────────────────
 
 __all__ = [
     "CompressionBridgeModule",
     "CompressionBridge",
     "CompressionHealthCheck",
+    "create_compression_bridge_module",
+    # Codec registry + negotiation
+    "Codec",
+    "XZCodec",
+    "GzipCodec",
+    "Bz2Codec",
+    "JsonCodec",
+    "NOOPCodec",
+    "CodecRegistry",
+    "negotiate_ratio",
 ]
 
 __version__ = "3.0.0"

@@ -79,6 +79,12 @@ from .tool_registry import (
     ProgressEvent,
 )
 
+# ── Master-class tool gate + audit ─────────────────────────────────────────
+from .gate import (
+    ToolGate, ToolPolicy, ToolRule, ToolAudit, AuditRecord,
+    GateResult, Decision,
+)
+
 # All tools
 from .bash import BashTool, BashResult, BashSandboxConfig
 from .file_tools import (
@@ -207,6 +213,9 @@ __all__ = [
     "ToolMetrics",
     "ToolExecutionContext",
     "ProgressEvent",
+    # Master-class tool gate + audit
+    "ToolGate", "ToolPolicy", "ToolRule", "ToolAudit", "AuditRecord",
+    "GateResult", "Decision",
     # System
     "BashTool",
     "BashResult",

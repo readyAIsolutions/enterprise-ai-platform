@@ -105,6 +105,14 @@ from .quality_gates import (
     GateConfig,
 )
 
+from .persistence import (
+    PromptStore,
+    PromptStoreError,
+    PromptNotFoundError as StorePromptNotFoundError,
+    VariantStats,
+    ABOptimizer,
+)
+
 
 __all__ = [
     # Registry
@@ -173,6 +181,12 @@ __all__ = [
     "GateCheck",
     "QualityGateResult",
     "GateConfig",
+    # Persistence
+    "PromptStore",
+    "PromptStoreError",
+    "StorePromptNotFoundError",
+    "VariantStats",
+    "ABOptimizer",
 ]
 
 __version__ = "1.0.0"

@@ -81,6 +81,9 @@ except ImportError:
         _sys.path.insert(0, _parent)
     from enterprise.platform_kernel import EventBus, Event, HealthStatus
 
+# ── Pluggable codec registry + ratio negotiation (stdlib, no engine dep) ───
+from .codecs import CodecRegistry, negotiate_ratio, _as_bytes as _as_raw_bytes, _measure as _data_size
+
 # ==========================================================================
 # Logger
 # ==========================================================================
@@ -281,6 +284,8 @@ class CompressionBridge:
             str(Path(__file__).parent.parent.parent.parent / "compression_bridge" / "carriers"),
         )
         self._initialized = False
+        # Pluggable stdlib codec registry (independent of the heavy core engine)
+        self._codec_registry = CodecRegistry()
 
     # ── Lifecycle ──────────────────────────────────────────────────────────
 
@@ -332,6 +337,7 @@ class CompressionBridge:
         data: bytes,
         mode: CompressionMode | str = CompressionMode.ADAPTIVE,
         carrier_name: str | None = None,
+        codec: str | None = None,
     ) -> CompressionResult:
         """Compress *data* using the given *mode*.
 
@@ -339,6 +345,10 @@ class CompressionBridge:
             data: Raw bytes to compress.
             mode: A CompressionMode enum value or its string name.
             carrier_name: Optional filename for carrier-based modes.
+            codec: Optional stdlib codec name ("auto", "xz", "gzip", "bz2",
+                "json", "noop"). When provided, compression is routed through
+                the pluggable codec registry instead of the core engine.
+                ``"auto"`` negotiates the best codec for *data*.
 
         Returns:
             A CompressionResult with .success, .ratio, .algorithm_used, etc.
@@ -347,6 +357,9 @@ class CompressionBridge:
             - ``compression.algorithm.selected``  (when ADAPTIVE picks a mode)
             - ``compression.completed``  (after every compression)
         """
+        if codec is not None:
+            return self._compress_with_codec(data, codec=codec)
+
         mode = self._resolve_mode(mode)
 
         # For ADAPTIVE mode, tap the selector to emit the selection event
@@ -398,6 +411,109 @@ class CompressionBridge:
             )
         )
 
+        return result
+
+    # ── Pluggable codec registry + ratio negotiation ───────────────────────
+
+    @property
+    def codec_registry(self) -> CodecRegistry:
+        """The pluggable stdlib codec registry attached to this bridge."""
+        return self._codec_registry
+
+    def select_codec(self, data: Any, codec: str = "auto") -> str:
+        """Negotiate (or resolve) the best codec name for *data*.
+
+        Args:
+            data: The payload to compress.
+            codec: ``"auto"`` to negotiate the best codec, or an explicit
+                codec name from the registry.
+
+        Returns:
+            The selected codec name.
+        """
+        if codec in (None, "", "auto"):
+            return self._codec_registry.best_codec(data).name
+        self._codec_registry.get(codec)  # raises KeyError if unknown
+        return codec
+
+    def negotiate_ratio(self, source_payload: Any) -> dict[str, Any]:
+        """Negotiate the best codec and report achievable savings.
+
+        Returns a dict with codec / ratio / original_size / compressed_size /
+        saved_bytes (see ``codecs.negotiate_ratio``).
+        """
+        return negotiate_ratio(source_payload)
+
+    def compress_best(self, data: Any) -> CompressionResult:
+        """Compress *data* using the auto-negotiated best stdlib codec."""
+        return self._compress_with_codec(data, codec="auto")
+
+    def _compress_with_codec(self, data: Any, codec: str = "auto") -> CompressionResult:
+        """Compress *data* through the pluggable codec registry.
+
+        Returns a ``CompressionResult`` (Drop-in compatible with the core
+        engine path) describing the negotiated codec operation.
+        """
+        name = self.select_codec(data, codec=codec)
+        selected = self._codec_registry.get(name)
+
+        start = time.perf_counter()
+        try:
+            encoded = selected.encode(data)
+            success = True
+            error = None
+        except Exception as exc:  # pragma: no cover - defensive
+            encoded = _as_raw_bytes(data)
+            success = False
+            error = str(exc)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        original_size = _data_size(data)
+        compressed_size = len(encoded)
+        ratio = (original_size / max(compressed_size, 1)) if original_size else 1.0
+
+        result = CompressionResult(
+            success=success,
+            original_size=original_size,
+            compressed_size=compressed_size,
+            ratio=ratio,
+            mode=CompressionMode.ADAPTIVE,
+            algorithm_used=f"codec:{name}",
+            metadata={
+                "codec": name,
+                "mime": selected.mime,
+                "saved_bytes": original_size - compressed_size,
+                "lossless": True,
+            },
+            error=error,
+            compression_time_ms=elapsed_ms,
+        )
+
+        self._events.emit(
+            "compression.completed",
+            {
+                "mode": "codec",
+                "codec": name,
+                "algorithm": result.algorithm_used,
+                "original_size": original_size,
+                "compressed_size": compressed_size,
+                "ratio": round(ratio, 3),
+                "success": success,
+                "duration_ms": round(elapsed_ms, 2),
+                "codec_mime": selected.mime,
+            },
+        )
+
+        self._record_metric(
+            CompressionMetric(
+                mode=f"codec:{name}",
+                original_size=original_size,
+                compressed_size=compressed_size,
+                ratio=ratio,
+                algorithm=result.algorithm_used or "unknown",
+                duration_ms=elapsed_ms,
+            )
+        )
         return result
 
     def decompress(

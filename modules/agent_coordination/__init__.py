@@ -27,6 +27,14 @@ from .scheduler import (  # noqa: F401
     Task, Scheduler, TaskStatus, SchedulingFactor, AgentCapacity,
 )
 
+# ── Durable Scheduler / Message Bus ──────────────────────────────────────────
+from .durable_scheduler import (  # noqa: F401
+    DurableScheduler, TaskQueue, SchedulerBus,
+    TaskStatus as DurableTaskStatus, TaskRecord,
+    SchedulerError, LeaseError, TaskNotFoundError, DeadLetterError,
+    create_durable_scheduler,
+)
+
 # ── Shared Knowledge ────────────────────────────────────────────────────────
 from .shared_knowledge import (  # noqa: F401
     KnowledgeEntry, SharedKnowledgeBase, KnowledgeDomain, AccessLevel,
@@ -84,6 +92,11 @@ __all__ = [
     "RecoveryPhase", "RedundancyMode", "Checkpoint", "SystemHealthReport",
     "FaultToleranceError", "AgentNotFoundError", "NoAvailableAgentsError",
     "CircuitOpenError", "RetryExhaustedError",
+    # Durable Scheduler / Message Bus
+    "DurableScheduler", "TaskQueue", "SchedulerBus",
+    "DurableTaskStatus", "TaskRecord",
+    "SchedulerError", "LeaseError", "TaskNotFoundError", "DeadLetterError",
+    "create_durable_scheduler",
 ]
 
 # --------------------------------------------------------------------------

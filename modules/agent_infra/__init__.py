@@ -89,6 +89,13 @@ from .voice import (
     VoiceSession,
 )
 
+from .status import (
+    InfraStatus,
+    ComponentStatus,
+    ComponentState,
+    CORE_COMPONENTS,
+)
+
 __all__ = [
     # Module
     "ClaudeCodeInfraModule",
@@ -120,6 +127,11 @@ __all__ = [
     "TTSProvider",
     "STTProvider",
     "VoiceSession",
+    # Status facade
+    "InfraStatus",
+    "ComponentStatus",
+    "ComponentState",
+    "CORE_COMPONENTS",
 ]
 
 __version__ = "1.0.0"
@@ -164,6 +176,8 @@ class ClaudeCodeInfraModule(Module):
         self._plugin_manager: Optional[PluginManager] = None
         self._buddy_manager: Optional[BuddyManager] = None
         self._voice: Optional[VoicePipeline] = None
+        # Unified health/status facade aggregating every core component.
+        self._infra = InfraStatus(module_name="agent_infra")
 
     # ── Properties ───────────────────────────────────────────────────────
 
@@ -192,6 +206,15 @@ class ClaudeCodeInfraModule(Module):
         """The active voice pipeline instance."""
         return self._voice
 
+    @property
+    def infra(self) -> InfraStatus:
+        """The unified InfraStatus facade aggregating all core components."""
+        return self._infra
+
+    def component(self, name: str) -> Optional[ComponentStatus]:
+        """Return a single component's health via the status facade."""
+        return self._infra.component(name)
+
     # ── Lifecycle ────────────────────────────────────────────────────────
 
     async def initialize(self) -> None:
@@ -212,10 +235,12 @@ class ClaudeCodeInfraModule(Module):
             )
             await self._tui.initialize()
             _logger.info("TUI Engine initialized")
+            self._infra.update("tui", ok=True, message="TUI engine initialized")
             self._publish("claude.infra.tui.started", {"mode": cfg.get("tui_mode", "prompt_toolkit")})
         except Exception:
             _logger.exception("TUI Engine failed to initialize")
             self._status = HealthStatus.DEGRADED
+            self._infra.update("tui", ok=False, message="TUI engine failed to initialize")
             raise
 
         # ── Server (FastAPI + WebSocket) ──────────────────────────────
@@ -226,10 +251,12 @@ class ClaudeCodeInfraModule(Module):
             )
             await self._server.initialize()
             _logger.info("ClaudServer started on port %s", self._server.port)
+            self._infra.update("server", ok=True, message="ClaudServer listening")
             self._publish("claude.infra.server.started", {"port": self._server.port})
         except Exception:
             _logger.exception("ClaudServer failed to initialize")
             self._status = HealthStatus.DEGRADED
+            self._infra.update("server", ok=False, message="ClaudServer failed to initialize")
             raise
 
         # ── Plugin System ─────────────────────────────────────────────
@@ -241,9 +268,13 @@ class ClaudeCodeInfraModule(Module):
             await self._plugin_manager.initialize()
             _logger.info("Plugin Manager initialized (%d plugins discovered)",
                          len(self._plugin_manager.plugins))
+            self._infra.update("plugin_system", ok=True,
+                               message="Plugin manager initialized")
         except Exception:
             _logger.exception("Plugin Manager failed to initialize")
             self._status = HealthStatus.DEGRADED
+            self._infra.update("plugin_system", ok=False,
+                               message="Plugin manager failed to initialize")
             raise
 
         # ── Buddy System ──────────────────────────────────────────────
@@ -254,9 +285,12 @@ class ClaudeCodeInfraModule(Module):
             )
             await self._buddy_manager.initialize()
             _logger.info("Buddy Manager initialized")
+            self._infra.update("buddy", ok=True, message="Buddy manager initialized")
         except Exception:
             _logger.exception("Buddy Manager failed to initialize")
             self._status = HealthStatus.DEGRADED
+            self._infra.update("buddy", ok=False,
+                               message="Buddy manager failed to initialize")
             raise
 
         # ── Voice Pipeline ────────────────────────────────────────────
@@ -267,67 +301,62 @@ class ClaudeCodeInfraModule(Module):
             )
             await self._voice.initialize()
             _logger.info("Voice Pipeline initialized")
+            self._infra.update("voice", ok=True, message="Voice pipeline initialized")
             self._publish("claude.infra.voice.started", {"providers": self._voice.active_providers})
         except Exception:
             _logger.exception("Voice Pipeline failed to initialize")
             self._status = HealthStatus.DEGRADED
+            self._infra.update("voice", ok=False,
+                               message="Voice pipeline failed to initialize")
             raise
 
         self._status = HealthStatus.HEALTHY
+        self._infra.update("bootstrap", ok=True, message="bootstrap sequence complete")
         self._publish("claude.infra.bootstrap.complete", {"version": "1.0.0"})
         _logger.info("Claude Code Infra module fully initialized")
 
     async def health_check(self) -> HealthStatus:
         """Verify all subsystems are operational.
 
+        Runs every per-subsystem health check, records the result into the
+        unified InfraStatus facade, then returns the aggregate HealthStatus.
+        The module is HEALTHY only when every core component is OK.
+
         Returns:
             HealthStatus indicating overall infrastructure health.
         """
-        checks: list[tuple[str, bool]] = []
+        # name -> (component key, subsystem object)
+        targets = [
+            ("tui", "tui", self._tui),
+            ("server", "server", self._server),
+            ("plugin_system", "plugins", self._plugin_manager),
+            ("buddy", "buddy", self._buddy_manager),
+            ("voice", "voice", self._voice),
+        ]
 
-        if self._tui is not None:
+        for comp_key, _label, obj in targets:
+            if obj is None:
+                self._infra.update(comp_key, ok=False,
+                                   message="subsystem not initialized")
+                continue
             try:
-                tui_ok = await self._tui.health_check()
-                checks.append(("tui", tui_ok))
+                ok = await obj.health_check()
             except Exception:
-                checks.append(("tui", False))
+                ok = False
+            self._infra.update(comp_key, ok=ok,
+                               message=f"{comp_key} health check")
 
-        if self._server is not None:
-            try:
-                server_ok = await self._server.health_check()
-                checks.append(("server", server_ok))
-            except Exception:
-                checks.append(("server", False))
+        # bootstrap reflects whether the core middleware aggregate is healthy
+        core_ok = True
+        for k in ("tui", "server", "plugin_system", "buddy", "voice"):
+            cs = self._infra.component(k)
+            if cs is None or not cs.ok:
+                core_ok = False
+                break
+        self._infra.update("bootstrap", ok=core_ok,
+                           message="aggregate core health check")
 
-        if self._plugin_manager is not None:
-            try:
-                pm_ok = await self._plugin_manager.health_check()
-                checks.append(("plugins", pm_ok))
-            except Exception:
-                checks.append(("plugins", False))
-
-        if self._buddy_manager is not None:
-            try:
-                bm_ok = await self._buddy_manager.health_check()
-                checks.append(("buddy", bm_ok))
-            except Exception:
-                checks.append(("buddy", False))
-
-        if self._voice is not None:
-            try:
-                v_ok = await self._voice.health_check()
-                checks.append(("voice", v_ok))
-            except Exception:
-                checks.append(("voice", False))
-
-        failed = [name for name, ok in checks if not ok]
-        if not failed:
-            self._status = HealthStatus.HEALTHY
-        elif len(failed) < 3:
-            self._status = HealthStatus.DEGRADED
-        else:
-            self._status = HealthStatus.UNHEALTHY
-
+        self._status = self._infra.overall_status()
         return self._status
 
     async def shutdown(self) -> None:

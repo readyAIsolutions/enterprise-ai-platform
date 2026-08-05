@@ -35,8 +35,15 @@ from .secret_rotation import (
     SequentialReKey,
     hash_secret,
 )
+from .vault import (
+    DEFAULT_PBKDF2_ITERATIONS,
+    AccessAudit,
+    RotationScheduler,
+    SecretVault,
+    VaultFacade,
+)
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __module__ = "secret_rotation"
 
 __all__ = [
@@ -52,6 +59,14 @@ __all__ = [
     "hash_secret",
     "DEFAULT_MAX_AGE_DAYS",
     "DEFAULT_ALERT_BEFORE_DAYS",
+    # Master-class encrypted vault
+    "SecretVault",
+    "RotationScheduler",
+    "AccessAudit",
+    "VaultFacade",
+    "DEFAULT_PBKDF2_ITERATIONS",
+    "create_secret_rotation_module",
+    "create_vault_facade",
 ]
 
 
@@ -81,3 +96,37 @@ def create_rotation_facade(config: Optional[Dict[str, Any]] = None) -> SecretRot
                 )
             )
     return facade
+
+
+def create_vault_facade(
+    db_path: str,
+    master_key: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> VaultFacade:
+    """Create an encrypted-at-rest :class:`VaultFacade`.
+
+    ``config`` may carry ``iterations`` (PBKDF2 cost) and ``actor``.
+    """
+    cfg = config or {}
+    return VaultFacade(
+        db_path=db_path,
+        master_key=master_key,
+        iterations=cfg.get("iterations", DEFAULT_PBKDF2_ITERATIONS),
+        actor=cfg.get("actor", "system"),
+    )
+
+
+def create_secret_rotation_module(
+    config: Optional[Dict[str, Any]] = None,
+) -> SecretRotationModule:
+    """Create (but do not initialize) a :class:`SecretRotationModule`.
+
+    Satisfies the standard ``create_<name>_module`` module contract so a
+    platform kernel can auto-discover and lifecycle-manage this module.
+
+    ``config`` currently wraps the same keys as :class:`SecretRotationModule`
+    (``max_age_days``, ``alert_before_days``, ``policies``).  The encrypted
+    vault is available separately via :class:`VaultFacade` /
+    :func:`create_vault_facade`.
+    """
+    return SecretRotationModule(config=config or {})

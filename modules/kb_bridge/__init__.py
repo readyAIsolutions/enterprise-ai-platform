@@ -32,12 +32,32 @@ from enterprise.platform_kernel import (
 )
 
 from .kb_bridge import KnowledgeBaseBridge, KBHealthCheck
+from .sources import (
+    KbDoc,
+    SourceAdapter,
+    FileSourceAdapter,
+    SqliteSourceAdapter,
+    JsonSourceAdapter,
+    SourceRegistry,
+    KbMerger,
+    KbQueryBridge,
+)
 
 __all__ = [
     "__version__",
     "ENIKBModule",
     "KnowledgeBaseBridge",
     "KBHealthCheck",
+    # pluggable knowledge-source adapters + merge facade
+    "KbDoc",
+    "SourceAdapter",
+    "FileSourceAdapter",
+    "SqliteSourceAdapter",
+    "JsonSourceAdapter",
+    "SourceRegistry",
+    "KbMerger",
+    "KbQueryBridge",
+    "create_kb_bridge_module",
 ]
 
 # ---------------------------------------------------------------------------
@@ -190,3 +210,49 @@ class ENIKBModule(Module):
             self._event_bus = event_bus
             if self._bridge is not None:
                 self._bridge.set_event_bus(event_bus)
+
+
+def create_kb_bridge_module(
+    config: Optional[Dict[str, Any]] = None,
+) -> ENIKBModule:
+    """Create an :class:`ENIKBModule` from an optional config dict.
+
+    The config may contain ``profile`` (str), ``publish_events`` (bool) and/or
+    ``sources`` (list of adapter constructor kwargs) to pre-wire pluggable
+    knowledge source adapters onto the module.
+
+    Args:
+        config: Optional module configuration dictionary.
+
+    Returns:
+        A fully constructed :class:`ENIKBModule`.
+    """
+    cfg = dict(config or {})
+    module = ENIKBModule(
+        config={
+            "profile": cfg.get("profile", "default"),
+            "publish_events": cfg.get("publish_events", True),
+        }
+    )
+    sources = cfg.get("sources")
+    if sources:
+        from .sources import KbQueryBridge
+
+        bridge = KbQueryBridge()
+        for source_cfg in sources:
+            kind = source_cfg.get("type")
+            if kind == "file":
+                bridge.register(FileSourceAdapter(source_cfg["directory"]))
+            elif kind == "sqlite":
+                bridge.register(
+                    SqliteSourceAdapter(
+                        source_cfg["database"],
+                        table=source_cfg.get("table", "docs"),
+                    )
+                )
+            elif kind == "json":
+                bridge.register(JsonSourceAdapter(source_cfg["path"]))
+            else:  # pragma: no cover - defensive
+                raise ValueError(f"Unknown source type: {kind!r}")
+        module._kb_sources = bridge  # type: ignore[attr-defined]
+    return module

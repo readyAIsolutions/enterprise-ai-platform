@@ -25,6 +25,16 @@ from enterprise.platform_kernel import (
     module,
 )
 
+from .risk import (
+    MitigationPlanner,
+    Risk,
+    RiskRegister,
+    SeverityBand,
+    SeverityScore,
+    STRIDE_MITIGATIONS,
+    ThreatAssessment,
+    ThreatEntry,
+)
 from .threat_model import (
     BUILTIN_THREATS,
     CATALOGUE_TACTICS,
@@ -56,6 +66,15 @@ __all__ = [
     # Data
     "BUILTIN_THREATS",
     "CATALOGUE_TACTICS",
+    # Risk register & mitigation planning (master class)
+    "SeverityScore",
+    "SeverityBand",
+    "Risk",
+    "RiskRegister",
+    "MitigationPlanner",
+    "ThreatAssessment",
+    "ThreatEntry",
+    "STRIDE_MITIGATIONS",
 ]
 
 _logger = logging.getLogger("enterprise.threat_model")

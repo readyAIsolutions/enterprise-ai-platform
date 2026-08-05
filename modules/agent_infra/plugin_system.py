@@ -592,15 +592,18 @@ class PluginManager:
             return instance
 
     async def unload_plugin(self, name: str) -> bool:
-        """Unload a plugin by name.
+        """Unload a plugin by name (idempotent).
+
+        Unloading a plugin that is not currently loaded is a safe no-op and
+        returns True, so repeated unloads never raise or double-register.
 
         Returns:
-            True if the plugin was unloaded.
+            True if the plugin was unloaded (or was already unloaded).
         """
         with self._lock:
             instance = self._plugins.get(name)
             if instance is None:
-                return False
+                return True  # idempotent: already unloaded
             instance.state = PluginState.UNLOADING
 
         # Call on_disable and on_unload hooks
@@ -688,6 +691,64 @@ class PluginManager:
         for name in names:
             results[name] = await self.reload_plugin(name)
 
+        return results
+
+    async def load_plugin(self, name: str) -> bool:
+        """Load a single plugin by name (idempotent).
+
+        Re-discovers the plugin directory by name and loads it. If the plugin
+        is already loaded with the same version this is a safe no-op and never
+        double-registers.
+
+        Returns:
+            True if the plugin is loaded (or was already loaded).
+        """
+        for plugin_path, manifest in self._discover_plugins():
+            meta = PluginMetadata.from_manifest(manifest)
+            if meta.name == name:
+                instance = await self._load_plugin(plugin_path, manifest)
+                return instance is not None and instance.state in (
+                    PluginState.LOADED, PluginState.ENABLED
+                )
+        _logger.warning("No plugin named '%s' discovered", name)
+        return False
+
+    def changed_plugins(self) -> Dict[str, bool]:
+        """Detect which loaded plugins changed on disk.
+
+        Recomputes each loaded plugin's checksum and reports True when the
+        current on-disk state differs from the last loaded checksum. This is
+        what powers change-aware hot-reload.
+
+        Returns:
+            Dict mapping plugin name to a boolean "changed" flag.
+        """
+        with self._lock:
+            names = list(self._plugins.keys())
+
+        result: Dict[str, bool] = {}
+        for name in names:
+            inst = self.get_plugin(name)
+            if inst is None:
+                continue
+            current = self._sandbox.compute_checksum(inst.path)
+            result[name] = bool(current) and current != inst.checksum
+        return result
+
+    async def reload_changed(self) -> Dict[str, bool]:
+        """Hot-reload only the plugins whose files changed on disk.
+
+        Idempotent: if nothing changed, nothing is reloaded and the returned
+        dict is empty. Each reloaded plugin's checksum is refreshed so a
+        second call is a no-op until files change again.
+
+        Returns:
+            Dict mapping changed plugin name to reload-success boolean.
+        """
+        results: Dict[str, bool] = {}
+        for name, is_changed in self.changed_plugins().items():
+            if is_changed:
+                results[name] = await self.reload_plugin(name)
         return results
 
     def get_plugin(self, name: str) -> Optional[PluginInstance]:

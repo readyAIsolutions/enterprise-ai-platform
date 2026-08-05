@@ -56,6 +56,27 @@ from .query_engine import (
     ToolCallResult,
 )
 
+# ── Provider Transport & Model Backends ─────────────────────────────────────
+from .providers import (
+    ChatProvider,
+    ProviderResponse,
+    RetryPolicy,
+    OpenAICompatibleProvider,
+    AnthropicProvider,
+    MockProvider,
+    EchoProvider,
+    ResilientProvider,
+    ProviderRegistry,
+    get_provider,
+)
+
+from .query_engine import (
+    ModelBackend,
+    AnthropicBackend,
+    OpenAICompatibleBackend,
+    SimulationBackend,
+)
+
 from .coordinator import (
     TaskCoordinator,
     ExecutionNode,
@@ -243,6 +264,22 @@ __all__ = [
     "ModelRouter",
     "StreamingResponse",
     "ToolCallResult",
+    # Backends
+    "ModelBackend",
+    "AnthropicBackend",
+    "OpenAICompatibleBackend",
+    "SimulationBackend",
+    # Provider Transport
+    "ChatProvider",
+    "ProviderResponse",
+    "RetryPolicy",
+    "OpenAICompatibleProvider",
+    "AnthropicProvider",
+    "MockProvider",
+    "EchoProvider",
+    "ResilientProvider",
+    "ProviderRegistry",
+    "get_provider",
     # Coordinator
     "TaskCoordinator",
     "ExecutionNode",

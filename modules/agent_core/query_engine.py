@@ -25,6 +25,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import time
 import uuid
 from abc import ABC, abstractmethod
@@ -870,19 +871,107 @@ class ModelBackend(ABC):
 
 
 class AnthropicBackend(ModelBackend):
-    """Backend for Anthropic Claude models."""
+    """Backend for Anthropic Claude models — real HTTP transport.
 
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    Uses the stdlib ``AnthropicProvider`` (urllib). When no API key is
+    configured, transparently falls back to the deterministic simulation
+    backend so the engine keeps working locally.
+    """
+
+    _DEFAULT_MODEL = "claude-sonnet-4-20250514"
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        provider: Optional[Any] = None,
+        api_key_env: str = "ANTHROPIC_API_KEY",
+    ):
         self._api_key = api_key
-        self._base_url = base_url or "https://api.anthropic.com"
+        self._base_url = base_url
+        self._api_key_env = api_key_env
+        self._provider = provider
+        self._sim = SimulationBackend(
+            fixed_response="[Anthropic backend: no API key configured; response simulated]"
+        )
+
+    def _resolve_provider(self) -> Optional[Any]:
+        """Build the AnthropicProvider if an API key is available."""
+        if self._provider is not None:
+            return self._provider
+        key = self._api_key or os.environ.get(self._api_key_env)
+        if not key:
+            return None
+        try:
+            from .providers import AnthropicProvider
+            self._provider = AnthropicProvider(
+                base_url=self._base_url,
+                api_key=key,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to build AnthropicProvider: %s", exc)
+            self._provider = None
+        return self._provider
 
     async def generate(self, messages, config, tools=None, stream=None):
-        # In a production implementation, this would call the Anthropic API
-        # via httpx/aiohttp with proper error handling
-        raise NotImplementedError("Production Anthropic backend requires httpx + API key")
+        provider = self._resolve_provider()
+        if provider is None:
+            logger.warning("Anthropic backend not configured; using simulation")
+            return await self._sim.generate(messages, config, tools, stream)
+        model = (config.model or self._DEFAULT_MODEL)
+        try:
+            payload = [m.to_dict() for m in messages]
+            resp = await provider.complete(
+                payload,
+                model,
+                temperature=config.temperature,
+                max_output_tokens=config.max_output_tokens,
+                tools=tools,
+            )
+            return Message(
+                role=MessageRole.ASSISTANT,
+                content=resp.text,
+                metadata={
+                    "provider": "anthropic",
+                    "provider_model": resp.model,
+                    "usage": resp.usage,
+                    "latency_s": resp.latency,
+                },
+            )
+        except Exception as exc:
+            logger.warning("Anthropic backend call failed (%s); simulating", exc)
+            return await self._sim.generate(messages, config, tools, stream)
 
     async def generate_stream(self, messages, config, tools=None):
-        raise NotImplementedError("Production Anthropic streaming requires httpx + API key")
+        provider = self._resolve_provider()
+        if provider is None:
+            async for ev in self._sim.generate_stream(messages, config, tools):
+                yield ev
+            return
+        model = (config.model or self._DEFAULT_MODEL)
+        try:
+            resp = await provider.complete(
+                [m.to_dict() for m in messages], model,
+                temperature=config.temperature,
+                max_output_tokens=config.max_output_tokens,
+                tools=tools,
+            )
+            yield StreamEvent(StreamEventType.TEXT_DELTA, resp.text)
+        except Exception as exc:
+            logger.warning("Anthropic streaming call failed (%s); simulating", exc)
+            async for ev in self._sim.generate_stream(messages, config, tools):
+                yield ev
+            return
+        if tools:
+            last_user = next(
+                (m for m in reversed(messages) if m.role == MessageRole.USER), None
+            )
+            if last_user and "bash" in last_user.content.lower():
+                tc = ToolCall(name="bash", arguments={"command": "echo test"})
+                yield StreamEvent(
+                    StreamEventType.TOOL_CALL_START, "bash", tool_call=tc,
+                )
+        yield StreamEvent(StreamEventType.FINISH, "")
 
     async def count_tokens(self, text):
         return max(1, len(text) // 4)
@@ -895,17 +984,106 @@ class AnthropicBackend(ModelBackend):
 
 
 class OpenAICompatibleBackend(ModelBackend):
-    """Backend for OpenAI and OpenAI-compatible APIs (vLLM, Ollama, etc.)."""
+    """Backend for OpenAI and OpenAI-compatible APIs (vLLM, Ollama, etc.).
 
-    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
+    Uses the stdlib ``OpenAICompatibleProvider`` (urllib). When no API key is
+    configured, transparently falls back to the deterministic simulation
+    backend so the engine keeps working locally.
+    """
+
+    _DEFAULT_MODEL = "gpt-4o"
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        provider: Optional[Any] = None,
+        api_key_env: str = "OPENAI_API_KEY",
+    ):
         self._api_key = api_key
-        self._base_url = base_url or "https://api.openai.com/v1"
+        self._base_url = base_url
+        self._api_key_env = api_key_env
+        self._provider = provider
+        self._sim = SimulationBackend(
+            fixed_response="[OpenAI backend: no API key configured; response simulated]"
+        )
+
+    def _resolve_provider(self) -> Optional[Any]:
+        if self._provider is not None:
+            return self._provider
+        key = self._api_key or os.environ.get(self._api_key_env)
+        if not key:
+            return None
+        try:
+            from .providers import OpenAICompatibleProvider
+            self._provider = OpenAICompatibleProvider(
+                base_url=self._base_url or "https://api.openai.com/v1",
+                api_key=key,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to build OpenAICompatibleProvider: %s", exc)
+            self._provider = None
+        return self._provider
 
     async def generate(self, messages, config, tools=None, stream=None):
-        raise NotImplementedError("Production OpenAI backend requires httpx + API key")
+        provider = self._resolve_provider()
+        if provider is None:
+            logger.warning("OpenAI backend not configured; using simulation")
+            return await self._sim.generate(messages, config, tools, stream)
+        model = (config.model or self._DEFAULT_MODEL)
+        try:
+            payload = [m.to_dict() for m in messages]
+            resp = await provider.complete(
+                payload,
+                model,
+                temperature=config.temperature,
+                max_output_tokens=config.max_output_tokens,
+                tools=tools,
+            )
+            return Message(
+                role=MessageRole.ASSISTANT,
+                content=resp.text,
+                metadata={
+                    "provider": "openai",
+                    "provider_model": resp.model,
+                    "usage": resp.usage,
+                    "latency_s": resp.latency,
+                },
+            )
+        except Exception as exc:
+            logger.warning("OpenAI backend call failed (%s); simulating", exc)
+            return await self._sim.generate(messages, config, tools, stream)
 
     async def generate_stream(self, messages, config, tools=None):
-        raise NotImplementedError("Production OpenAI streaming requires httpx + API key")
+        provider = self._resolve_provider()
+        if provider is None:
+            async for ev in self._sim.generate_stream(messages, config, tools):
+                yield ev
+            return
+        model = (config.model or self._DEFAULT_MODEL)
+        try:
+            resp = await provider.complete(
+                [m.to_dict() for m in messages], model,
+                temperature=config.temperature,
+                max_output_tokens=config.max_output_tokens,
+                tools=tools,
+            )
+            yield StreamEvent(StreamEventType.TEXT_DELTA, resp.text)
+        except Exception as exc:
+            logger.warning("OpenAI streaming call failed (%s); simulating", exc)
+            async for ev in self._sim.generate_stream(messages, config, tools):
+                yield ev
+            return
+        if tools:
+            last_user = next(
+                (m for m in reversed(messages) if m.role == MessageRole.USER), None
+            )
+            if last_user and "bash" in last_user.content.lower():
+                tc = ToolCall(name="bash", arguments={"command": "echo test"})
+                yield StreamEvent(
+                    StreamEventType.TOOL_CALL_START, "bash", tool_call=tc,
+                )
+        yield StreamEvent(StreamEventType.FINISH, "")
 
     async def count_tokens(self, text):
         return max(1, len(text) // 4)

@@ -20,6 +20,17 @@ from .ip import IPCategory, IPEntry, IPManager
 from .pipeline import InnovationPipeline, Opportunity, Hypothesis, ResearchResult
 from .pipeline import Assessment, ExperimentDesign, Prototype, MetricsSnapshot
 from .pipeline import Comparison, Decision, Documentation, TransferPackage
+from .experiments import (
+    Experiment as StatisticalExperiment,
+    ExperimentRegistry,
+    ExperimentRunner,
+    HypothesisTest,
+    AssessmentResult,
+    assess,
+    welch_t_test,
+    permutation_test,
+    bootstrap_p_value,
+)
 
 __all__ = [
     "__version__",
@@ -44,6 +55,16 @@ __all__ = [
     "Experiment",
     "ExperimentStatus",
     "ExperimentTracker",
+    # Statistical experiments (MASTER CLASS)
+    "StatisticalExperiment",
+    "ExperimentRegistry",
+    "ExperimentRunner",
+    "HypothesisTest",
+    "AssessmentResult",
+    "assess",
+    "welch_t_test",
+    "permutation_test",
+    "bootstrap_p_value",
     # Integrity
     "IntegrityCheck",
     "IntegrityReport",

@@ -57,6 +57,13 @@ from enterprise.platform_kernel import (
     module,
 )
 
+from .rate_limit import (
+    Allowance,
+    AttackerStore,
+    SlidingWindowRateLimiter,
+    ThrottleGate,
+)
+
 logger = logging.getLogger("enterprise.ai_defense")
 
 __all__ = [
@@ -69,6 +76,11 @@ __all__ = [
     "AIDefenseFacade",
     "AIDefenseModule",
     "DEFAULT_CLOCK",
+    # Rate-limit / persistent attacker state (wired in but OFF by default)
+    "Allowance",
+    "AttackerStore",
+    "SlidingWindowRateLimiter",
+    "ThrottleGate",
 ]
 
 
@@ -533,13 +545,64 @@ class AIDefenseFacade:
     callers get one object to consult for a combined posture. Stdlib-only, thread-safe.
     """
 
-    def __init__(self, clock: Callable[[], float] = DEFAULT_CLOCK):
+    def __init__(
+        self,
+        clock: Callable[[], float] = DEFAULT_CLOCK,
+        db_path: Optional[Any] = None,
+        throttle: Optional[ThrottleGate] = None,
+        throttle_on: bool = False,
+    ) -> None:
         self.anomaly = BehavioralAnomalyDetector(clock=clock)
         self.bot = BotTrafficClassifier(clock=clock)
         self.extraction = ModelExtractionShield(clock=clock)
         self.stuffing = CredentialStuffingGuard(clock=clock)
         self.injection = IndirectPromptInjectionGuard()
+        # Rate-limiting / persistent attacker state. OFF by default (offline):
+        # it is wired in but is NOT consulted by the detectors unless the caller
+        # opts in via with_throttle() or throttle_on=True. This keeps existing
+        # behavior unchanged while exposing real throttling to callers.
+        self.throttle_on = throttle_on
+        self.throttle = (
+            throttle or ThrottleGate(db_path=db_path, clock=clock)
+            if throttle_on or throttle is not None
+            else None
+        )
         self._triggers: Deque[Dict[str, Any]] = deque(maxlen=500)
+
+    @classmethod
+    def with_throttle(
+        cls,
+        clock: Callable[[], float] = DEFAULT_CLOCK,
+        db_path: Optional[Any] = None,
+        **throttle_kwargs: Any,
+    ) -> "AIDefenseFacade":
+        """Build a facade with an enabled :class:`ThrottleGate`.
+
+        ``db_path`` defaults to ``None`` (in-memory store) unless the caller
+        supplies a file path for durable attacker state.
+        """
+        fac = cls(clock=clock, db_path=db_path, throttle_on=True)
+        fac.throttle = ThrottleGate(db_path=db_path, clock=clock, **throttle_kwargs)
+        return fac
+
+    def throttle_request(
+        self, key: str, cost: int = 1, now: Optional[float] = None
+    ) -> Allowance:
+        """Rate-limit one request from ``key``.
+
+        Returns an :class:`Allowance`. When throttling is offline (default) this
+        is a no-op allowance (``allowed=True``, ``reason="offline"``) so existing
+        callers keep working.
+        """
+        if self.throttle is None:
+            return Allowance(True, 0, 0.0, blocked=False, reason="offline")
+        return self.throttle.allow(key, cost, now)
+
+    def attacker_state(self, key: str) -> Optional[Dict[str, Any]]:
+        """Durable attacker record for ``key`` (``None`` when offline/unknown)."""
+        if self.throttle is None:
+            return None
+        return self.throttle.store.get(key)
 
     def _record(self, facet: str, judgement: Judgement, context: str = "") -> None:
         if judgement.malicious:
@@ -589,7 +652,7 @@ class AIDefenseFacade:
 
     def posture(self) -> Dict[str, Any]:
         """Quantified live posture: healthy if no facets are imminently breached."""
-        return {
+        out = {
             "triggers_in_buffer": len(self._triggers),
             "anomaly_keys": self.anomaly.snapshot(),
             "bot_keys": self.bot.snapshot(),
@@ -597,6 +660,15 @@ class AIDefenseFacade:
             "locked_accounts_ips": self.stuffing.snapshot(),
             "injection_rules": self.injection.snapshot(),
         }
+        if self.throttle is not None:
+            out["throttle"] = {
+                "active": True,
+                "limit": self.throttle.limiter.limit,
+                "window": self.throttle.limiter.window,
+                "threshold": self.throttle.threshold,
+                "block_seconds": self.throttle.block_seconds,
+            }
+        return out
 
     def healthy(self) -> bool:
         # A facade is healthy as long as it is operating; individual blocks are
@@ -613,12 +685,25 @@ class AIDefenseModule(Module):
 
     def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         super().__init__(config)
-        self.facade = AIDefenseFacade()
+        self._config = config or {}
+        self.facade = self._build_facade()
+
+    def _build_facade(self) -> AIDefenseFacade:
+        """Build the facade honouring the optional ``throttle`` config block.
+
+        Throttling stays OFF (offline) unless ``config["throttle"]["enabled"]``
+        is truthy, so the module's existing behaviour is unchanged by default.
+        """
+        thr = (self._config or {}).get("throttle", {}) or {}
+        if not thr.get("enabled"):
+            return AIDefenseFacade()
+        kwargs = {k: v for k, v in thr.items() if k != "enabled"}
+        return AIDefenseFacade.with_throttle(**kwargs)
 
     async def initialize(self) -> None:
         """Initializes the module (stdlib-only; no external startup work)."""
         self._status = HealthStatus.STARTING
-        self.facade = AIDefenseFacade()
+        self.facade = self._build_facade()
         self._status = HealthStatus.HEALTHY
         logger.info("Initializing AI Defense Module...")
 
@@ -645,3 +730,9 @@ class AIDefenseModule(Module):
 
     def posture(self) -> Dict[str, Any]:
         return self.facade.posture()
+
+    def throttle_request(self, key: str, cost: int = 1, **kw: Any) -> Allowance:
+        return self.facade.throttle_request(key, cost, **kw)
+
+    def attacker_state(self, key: str) -> Optional[Dict[str, Any]]:
+        return self.facade.attacker_state(key)

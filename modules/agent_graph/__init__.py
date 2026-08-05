@@ -40,10 +40,15 @@ from .agent_graph import (
     END,
     AgentGraph,
     AgentGraphFacade,
+    DiGraphBuilder,
     GraphEdge,
     GraphNode,
     GraphRun,
+    RoutingFn,
+    SqliteCheckpointStore,
     StateCheckpointStore,
+    StateGraph,
+    StateGraphRun,
     SupervisorGraph,
 )
 
@@ -63,6 +68,12 @@ __all__ = [
     "SupervisorGraph",
     "START",
     "END",
+    # Durable state-graph DSL
+    "StateGraph",
+    "DiGraphBuilder",
+    "StateGraphRun",
+    "SqliteCheckpointStore",
+    "RoutingFn",
 ]
 
 _logger = logging.getLogger("enterprise.agent_graph")
@@ -91,6 +102,10 @@ class AgentGraphModule(Module):
         self._event_bus: EventBus | None = None
         self._lock = threading.RLock()
         self._max_steps: int = int(self._config.get("max_steps", 1000) or 1000)
+        # db_path for the durable state-graph store. None -> in-memory (tests).
+        raw_db = self._config.get("db_path")
+        self._db_path: Optional[str] = None if raw_db is None else str(raw_db)
+        self._state_store: SqliteCheckpointStore | None = None
 
     # -- Properties ---------------------------------------------------------
 
@@ -105,6 +120,12 @@ class AgentGraphModule(Module):
         """Configured cycle-protection bound."""
         return self._max_steps
 
+    @property
+    def state_store(self) -> SqliteCheckpointStore | None:
+        """The module's durable SQLite checkpoint store (None before init)."""
+        with self._lock:
+            return self._state_store
+
     # -- Lifecycle ----------------------------------------------------------
 
     async def initialize(self) -> None:
@@ -116,9 +137,11 @@ class AgentGraphModule(Module):
         try:
             facade = AgentGraphFacade()
             graph = facade.build_graph(max_steps=self._max_steps)
+            state_store = SqliteCheckpointStore(db_path=self._db_path)
             with self._lock:
                 self._facade = facade
                 self._graph = graph
+                self._state_store = state_store
                 self._status = HealthStatus.HEALTHY
             _logger.info("Agent graph initialized")
         except Exception as exc:  # noqa: BLE001 - lifecycle must report UNHEALTHY
@@ -144,8 +167,11 @@ class AgentGraphModule(Module):
             _logger.info("Shutting down agent_graph module...")
             if self._facade is not None:
                 self._facade.clear()
+            if self._state_store is not None:
+                self._state_store.close()
             self._facade = None
             self._graph = None
+            self._state_store = None
             self._status = HealthStatus.HEALTHY
 
     # -- Event Bus Wiring ---------------------------------------------------
@@ -166,6 +192,28 @@ class AgentGraphModule(Module):
         """Create (or replace) the active graph bound to this module's store."""
         return self._require_facade().build_graph(
             start=start, end=end, max_steps=self._max_steps
+        )
+
+    def build_state_graph(
+        self,
+        name: Optional[str] = None,
+        start: str = START,
+        end: str = END,
+        store: Optional[SqliteCheckpointStore] = None,
+    ) -> StateGraph:
+        """Create a durable :class:`StateGraph` bound to this module's store.
+
+        If ``store`` is omitted the graph shares the module's configured SQLite
+        checkpoint store (db_path config, or in-memory when unset).
+        """
+        if store is None:
+            store = self._require_facade_state_store()
+        return StateGraph(
+            name=name or "agent_graph",
+            checkpoint_store=store,
+            start=start,
+            end=end,
+            max_steps=self._max_steps,
         )
 
     def add_node(self, name: str, fn: Any = None) -> GraphNode:
@@ -212,6 +260,12 @@ class AgentGraphModule(Module):
             raise RuntimeError("agent_graph module is not initialized")
         return facade
 
+    def _require_facade_state_store(self) -> SqliteCheckpointStore:
+        store = self.state_store
+        if store is None:
+            raise RuntimeError("agent_graph module is not initialized")
+        return store
+
     def _emit(self, topic: str, payload: Dict[str, Any]) -> None:
         """Publish an event on the wired bus (no-op if none is set)."""
         with self._lock:
@@ -229,3 +283,13 @@ class AgentGraphModule(Module):
             )
         except Exception as exc:  # noqa: BLE001 - defensive
             _logger.warning("Failed to publish event %s: %s", topic, exc)
+
+
+def create_agent_graph_module(config: Optional[Dict[str, Any]] = None) -> AgentGraphModule:
+    """Factory: create an :class:`AgentGraphModule` instance.
+
+    Accepts optional config keys ``max_steps`` (cycle bound) and ``db_path``
+    (durable SQLite checkpoint path for the state-graph store; ``None`` yields
+    an in-memory store).
+    """
+    return AgentGraphModule(config)

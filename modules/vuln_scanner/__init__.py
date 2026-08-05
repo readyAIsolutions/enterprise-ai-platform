@@ -35,6 +35,15 @@ from enterprise.platform_kernel import (
     module,
 )
 
+from .campaign import (
+    CampaignReport,
+    CampaignRunner,
+    ProbeAffinity,
+    ScanCampaign,
+    Severity,
+    SeverityMapping,
+    SeverityWeight,
+)
 from .vuln_scanner import (
     DEFAULT_THRESHOLD,
     DataExfilProbe,
@@ -82,6 +91,14 @@ __all__ = [
     # Types
     "ProbeResult",
     "ScanReport",
+    # Master-class campaigns + affinity + severity
+    "Severity",
+    "SeverityWeight",
+    "SeverityMapping",
+    "ProbeAffinity",
+    "ScanCampaign",
+    "CampaignReport",
+    "CampaignRunner",
 ]
 
 _logger = logging.getLogger("enterprise.vuln_scanner")

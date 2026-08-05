@@ -43,7 +43,10 @@ __all__ = [
     "GraphSecurityManager",
     "AccessPolicy",
     "AuditLogger",
-"KGTestCaseEntity",
+    "KGTestCaseEntity",
+    # Persistence
+    "KGPersistence",
+    "create_persistence",
 ]
 
 from .entities import Entity, EntityType, EntityRegistry, KGTestCaseEntity
@@ -54,6 +57,7 @@ from .resolution import EntityResolver, ResolutionStrategy, ResolutionResult
 from .contradiction import ContradictionManager, ContradictionRecord, ContradictionStatus
 from .retrieval import GraphQueryEngine, QueryBuilder, QueryResult
 from .security import GraphSecurityManager, AccessPolicy, AuditLogger
+from .persistence import KGPersistence, create_persistence
 
 # --------------------------------------------------------------------------
 
@@ -75,6 +79,7 @@ from enterprise.platform_kernel import HealthStatus, Module, module
 _KERNEL_VERSION = globals().get("__version__", "1.0.0")
 
 from .entities import EntityRegistry
+from .persistence import KGPersistence, create_persistence
 
 _logger = logging.getLogger("enterprise.knowledge_graph")
 
@@ -91,9 +96,20 @@ class KnowledgeGraphModule(Module):
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
+        cfg = config or {}
         self._lock = threading.RLock()
         self._component = None
         self._init_error = None
+        # Durable SQLite persistence. db_path=None => in-memory; a directory
+        # or file path enables durable storage. Defaults to data/ under the
+        # enterprise repo root.
+        db_path = cfg.get("db_path", "data")
+        self.persistence: Optional[KGPersistence] = None
+        try:
+            self.persistence = create_persistence(None if db_path is None else db_path)
+        except Exception as e:  # pragma: no cover - degrade gracefully
+            _logger.warning("%s persistence init failed: %s", self.name, e)
+            self.persistence = None
 
     async def initialize(self) -> None:
         with self._lock:

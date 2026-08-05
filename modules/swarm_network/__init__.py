@@ -1,10 +1,10 @@
 """
 Swarm Network Optimization OS — Enterprise Module
 ==================================================
-Enterprise-grade WiFi-aware connection multiplexer for maximum agent concurrency.
+Enterprise-grade connection multiplexer for maximum agent concurrency.
 Integrates the Swarm Turbocharger proxy as a first-class enterprise module.
-
-@module(name='swarm_network', version='2.0.0')
+The registered module name is 'swarm_network' (registered exactly ONCE at the
+class definition via the @module decorator).
 
 Capabilities:
   - 5-layer connection optimization (kernel TCP, token bucket, pooling, pacing, health)
@@ -41,6 +41,15 @@ except ImportError:
     from enterprise.platform_kernel import Module, module, HealthStatus, EventBus
 
 logger = logging.getLogger("enterprise.swarm_network")
+
+from .mux import (  # noqa: E402
+    Link,
+    ConnectionScorer,
+    LinkManager,
+    Muxer,
+    select_route,
+    MUX_NOT_AVAILABLE,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -363,5 +372,26 @@ __all__ = [
     "get_aggressive_concurrency",
     "get_sustained_rate",
     "get_burst_capacity",
+    # Connection multiplexing (mux.py)
+    "Link",
+    "ConnectionScorer",
+    "LinkManager",
+    "Muxer",
+    "select_route",
+    "MUX_NOT_AVAILABLE",
 ]
+
+
+def create_swarm_network_module(
+    config: Optional[Dict[str, Any]] = None,
+) -> "SwarmNetworkModule":
+    """Factory: create a swarm_network module instance (not yet initialized).
+
+    Supported config keys (all optional):
+        - wifi_interface: WiFi interface to monitor (default "wlp4s0").
+        - turbocharger_port: Turbocharger proxy health port (default 8922).
+        - turbo_mode: bool, enable aggressive concurrency (default False).
+        - auto_recovery: bool, restart turbocharger if it drops (default True).
+    """
+    return SwarmNetworkModule(config=config or {})
 __version__ = "2.0.0"

@@ -42,6 +42,19 @@ from .task_harness import (
     TaskHarnessError,
     TaskStatus,
 )
+from .runner import (
+    Deadline,
+    ErrorClass,
+    ErrorClassifier,
+    Heartbeat,
+    PermanentError,
+    RetryableError,
+    RetryPolicy,
+    RunnerStats,
+    RunningStatus,
+    WorkerRunner,
+    build_runner,
+)
 
 __all__ = [
     "__version__",
@@ -50,6 +63,18 @@ __all__ = [
     "TaskCard",
     "TaskStatus",
     "TaskHarnessError",
+    # Resilient runner layer (task_harness/runner.py)
+    "RetryPolicy",
+    "Deadline",
+    "Heartbeat",
+    "WorkerRunner",
+    "ErrorClassifier",
+    "ErrorClass",
+    "RunnerStats",
+    "RunningStatus",
+    "RetryableError",
+    "PermanentError",
+    "build_runner",
 ]
 
 # ---------------------------------------------------------------------------

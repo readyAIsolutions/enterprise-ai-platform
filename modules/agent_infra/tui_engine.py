@@ -586,17 +586,19 @@ class TUIHealthCheck:
     async def run(self) -> bool:
         """Run a health check on the TUI engine.
 
+        The engine is healthy when it has been initialized. This is consistent
+        with ``TUIEngine.initialize()`` which marks the engine HEALTHY once
+        the component tree, theme, and keybindings are wired. Returning
+        ``_initialized`` avoids the prior inconsistency where a fully
+        initialised engine (headless or live) reported unhealthy.
+
         Returns:
             True if the engine is operational.
         """
         if not PROMPT_TOOLKIT_AVAILABLE:
             _logger.warning("prompt_toolkit not available — TUI in headless mode")
-            return True  # Headless mode is valid
 
-        if self._engine._application is None and self._engine._initialized:
-            return False
-
-        return True
+        return bool(self._engine._initialized)
 
 
 class TUIEngine:

@@ -29,6 +29,8 @@ from enterprise.platform_kernel import (
     module,
 )
 
+from .risk import ThreatAssessment
+
 _logger = logging.getLogger("enterprise.threat_model")
 
 
@@ -696,6 +698,8 @@ class ThreatModelFacade:
         self.assessor = ThreatAssessor(self.library)
         self.mapper = STRIDEThreatMapper()
         self.reporter = ThreatModelReporter()
+        # Master-class risk register, mitigation planning & severity scoring.
+        self.risk = ThreatAssessment()
 
     # -- library delegations -------------------------------------------------
 

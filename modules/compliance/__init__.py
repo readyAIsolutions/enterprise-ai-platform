@@ -48,13 +48,28 @@ from .compliance import (
     controls_for_framework,
 )
 
-__version__ = "1.0.0"
+from .evidence import (
+    ControlEvidence,
+    EvidenceRegister,
+    GapAnalysis,
+    assess,
+    ingest,
+)
+
+__version__ = "1.1.0"
 __module__ = "compliance"
+
+
+def create_compliance_module(config=None):
+    """Factory: build a :class:`ComplianceModule` instance from a config dict."""
+    return ComplianceModule(config)
+
 
 __all__ = [
     "__version__",
     "ComplianceModule",
     "ComplianceFacade",
+    "create_compliance_module",
     # Core classes
     "Control",
     "CompControl",
@@ -64,6 +79,12 @@ __all__ = [
     "GapAnalyzer",
     "ComplianceReport",
     "controls_for_framework",
+    # Live evidence classes
+    "ControlEvidence",
+    "EvidenceRegister",
+    "GapAnalysis",
+    "assess",
+    "ingest",
     # Constants
     "BUILTIN_CONTROLS",
     "STATUS_IMPLEMENTED",

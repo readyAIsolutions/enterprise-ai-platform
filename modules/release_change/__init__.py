@@ -22,6 +22,19 @@ from .changes import ChangeType, RiskLevel, ChangeTemplate, ChangeClassifier
 from .strategies import StrategyType, DeploymentStrategy, StrategyEngine
 from .quality_gates import GateType, GateStatus, QualityGate, QualityGateEngine
 from .deliverables import DeliverableType, Deliverable, DeliverableManager
+from .flags import (
+    RuleOp,
+    TargetingRule,
+    FeatureFlag,
+    FlagEngine,
+    CanaryState,
+    Canary,
+    GateDecision,
+    ReleaseGate,
+    AuditEntry,
+    AuditLog,
+    hash_bucket,
+)
 
 __all__ = [
     # Workflow
@@ -46,6 +59,18 @@ __all__ = [
     "DeliverableType",
     "Deliverable",
     "DeliverableManager",
+    # Runtime Feature Flags / Canary
+    "RuleOp",
+    "TargetingRule",
+    "FeatureFlag",
+    "FlagEngine",
+    "CanaryState",
+    "Canary",
+    "GateDecision",
+    "ReleaseGate",
+    "AuditEntry",
+    "AuditLog",
+    "hash_bucket",
 ]
 
 # --------------------------------------------------------------------------

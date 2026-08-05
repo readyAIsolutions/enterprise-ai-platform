@@ -417,10 +417,73 @@ class PromptRegistry:
         PromptStatus.ARCHIVED: {PromptStatus.DRAFT},
     }
 
-    def __init__(self, storage_path: Optional[str] = None):
+    def __init__(self, storage_path: Optional[str] = None, db_path: Optional[str] = None):
         self._prompts: Dict[str, PromptRecord] = {}
         self._lock = threading.RLock()
         self._storage_path = storage_path
+        self._db_path = db_path
+        self._store = None
+
+        # Optional SQLite persistence. When db_path is provided, the registry
+        # is backed by a durable PromptStore (default data/ when given as a
+        # directory; None keeps the registry purely in-memory, preserving the
+        # original API).
+        if db_path is not None:
+            from .persistence import PromptStore
+
+            self._store = PromptStore(db_path)
+            self._load_from_store()
+
+    # ------------------------------------------------------------------
+    # Persistence (SQLite-backed)
+    # ------------------------------------------------------------------
+
+    def _load_from_store(self) -> None:
+        """Load all persisted records into memory on (re)open."""
+        if self._store is None:
+            return
+        for rec in self._store.list_records():
+            record_data = rec.get("record")
+            if record_data:
+                self._prompts[record_data["prompt_id"]] = PromptRecord.from_dict(record_data)
+
+    def _persist(self, prompt_id: str) -> None:
+        """Write a single prompt record through to the SQLite store."""
+        if self._store is None:
+            return
+        record = self._prompts[prompt_id]
+        current = record.versions[record.current_version]
+        self._store.put(
+            name=record.name,
+            template=current.template,
+            version=record.current_version,
+            params={},
+            status=current.status.value,
+            metadata={**record.metadata, "prompt_id": record.prompt_id},
+            record_json=record.to_dict(),
+        )
+
+    def _delete_from_store(self, prompt_id: str) -> None:
+        if self._store is None:
+            return
+        # Remove every stored record whose metadata references this prompt_id.
+        for name in list(self._store.list()):
+            rec = self._store.get_or_none(name)
+            if rec and rec.get("metadata", {}).get("prompt_id") == prompt_id:
+                self._store.delete(name)
+
+    def flush(self) -> None:
+        """Persist the entire registry to the backing store (idempotent)."""
+        if self._store is None:
+            return
+        for prompt_id in self._prompts:
+            self._persist(prompt_id)
+
+    def close(self) -> None:
+        """Flush and close the backing store (memory-only: no-op)."""
+        if self._store is not None:
+            self.flush()
+            self._store.close()
 
     # ------------------------------------------------------------------
     # Core CRUD
@@ -493,6 +556,7 @@ class PromptRegistry:
         with self._lock:
             self._prompts[prompt_id] = record
 
+        self._persist(prompt_id)
         return prompt_id
 
     def get(self, prompt_id: str) -> PromptRecord:
@@ -640,6 +704,7 @@ class PromptRegistry:
                 record.metadata = {**record.metadata, **metadata}
             record.updated_at = datetime.now(timezone.utc)
 
+        self._persist(prompt_id)
         return new_version
 
     def delete(self, prompt_id: str, hard: bool = False) -> None:
@@ -650,6 +715,7 @@ class PromptRegistry:
             with self._lock:
                 if prompt_id in self._prompts:
                     del self._prompts[prompt_id]
+            self._delete_from_store(prompt_id)
         else:
             self.set_status(prompt_id, PromptStatus.ARCHIVED)
 
@@ -693,6 +759,7 @@ class PromptRegistry:
                 author=author,
             ))
             record.updated_at = datetime.now(timezone.utc)
+        self._persist(prompt_id)
 
     # ------------------------------------------------------------------
     # Version Management
@@ -762,6 +829,7 @@ class PromptRegistry:
             record.changelog.append(entry)
             record.updated_at = datetime.now(timezone.utc)
 
+        self._persist(prompt_id)
         return new_version
 
     def get_history(self, prompt_id: str) -> List[ChangelogEntry]:
@@ -828,6 +896,7 @@ class PromptRegistry:
         with self._lock:
             record = self._prompts[prompt_id]
             record.performance_history.append(metric)
+        self._persist(prompt_id)
 
     def get_metrics(
         self,

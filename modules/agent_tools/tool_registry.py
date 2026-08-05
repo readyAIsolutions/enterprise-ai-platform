@@ -38,6 +38,12 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+# ── Master-class tool gate + audit ─────────────────────────────────────────
+try:
+    from .gate import ToolGate, ToolPolicy, ToolAudit, Decision, GateResult
+except ImportError:  # pragma: no cover - fallback for loose-import environments
+    from agent_tools.gate import ToolGate, ToolPolicy, ToolAudit, Decision, GateResult
+
 # ── Platform imports ───────────────────────────────────────────────────────
 try:
     from enterprise.platform_kernel import EventBus, Event, EventPriority, HealthStatus
@@ -547,6 +553,22 @@ class ToolRegistry:
         self._permission_gate = PermissionGate(
             default_level=PermissionLevel(cfg.get("default_permission", "allow"))
         )
+
+        # ── Master-class tool gate + audit (declarative policy sandbox) ──
+        # Default: a permissive policy (allow everything) + a live audit log.
+        # Config may supply {"tool_gate": {"policy": {...}}} to restrict tools.
+        self._tool_audit = ToolAudit()
+        try:
+            gate_cfg = cfg.get("tool_gate") or cfg.get("gate") or {}
+            if gate_cfg and gate_cfg.get("policy"):
+                self._tool_gate: ToolGate = ToolGate.from_config(
+                    {"policy": gate_cfg.get("policy", {})}
+                )
+            else:
+                self._tool_gate = ToolGate(audit=self._tool_audit)
+        except Exception:
+            _log.debug("Tool gate disabled; defaulting to permissive gate", exc_info=True)
+            self._tool_gate = ToolGate(audit=self._tool_audit)
         self._active_executions: Dict[str, asyncio.Task] = {}
         self._total_invocations: int = 0
         self._started_at: datetime = datetime.now(timezone.utc)
@@ -630,6 +652,25 @@ class ToolRegistry:
         category = self._tool_categories.get(tool_name)
         return self._permission_gate.check(tool_name, category)
 
+    # ── Master-class Tool Gate & Audit access ───────────────────────────
+
+    def set_tool_gate(self, gate: ToolGate) -> None:
+        """Replace the master-class tool gate (policy sandbox)."""
+        with self._lock:
+            self._tool_gate = gate
+
+    def get_tool_gate(self) -> ToolGate:
+        """Access the active tool gate (policy sandbox)."""
+        return self._tool_gate
+
+    def get_tool_audit(self) -> ToolAudit:
+        """Access the append-only tool audit log."""
+        return self._tool_audit
+
+    def tool_gate_decision(self, tool_name: str, params: Dict[str, Any]) -> GateResult:
+        """Evaluate the tool gate policy for a call without executing it."""
+        return self._tool_gate.evaluate(tool_name, params)
+
     # ── Execution ───────────────────────────────────────────────────────
 
     async def invoke(
@@ -670,6 +711,25 @@ class ToolRegistry:
                 "user_id": ctx.user_id,
             })
             raise PermissionError(f"Tool {tool_name} is denied by permission gate")
+
+        # 2b. Master-class tool gate (policy sandbox) + audit
+        g_res = self._tool_gate.evaluate(tool_name, params)
+        if g_res.decision == Decision.DENY:
+            self._tool_audit.record(
+                tool_name, params, allowed=False, decision=Decision.DENY,
+                outcome="blocked", caller=ctx.user_id, reason=g_res.reason,
+            )
+            raise PermissionError(
+                f"Tool {tool_name} blocked by policy: {g_res.reason}"
+            )
+        if g_res.decision == Decision.ASK:
+            self._tool_audit.record(
+                tool_name, params, allowed=False, decision=Decision.ASK,
+                outcome="pending", caller=ctx.user_id, reason=g_res.reason,
+            )
+            raise PermissionError(
+                f"Tool {tool_name} requires human approval: {g_res.reason}"
+            )
 
         # 3. Validate parameters
         try:
@@ -745,6 +805,13 @@ class ToolRegistry:
                 "bytes_compressed": bytes_compressed,
             })
 
+            # Master-class audit: record successful execution
+            self._tool_audit.record(
+                tool_name, params, allowed=True, decision=Decision.ALLOW,
+                outcome="success", duration_ms=elapsed_ms,
+                caller=ctx.user_id, reason="allowed",
+            )
+
             self._total_invocations += 1
             return result
 
@@ -767,6 +834,12 @@ class ToolRegistry:
                 "error": str(exc),
                 "duration_ms": elapsed_ms,
             })
+            # Master-class audit: record execution error
+            self._tool_audit.record(
+                tool_name, params, allowed=True, decision=Decision.ALLOW,
+                outcome="error", duration_ms=elapsed_ms,
+                caller=ctx.user_id, reason="allowed", error=str(exc),
+            )
             self._total_invocations += 1
             raise
 
