@@ -44,6 +44,7 @@ Four new modules added to extend autonomous operation:
 | Module | Capability | What it does |
 |--------|-----------|--------------|
 | `model_router` | Model routing / fallback gateway | LiteLLM-style retry/cooldown state machine — per-deployment cooldown, per-exception retry policy, weighted dispatch, cross-model failover with `max_fallbacks`. Offline EchoAdapter for deterministic tests + urllib HTTPAdapter for real providers. |
+| `universal_score` | One universal build-quality number | Industry-grounded (ISO 25010 + Sonar + DORA + CMMI + Snyk) build scorer that runs REAL code-inspection probes across 6 weighted dimensions + hard gates + excellence bonus. 100 = sellable enterprise; a genuine build can exceed 100. Forces any Hermes build to a sellable-enterprise bar. |
 
 **Kernel fixes in this wave:** `ModuleRegistry.discover()` now actually imports module
 packages so every `@module` class binds (all 38 modules boot HEALTHY — previously it

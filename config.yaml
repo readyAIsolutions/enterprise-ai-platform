@@ -219,6 +219,18 @@ modules:
             RateLimitError: 1
             ServiceUnavailableError: 1
 
+  # ── Universal Build Score: one accurate build-quality number ──────────────
+  universal_score:
+    enabled: true
+    priority: 40
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 60
+    config:
+      run_tests: false
+      bonus_cap: 25
+      hard_gate_cap: 40
+
   # ── Upgrade: Long-term agent memory engine (mem0-style) ───────────────────
   memory:
     enabled: true
