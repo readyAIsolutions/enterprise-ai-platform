@@ -30,9 +30,13 @@ from enterprise.platform_kernel import (
 )
 
 from .mcp_tools import (
+    MemoryTransport,
+    StdioTransport,
     Tool,
     ToolCallError,
     ToolRegistry,
+    ToolServer,
+    Transport,
     ValidationError,
     register_builtin_tools,
     tool,
@@ -47,10 +51,17 @@ __all__ = [
     # Core framework
     "Tool",
     "ToolRegistry",
+    "ToolServer",
     "ToolCallError",
     "ValidationError",
     "tool",
     "register_builtin_tools",
+    # Pluggable transports
+    "Transport",
+    "StdioTransport",
+    "MemoryTransport",
+    # Factory
+    "create_mcp_tools_module",
 ]
 
 _logger = logging.getLogger("enterprise.mcp_tools")
@@ -256,3 +267,20 @@ class MCPToolGatewayModule(Module):
             )
         except Exception as exc:  # noqa: BLE001 - defensive
             _logger.warning("Failed to publish event %s: %s", topic, exc)
+
+
+def create_mcp_tools_module(
+    config: dict[str, Any] | None = None,
+) -> MCPToolGatewayModule:
+    """Create (but do not initialize) an :class:`MCPToolGatewayModule`.
+
+    Args:
+        config: Optional dict. Supported keys:
+            - ``max_tools`` (int): max tools the registry holds (default 1000).
+            - ``tags`` (list[str]): extra tags applied to every built-in tool.
+
+    Returns:
+        An uninitialized :class:`MCPToolGatewayModule`. Call ``await
+        initialize()`` (e.g. via the Platform Kernel lifecycle) before use.
+    """
+    return MCPToolGatewayModule(config=config or {})

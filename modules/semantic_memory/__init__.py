@@ -266,3 +266,43 @@ class SemanticMemoryModule(Module):
             )
         except Exception as exc:  # pragma: no cover - defensive
             _logger.warning("Failed to publish event %s: %s", topic, exc)
+
+    # -- Temporal memory + consolidation passthroughs ------------------------
+
+    def recall_since(self, since: Any) -> list[dict[str, Any]]:
+        """Pass-through: memories created at/after ``since`` (temporal recall)."""
+        if self._memory is None:
+            raise RuntimeError("Semantic memory module is not initialized")
+        fn = getattr(self._memory, "recall_since")
+        if not callable(fn):
+            raise AttributeError("memory does not support recall_since")
+        return fn(since)
+
+    def group_by_time_bucket(
+        self, bucket: str = "day", key: str = "updated_at"
+    ) -> dict[str, Any]:
+        """Pass-through: group memories into time buckets (Zep temporal recall)."""
+        if self._memory is None:
+            raise RuntimeError("Semantic memory module is not initialized")
+        fn = getattr(self._memory, "group_by_time_bucket")
+        if not callable(fn):
+            raise AttributeError("memory does not support group_by_time_bucket")
+        return fn(bucket, key=key)
+
+    def ranking(self, limit=None, **kwargs) -> list[dict[str, Any]]:
+        """Pass-through: rank memories by recency + importance (mem0-style)."""
+        if self._memory is None:
+            raise RuntimeError("Semantic memory module is not initialized")
+        fn = getattr(self._memory, "ranking")
+        if not callable(fn):
+            raise AttributeError("memory does not support ranking")
+        return fn(limit=limit, **kwargs)
+
+    def consolidate(self, max_age=None, min_importance=None, merge_threshold=0.7) -> dict[str, Any]:
+        """Pass-through: prune/merge stale + low-importance memories."""
+        if self._memory is None:
+            raise RuntimeError("Semantic memory module is not initialized")
+        fn = getattr(self._memory, "consolidate")
+        if not callable(fn):
+            raise AttributeError("memory does not support consolidate")
+        return fn(max_age=max_age, min_importance=min_importance, merge_threshold=merge_threshold)

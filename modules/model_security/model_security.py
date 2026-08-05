@@ -1128,6 +1128,16 @@ class ModelSecurityModule(Module):
         from enterprise.modules.model_security.deployment_gate import DeploymentSecurityGate
         return DeploymentSecurityGate(self._config or {}).check(**kw)
 
+    def run_scan(self, probe_names=None, target=None):
+        """Run a Garak-style probe/detector scan via an injectable model adapter.
+
+        `target` is a callable ``str -> str`` representing the model under test;
+        it may be a canned/echo responder for offline validation or a live model.
+        Returns a ScanReport whose stop_rate follows 1.0 == all attempts flagged.
+        """
+        from enterprise.modules.model_security.probe_detector import SecurityScanner
+        return SecurityScanner(target=target).scan(probe_names=probe_names)
+
 
 # Module exports
 __all__ = [

@@ -148,3 +148,17 @@ class SecurityGate:
     def verify_audit(self) -> bool:
         ok, _ = self.pipeline.audit_logger.verify_chain()
         return ok
+
+    # -- Garak-style probe/detector scan facade ----------------------------- #
+
+    def run_scan(self, probe_names=None, target=None):
+        """Run a Garak-style probe/detector scan through a pluggable model adapter.
+
+        `target` is a callable ``str -> str`` modelling the target model. It may
+        be injected (e.g. an echo or canned responder) for offline testing, or
+        wired to a live model in production. Returns a ScanReport with the same
+        stop_rate semantics used elsewhere (1.0 == every attempt flagged).
+        """
+        from enterprise.modules.model_security.probe_detector import SecurityScanner
+
+        return SecurityScanner(target=target).scan(probe_names=probe_names)

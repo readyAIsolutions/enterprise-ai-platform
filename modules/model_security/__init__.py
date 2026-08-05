@@ -51,6 +51,29 @@ from .security_health import SecurityHealth
 from .redteam_bench import RedTeamBench
 from .deployment_gate import DeploymentSecurityGate, DeploymentSecurityError
 
+from .probe_detector import (
+    AttemptResult,
+    Detector,
+    DetectorResult,
+    GenericFlagDetector,
+    InjectionDetector,
+    JailbreakDetector,
+    JailbreakProbe,
+    PIILeakDetector,
+    PIILeakProbe,
+    PromptInjectionProbe,
+    Probe,
+    ScanReport,
+    SecurityScanner,
+    DataExfilProbe,
+    get_detector,
+    get_probe,
+    list_detectors,
+    list_probes,
+    register_detector,
+    register_probe,
+)
+
 __version__ = "1.0.0"
 __module__ = "model_security"
 

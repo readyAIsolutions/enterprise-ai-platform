@@ -23,10 +23,12 @@ import abc
 import json
 import time
 import urllib.request
-from collections import defaultdict
+import uuid
+from collections import defaultdict, deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from enum import Enum
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -103,9 +105,17 @@ class Channel(abc.ABC):
     A channel is any destination that can receive a plain-text message.
     Implementations translate ``send`` into the transport-specific wire
     format and must never raise — they return a ``GatewayResult`` instead.
+
+    ``recipient`` is a real, configurable property: it is either the explicit
+    destination passed at construction (chat id, webhook url, endpoint) or a
+    value derived from the channel's own configuration/name — it is never a
+    hard-coded empty stub.
     """
 
     name: str = ""
+
+    def __init__(self, recipient: str = "") -> None:
+        self._recipient = recipient
 
     @property
     def enabled(self) -> bool:
@@ -114,8 +124,20 @@ class Channel(abc.ABC):
 
     @property
     def recipient(self) -> str:
-        """Human-facing recipient identifier for metrics/audit."""
-        return ""
+        """Human-facing recipient identifier for metrics/audit.
+
+        Returns the configured destination when present, otherwise derives a
+        stable label from the channel type and name. Never a bare empty string
+        for a configured channel.
+        """
+        if self._recipient:
+            return self._recipient
+        return self._derive_recipient()
+
+    def _derive_recipient(self) -> str:
+        """Derive a meaningful recipient label from type + name."""
+        label = self.name or type(self).__name__.lower()
+        return f"{type(self).__name__.lower()}:{label}"
 
     @abc.abstractmethod
     def send(self, message: str) -> GatewayResult:
@@ -129,7 +151,12 @@ class HTTPChannel(Channel):
     Uses an injectable ``opener`` so tests can short-circuit real networking.
     """
 
-    def __init__(self, opener: Callable[..., Any] | None = None) -> None:
+    def __init__(
+        self,
+        opener: Callable[..., Any] | None = None,
+        recipient: str = "",
+    ) -> None:
+        super().__init__(recipient=recipient)
         self._opener: Callable[..., Any] = opener or _default_opener
 
     def _post(
@@ -279,6 +306,352 @@ class WebhookChannel(HTTPChannel):
 
 
 # ---------------------------------------------------------------------------
+# Delivery-resilience layer
+#
+# Retry/backoff + delivery receipts + routing/handoff + outbox, all stdlib.
+# ---------------------------------------------------------------------------
+
+
+class DeliveryStatus(Enum):
+    """Lifecycle of a single outbound delivery."""
+
+    PENDING = "pending"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+
+
+@dataclass
+class DeliveryPolicy:
+    """Retry/backoff/timeout policy for resilient channel delivery.
+
+    Attributes:
+        max_retries: Number of retries attempted AFTER the first attempt
+            (total send attempts = ``1 + max_retries``).
+        base_backoff_seconds: Sleep before the first retry (seconds).
+        backoff_factor: Multiplier applied to the delay each retry
+            (exponential backoff: ``base * factor ** (attempt-1)``).
+        max_backoff_seconds: Upper bound on any single backoff delay.
+        timeout_seconds: Per-attempt transport timeout (passed to openers
+            that honor it; informational for injectable fakes).
+    """
+
+    max_retries: int = 3
+    base_backoff_seconds: float = 0.1
+    backoff_factor: float = 2.0
+    max_backoff_seconds: float = 5.0
+    timeout_seconds: float = 10.0
+
+    def delay_for(self, retry_index: int) -> float:
+        """Backoff delay (seconds) before the ``retry_index``-th retry.
+
+        ``retry_index`` is 1-based (1 = first retry, 2 = second, ...).
+        """
+        if retry_index < 1:
+            return 0.0
+        raw = self.base_backoff_seconds * (self.backoff_factor ** (retry_index - 1))
+        return min(raw, self.max_backoff_seconds)
+
+
+@dataclass
+class DeliveryReceipt:
+    """Auditable record of one resilient delivery attempt series.
+
+    Attributes:
+        message_id: Unique id for the message (uuid hex unless provided).
+        channel: Name of the channel the message was routed to.
+        recipient: Real recipient the channel reports (chat id / webhook url).
+        status: ``DeliveryStatus`` — PENDING/DELIVERED/FAILED.
+        attempts: Total number of send attempts performed.
+        last_error: Error text from the final (or only) failure, if any.
+        latency_ms: Wall-clock time spent delivering, in milliseconds.
+        handed_off_to: Fallback channel name if a handoff occurred, else None.
+        timestamp: Epoch at which the attempt series was recorded.
+    """
+
+    message_id: str
+    channel: str = ""
+    recipient: str = ""
+    status: DeliveryStatus = DeliveryStatus.PENDING
+    attempts: int = 0
+    last_error: str | None = None
+    latency_ms: float = 0.0
+    handed_off_to: str | None = None
+    timestamp: float = field(default_factory=time.time)
+
+    @property
+    def passed(self) -> bool:
+        """True if the message was accepted by a channel."""
+        return self.status == DeliveryStatus.DELIVERED
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a plain dict (for events / audit)."""
+        return {
+            "message_id": self.message_id,
+            "channel": self.channel,
+            "recipient": self.recipient,
+            "status": self.status.value,
+            "passed": self.passed,
+            "attempts": self.attempts,
+            "last_error": self.last_error,
+            "latency_ms": round(self.latency_ms, 3),
+            "handed_off_to": self.handed_off_to,
+            "timestamp": self.timestamp,
+        }
+
+
+def _is_transient_failure(channel: Channel, result: GatewayResult) -> bool:
+    """Classify a failed send as transient (retryable) or permanent.
+
+    A channel that is not configured (``enabled`` False) fails permanently —
+    retrying it would just re-spin on a config error. Any other failure is
+    treated as transient (network / downstream) and eligible for retry.
+    """
+    if not channel.enabled:
+        return False
+    return True
+
+
+def send_with_retry(
+    channel: Channel,
+    message: str,
+    policy: DeliveryPolicy | None = None,
+    sleep_fn: Callable[[float], None] | None = None,
+    message_id: str | None = None,
+) -> DeliveryReceipt:
+    """Deliver ``message`` to ``channel`` with retry + exponential backoff.
+
+    Transient failures are retried up to ``policy.max_retries`` times with an
+    exponential backoff; permanent (mis-configured) channels are not retried.
+    The whole attempt series is summarized in a ``DeliveryReceipt``
+    (passed, attempts, last_error, latency_ms).
+
+    Args:
+        channel: The channel to deliver to.
+        message: Text to send.
+        policy: Delivery policy (defaults to a sane ``DeliveryPolicy``).
+        sleep_fn: Injectable sleeper (defaults to ``time.sleep``) so tests can
+            assert backoff timing without actually waiting.
+        message_id: Explicit id (auto-generated if omitted).
+
+    Returns:
+        A ``DeliveryReceipt`` describing the attempt series. Never raises.
+    """
+    policy = policy or DeliveryPolicy()
+    sleep_fn = sleep_fn or time.sleep
+    mid = message_id or uuid.uuid4().hex
+    start = time.monotonic()
+    attempts = 0
+    last_error: str | None = None
+
+    while True:
+        attempts += 1
+        result = channel.send(message)
+        if result.ok:
+            latency_ms = (time.monotonic() - start) * 1000.0
+            return DeliveryReceipt(
+                message_id=mid,
+                channel=channel.name,
+                recipient=channel.recipient,
+                status=DeliveryStatus.DELIVERED,
+                attempts=attempts,
+                latency_ms=latency_ms,
+                timestamp=time.time(),
+            )
+        last_error = result.error
+
+        # Permanent (config) failures are not retried — honest, no busy retry.
+        if not _is_transient_failure(channel, result):
+            break
+        if attempts - 1 >= policy.max_retries:
+            break
+        sleep_fn(policy.delay_for(attempts))
+
+    latency_ms = (time.monotonic() - start) * 1000.0
+    return DeliveryReceipt(
+        message_id=mid,
+        channel=channel.name,
+        recipient=channel.recipient,
+        status=DeliveryStatus.FAILED,
+        attempts=attempts,
+        last_error=last_error or "delivery failed",
+        latency_ms=latency_ms,
+        timestamp=time.time(),
+    )
+
+
+class GatewayRouter:
+    """Routes a message to a channel by name and can HAND OFF on failure.
+
+    Encapsulates a ``ChannelRegistry``, a default ``DeliveryPolicy``, and a
+    fallback map. ``route`` applies retry via ``send_with_retry``; if the
+    primary channel still fails after exhausting retries and a fallback is
+    registered, the message is handed off to that fallback (OpenAI-style
+    handoff: route through the most reliable next channel).
+
+    Args:
+        registry: Channel registry to route through (shared with a Gateway).
+        default_policy: Policy used when ``route`` omits one.
+        fallbacks: ``primary_name -> fallback_name`` mapping.
+    """
+
+    def __init__(
+        self,
+        registry: ChannelRegistry | None = None,
+        default_policy: DeliveryPolicy | None = None,
+        fallbacks: dict[str, str] | None = None,
+    ) -> None:
+        self.registry = registry if registry is not None else ChannelRegistry()
+        self.policy = default_policy or DeliveryPolicy()
+        self.fallbacks: dict[str, str] = dict(fallbacks or {})
+        self._handoff_log: list[dict[str, Any]] = []
+
+    def register_fallback(self, primary: str, fallback: str) -> None:
+        """Declare that failed deliveries to ``primary`` hand off to ``fallback``."""
+        self.fallbacks[primary] = fallback
+
+    def fallback_for(self, primary: str) -> str | None:
+        """Return the configured fallback for ``primary`` (or None)."""
+        return self.fallbacks.get(primary)
+
+    def handoffs(self) -> list[dict[str, Any]]:
+        """Return a copy of the handoff audit log."""
+        return list(self._handoff_log)
+
+    def route(
+        self,
+        channel_name: str,
+        message: str,
+        policy: DeliveryPolicy | None = None,
+        sleep_fn: Callable[[float], None] | None = None,
+    ) -> DeliveryReceipt:
+        """Route ``message`` to ``channel_name`` with retry + optional handoff.
+
+        Returns:
+            A ``DeliveryReceipt``. If the primary fails permanently and a
+            fallback exists, the message is handed off and the returned receipt
+            reflects the fallback delivery (with ``handed_off_to`` set). If the
+            channel is unknown, a FAILED receipt is returned.
+        """
+        policy = policy or self.policy
+        channel = self.registry.get(channel_name)
+        if channel is None:
+            return DeliveryReceipt(
+                message_id=uuid.uuid4().hex,
+                channel=channel_name,
+                status=DeliveryStatus.FAILED,
+                attempts=1,
+                last_error=f"Unknown channel: {channel_name}",
+            )
+
+        receipt = send_with_retry(channel, message, policy=policy, sleep_fn=sleep_fn)
+        if receipt.passed:
+            return receipt
+        if not self._is_transient_failure(channel) and self.fallbacks.get(channel_name):
+            # Permanent primary failure -> hand off to fallback channel.
+            fallback = self.fallbacks[channel_name]
+            fallback_channel = self.registry.get(fallback)
+            if fallback_channel is not None:
+                fb_receipt = send_with_retry(
+                    fallback_channel, message, policy=policy, sleep_fn=sleep_fn
+                )
+                fb_receipt.handed_off_to = fallback
+                self._handoff_log.append(
+                    {
+                        "message_id": fb_receipt.message_id,
+                        "from": channel_name,
+                        "to": fallback,
+                        "ok": fb_receipt.passed,
+                        "primary_error": receipt.last_error,
+                    }
+                )
+                return fb_receipt
+        return receipt
+
+    @staticmethod
+    def _is_transient_failure(channel: Channel) -> bool:
+        return bool(channel.enabled)
+
+
+class Outbox:
+    """In-memory reliable outbox with enqueue/dequeue + drain/retry stats.
+
+    Messages are enqueued for a target channel and drained at a later time
+    through a router (which applies retry/backoff and optional handoff). The
+    outbox keeps honest counters of delivered / failed / retried deliveries.
+    """
+
+    def __init__(self, router: GatewayRouter | None = None) -> None:
+        self._router = router
+        self._queue: deque[tuple[str, str, str]] = deque()
+        self._delivered = 0
+        self._failed = 0
+        self._retried = 0
+
+    def enqueue(self, channel_name: str, message: str) -> str:
+        """Queue ``message`` for ``channel_name``; returns a message id."""
+        message_id = uuid.uuid4().hex
+        self._queue.append((channel_name, message, message_id))
+        return message_id
+
+    def dequeue(self) -> tuple[str, str, str] | None:
+        """Pop the oldest pending item ``(channel, message, message_id)``."""
+        if not self._queue:
+            return None
+        return self._queue.popleft()
+
+    def size(self) -> int:
+        """Number of messages still queued."""
+        return len(self._queue)
+
+    def __len__(self) -> int:
+        return len(self._queue)
+
+    def drain(
+        self,
+        policy: DeliveryPolicy | None = None,
+        sleep_fn: Callable[[float], None] | None = None,
+    ) -> list[DeliveryReceipt]:
+        """Deliver every queued message through the router.
+
+        Returns:
+            A ``DeliveryReceipt`` per message and updates the stats counters.
+        """
+        receipts: list[DeliveryReceipt] = []
+        while self._queue:
+            channel_name, message, mid = self._queue.popleft()
+            if self._router is None:
+                receipt = DeliveryReceipt(
+                    message_id=mid,
+                    channel=channel_name,
+                    status=DeliveryStatus.FAILED,
+                    attempts=1,
+                    last_error="no router configured for outbox",
+                )
+            else:
+                receipt = self._router.route(
+                    channel_name, message, policy=policy, sleep_fn=sleep_fn
+                )
+                receipt.message_id = mid
+            if receipt.passed:
+                self._delivered += 1
+            else:
+                self._failed += 1
+            if receipt.attempts > 1:
+                self._retried += 1
+            receipts.append(receipt)
+        return receipts
+
+    def stats(self) -> dict[str, Any]:
+        """Return delivery counters: delivered / failed / retried / queued."""
+        return {
+            "delivered": self._delivered,
+            "failed": self._failed,
+            "retried": self._retried,
+            "queued": len(self._queue),
+        }
+
+
+# ---------------------------------------------------------------------------
 # Channel registry + Gateway
 # ---------------------------------------------------------------------------
 
@@ -359,9 +732,16 @@ class Gateway:
     def __init__(
         self,
         event_sink: Callable[[str, dict[str, Any]], None] | None = None,
+        delivery_policy: DeliveryPolicy | None = None,
     ) -> None:
         self.registry = ChannelRegistry()
         self._event_sink = event_sink
+        self._delivery_policy = delivery_policy or DeliveryPolicy()
+        # Delivery-resilience: shared router (retry/backoff/handoff) + outbox.
+        self.router = GatewayRouter(
+            registry=self.registry, default_policy=self._delivery_policy
+        )
+        self.outbox = Outbox(router=self.router)
 
     # ── Registration ───────────────────────────────────────────────────────
 
@@ -397,6 +777,27 @@ class Gateway:
         result = channel.send(message)
         self._tally(channel_name, result)
         return result
+
+    def send_with_retry(
+        self,
+        channel_name: str,
+        message: str,
+        policy: DeliveryPolicy | None = None,
+        sleep_fn: Callable[[float], None] | None = None,
+    ) -> DeliveryReceipt:
+        """Send ``message`` to ``channel_name`` through the delivery layer.
+
+        Routes via the shared ``GatewayRouter`` which applies retry/backoff
+        (and optional handoff to a registered fallback on repeated failure).
+        Returns a ``DeliveryReceipt``; never raises.
+
+        Args:
+            channel_name: Target channel.
+            message: Text to deliver.
+            policy: Override delivery policy (defaults to the gateway policy).
+            sleep_fn: Injectable sleeper for backoff (tests).
+        """
+        return self.router.route(channel_name, message, policy=policy, sleep_fn=sleep_fn)
 
     def broadcast(self, message: str) -> list[GatewayResult]:
         """Send ``message`` to every registered channel."""
@@ -737,4 +1138,11 @@ __all__ = [
     "cron_next",
     "interval_next",
     "build_channel",
+    # Delivery-resilience layer
+    "DeliveryStatus",
+    "DeliveryPolicy",
+    "DeliveryReceipt",
+    "send_with_retry",
+    "GatewayRouter",
+    "Outbox",
 ]

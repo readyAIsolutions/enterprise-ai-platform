@@ -35,17 +35,23 @@ from enterprise.platform_kernel import (
 from .gateway import (
     Channel,
     ChannelRegistry,
+    DeliveryPolicy,
+    DeliveryReceipt,
+    DeliveryStatus,
     DiscordChannel,
     Gateway,
     GatewayResult,
+    GatewayRouter,
     HTTPChannel,
     Job,
+    Outbox,
     Scheduler,
     TelegramChannel,
     WebhookChannel,
     build_channel,
     cron_next,
     interval_next,
+    send_with_retry,
 )
 
 __all__ = [
@@ -64,6 +70,12 @@ __all__ = [
     "build_channel",
     "cron_next",
     "interval_next",
+    "DeliveryStatus",
+    "DeliveryPolicy",
+    "DeliveryReceipt",
+    "send_with_retry",
+    "GatewayRouter",
+    "Outbox",
 ]
 
 _logger: logging.Logger = logging.getLogger("enterprise.gateway")

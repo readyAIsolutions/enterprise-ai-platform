@@ -30,6 +30,7 @@ Version: 2.0.0
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import math
 import os
@@ -106,6 +107,79 @@ def _matches_meta(metadata: dict[str, Any], filters: dict[str, Any] | None) -> b
     return True
 
 
+# ---------------------------------------------------------------------------
+# Temporal memory + consolidation helpers (Zep temporal recall / mem0 ranking)
+# ---------------------------------------------------------------------------
+
+DEFAULT_RECENCY_WEIGHT = 0.5
+DEFAULT_IMPORTANCE_WEIGHT = 0.5
+EXACT_TOKEN_BONUS = 0.05  # small rerank boost for keyword-exact-token hits
+
+
+def _coerce_ts(value: Any) -> float | None:
+    """Normalize ``since``/``until`` to a unix-epoch float (or ``None``).
+
+    Accepts floats, ints, and anything exposing ``.timestamp()`` (datetime/date).
+    """
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    ts = getattr(value, "timestamp", None)
+    if callable(ts):
+        return float(ts())
+    return float(value)
+
+
+def _window_ok(since: float | None, until: float | None, ts: float) -> bool:
+    """Return True if timestamp ``ts`` falls within the ``[since, until]`` window."""
+    if since is not None and ts < since:
+        return False
+    if until is not None and ts > until:
+        return False
+    return True
+
+
+def _exact_tokens(q_tokens: list[str], doc_tokens: list[str]) -> bool:
+    """True when every query token appears as an exact token in the doc."""
+    if not q_tokens:
+        return False
+    dset = set(doc_tokens)
+    return all(t in dset for t in q_tokens)
+
+
+def _bucket_range(bucket: str) -> tuple[float, float]:
+    """Return ``(start, end)`` epoch bounds for the *current* time bucket.
+
+    ``bucket`` is one of ``'day'``, ``'week'`` (Monday-start), ``'month'``.
+    """
+    now = time.time()
+    lt = time.localtime(now)
+    name = (bucket or "day").lower()
+    dst = -1  # let time.mktime resolve DST
+    if name == "week":
+        start = time.mktime(
+            (lt.tm_year, lt.tm_mon, lt.tm_mday - lt.tm_wday, 0, 0, 0, 0, 0, dst)
+        )
+    elif name == "month":
+        start = time.mktime((lt.tm_year, lt.tm_mon, 1, 0, 0, 0, 0, 0, dst))
+    else:  # 'day' (default)
+        start = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, dst))
+    return start, now
+
+
+def _bucket_key(bucket: str, ts: float) -> str:
+    """Human-readable label for a timestamp within a bucket (e.g. ``2026-08-04``)."""
+    name = (bucket or "day").lower()
+    d = _dt.date.fromtimestamp(ts)
+    if name == "week":
+        iso = d.isocalendar()
+        return f"{iso[0]:04d}-W{iso[1]:02d}"
+    if name == "month":
+        return f"{d.year:04d}-{d.month:02d}"
+    return f"{d.year:04d}-{d.month:02d}-{d.day:02d}"
+
+
 class HybridRetriever:
     """Merges vector + keyword retrieval into a single ranked result set.
 
@@ -126,6 +200,8 @@ class HybridRetriever:
     ) -> None:
         self._kw_weight = 1.0 - vector_weight
         self._index = SemanticIndex(embedder=embedder or HashEmbedder())
+        self._times: dict[str, float] = {}
+        self._access_count: dict[str, int] = {}
 
     def _iter_candidates(self, filters: dict[str, Any] | None) -> list[Any]:
         docs = list(self._index._documents.values())
@@ -136,7 +212,16 @@ class HybridRetriever:
     def add(self, id: str, text: str, metadata: dict[str, Any] | None = None) -> str:
         """Add a document to the hybrid retriever (vector + keyword source)."""
         self._index.add(id, text, metadata)
+        self._times[id] = time.time()
         return id
+
+    def remove(self, id: str) -> bool:
+        """Remove a document by id; returns True if it existed."""
+        removed = self._index.remove(id)
+        if removed:
+            self._times.pop(id, None)
+            self._access_count.pop(id, None)
+        return removed
 
     def count(self) -> int:
         return self._index.count()
@@ -146,32 +231,200 @@ class HybridRetriever:
         query: str,
         limit: int = 5,
         filters: dict[str, Any] | None = None,
+        since: Any = None,
+        until: Any = None,
+        time_bucket: str | None = None,
     ) -> list[ScoredDoc]:
         """Hybrid search merging vector + keyword hits.
 
-        Each candidate doc (optionally pre-filtered by ``filters``) receives a
-        blended score ``w_vec * vec_score + w_kw * kw_score``; results are
-        sorted descending and the top ``limit`` returned.
+        Each candidate doc (optionally pre-filtered by ``filters`` and the
+        temporal window ``[since, until]`` / ``time_bucket``) receives a
+        blended score ``w_vec * vec_score + w_kw * kw_score`` plus a small
+        rerank bonus when every query token appears as an exact doc token.
+        Results are de-duplicated by id, sorted descending, and the top
+        ``limit`` returned.
         """
+        since, until = self._resolve_window(since, until, time_bucket)
         q_tokens = tokenize(query)
         q_vec = self._index.embedder.embed(query)
-        ranked: list[ScoredDoc] = []
+        merged: dict[str, ScoredDoc] = {}
         for doc in self._iter_candidates(filters):
+            ts = self._times.get(doc.id, 0.0) or 0.0
+            if not _window_ok(since, until, ts):
+                continue
             vec = max(0.0, min(1.0, cosine_similarity(q_vec, doc.vector)))
-            kw = keyword_score(q_tokens, tokenize(doc.text))
+            doc_tokens = tokenize(doc.text)
+            kw = keyword_score(q_tokens, doc_tokens)
             blended = (self._kw_weight * kw) + ((1.0 - self._kw_weight) * vec)
-            ranked.append(
-                ScoredDoc(
+            if kw > 0.0 and _exact_tokens(q_tokens, doc_tokens):
+                blended += EXACT_TOKEN_BONUS
+            self._access_count[doc.id] = self._access_count.get(doc.id, 0) + 1
+            existing = merged.get(doc.id)
+            if existing is not None:
+                existing.score = max(existing.score, round(blended, 6))
+            else:
+                merged[doc.id] = ScoredDoc(
                     id=doc.id,
                     score=round(blended, 6),
                     text=doc.text,
                     metadata=dict(doc.metadata),
                 )
-            )
-        ranked.sort(key=lambda s: s.score, reverse=True)
+        ranked = sorted(merged.values(), key=lambda s: s.score, reverse=True)
         if limit <= 0:
             return []
         return ranked[:limit]
+
+    def _resolve_window(
+        self, since: Any, until: Any, time_bucket: str | None
+    ) -> tuple[float | None, float | None]:
+        """Combine explicit ``since``/``until`` with an optional ``time_bucket``."""
+        if time_bucket:
+            start, end = _bucket_range(time_bucket)
+            if since is None:
+                since = start
+            if until is None:
+                until = end
+        return _coerce_ts(since), _coerce_ts(until)
+
+    def recall_since(self, since: Any) -> list[dict[str, Any]]:
+        """Return memories whose created/updated timestamp is at/after ``since``."""
+        ts = _coerce_ts(since) or 0.0
+        out = []
+        for doc in self._index._documents.values():
+            t = self._times.get(doc.id, 0.0) or 0.0
+            if t >= ts:
+                out.append(
+                    {
+                        "id": doc.id,
+                        "text": doc.text,
+                        "metadata": dict(doc.metadata),
+                        "timestamp": t,
+                    }
+                )
+        out.sort(key=lambda d: d["timestamp"], reverse=True)
+        return out
+
+    def group_by_time_bucket(self, bucket: str = "day") -> dict[str, dict[str, Any]]:
+        """Group memories into time buckets, returning counts + grouped memories."""
+        groups: dict[str, dict[str, Any]] = {}
+        for doc in self._index._documents.values():
+            ts = self._times.get(doc.id, 0.0) or 0.0
+            key = _bucket_key(bucket, ts)
+            g = groups.setdefault(key, {"count": 0, "memories": []})
+            g["count"] += 1
+            g["memories"].append({"id": doc.id, "text": doc.text})
+        return groups
+
+    def _importance(self, row_id: str, doc: Any) -> float:
+        meta = doc.metadata if doc is not None else {}
+        score = 0.0
+        pri = meta.get("priority")
+        if isinstance(pri, (int, float)):
+            score += float(pri)
+        if meta.get("important") is True:
+            score += 1.0
+        score += math.log1p(max(0, self._access_count.get(row_id, 0)))
+        return score
+
+    def ranking(
+        self,
+        limit: int | None = None,
+        recency_weight: float = DEFAULT_RECENCY_WEIGHT,
+        importance_weight: float = DEFAULT_IMPORTANCE_WEIGHT,
+    ) -> list[dict[str, Any]]:
+        """Rank memories by (recency + importance) descending (mem0-style)."""
+        now = time.time()
+        raws = []
+        for doc in self._index._documents.values():
+            updated = self._times.get(doc.id, now)
+            age = max(0.0, now - updated)
+            recency = 1.0 / (1.0 + age)
+            importance = self._importance(doc.id, doc)
+            raws.append((doc, recency, importance))
+        results = []
+        for doc, recency, importance in raws:
+            imp_norm = float(importance) / (1.0 + float(importance))  # saturating -> [0,1]
+            score = recency_weight * recency + importance_weight * imp_norm
+            results.append(
+                {
+                    "id": doc.id,
+                    "text": doc.text,
+                    "metadata": dict(doc.metadata),
+                    "timestamp": self._times.get(doc.id),
+                    "recency": round(recency, 6),
+                    "importance": round(imp_norm, 6),
+                    "score": round(score, 6),
+                }
+            )
+        results.sort(key=lambda d: d["score"], reverse=True)
+        for idx, d in enumerate(results, start=1):
+            d["rank"] = idx
+        if limit is not None and limit > 0:
+            results = results[:limit]
+        return results
+
+    def consolidate(
+        self,
+        max_age: float | None = None,
+        min_importance: float | None = None,
+        merge_threshold: float | None = 0.7,
+    ) -> dict[str, Any]:
+        """Prune (or merge) stale + low-importance memories (mem0 ranking idea).
+
+        A memory is pruned only when it is BOTH stale (``max_age`` exceeded,
+        if given) and low-importance (``importance`` below ``min_importance``,
+        if given). Redundant stale/low-importance memories that are near-duplicates
+        of retained ones are counted as ``merged``.
+        """
+        now = time.time()
+        ranked = self.ranking()
+        pruned: list[str] = []
+        merged: list[str] = []
+        for item in ranked:
+            rid = item["id"]
+            updated = item.get("timestamp") or now
+            age = max(0.0, now - updated)
+            stale = max_age is not None and age >= float(max_age)
+            low_imp = min_importance is not None and item["importance"] < float(min_importance)
+            if not (stale and low_imp):
+                continue
+            if (
+                merge_threshold is not None
+                and self._redundant_with(rid, ranked, float(merge_threshold))
+            ):
+                merged.append(rid)
+            else:
+                pruned.append(rid)
+            self.remove(rid)
+        return {
+            "pruned": len(pruned),
+            "pruned_ids": pruned,
+            "merged": len(merged),
+            "merged_ids": merged,
+            "kept": self.count(),
+        }
+
+    def _redundant_with(
+        self, row_id: str, ranked: list[dict[str, Any]], threshold: float
+    ) -> bool:
+        """True if ``row_id`` is a near-duplicate (hybrid sim >= threshold) of any retained doc."""
+        doc = self._index.get(row_id)
+        if doc is None:
+            return False
+        q_tokens = tokenize(doc.text)
+        q_vec = doc.vector
+        for other in ranked:
+            if other["id"] == row_id:
+                continue
+            odoc = self._index.get(other["id"])
+            if odoc is None:
+                continue
+            vec = max(0.0, min(1.0, cosine_similarity(q_vec, odoc.vector)))
+            kw = keyword_score(q_tokens, tokenize(odoc.text))
+            blended = (self._kw_weight * kw) + ((1.0 - self._kw_weight) * vec)
+            if blended >= threshold:
+                return True
+        return False
 
 
 # Re-export SemanticIndex pieces we depend on for type hints only.
@@ -286,6 +539,7 @@ class HybridSemanticMemory(SemanticMemory):
         self._user_ids: dict[str, str | None] = {}
         self._created_at: dict[str, float] = {}
         self._updated_at: dict[str, float] = {}
+        self._access_count: dict[str, int] = {}
         self._conn: sqlite3.Connection | None = None
         self._init_db()
         self._load_from_db()
@@ -314,7 +568,24 @@ class HybridSemanticMemory(SemanticMemory):
             os.makedirs(parent, exist_ok=True)
         self._conn = sqlite3.connect(self._db_path)
         self._conn.executescript(_SQL_SCHEMA)
+        self._ensure_time_columns()
         self._conn.commit()
+
+    def _ensure_time_columns(self) -> None:
+        """Migration-safe: add timestamp columns to pre-existing DBs that lack them.
+
+        Older stored DBs (created before temporal memory was introduced) may not
+        have ``created_at`` / ``updated_at``. ``CREATE TABLE IF NOT EXISTS`` does
+        not add columns to an existing table, so we ALTER TABLE ADD COLUMN when
+        the PRAGMA column list is missing them.
+        """
+        if self._conn is None:
+            return
+        cols = {row[1] for row in self._conn.execute("PRAGMA table_info(memories)")}
+        for name in ("created_at", "updated_at"):
+            if name not in cols:
+                self._conn.execute(f"ALTER TABLE memories ADD COLUMN {name} REAL")
+                self._conn.commit()
 
     def _load_from_db(self) -> None:
         if self._conn is None:
@@ -326,8 +597,11 @@ class HybridSemanticMemory(SemanticMemory):
             meta = json.loads(meta_json or "{}")
             self._index.add(row_id, text, meta)
             self._user_ids[row_id] = user_id
-            self._created_at[row_id] = created_at
-            self._updated_at[row_id] = updated_at
+            ts = time.time()
+            # NULL timestamps (legacy rows added before temporal columns existed)
+            # default to the load time so they are treated as recent, not stale.
+            self._created_at[row_id] = created_at if created_at is not None else ts
+            self._updated_at[row_id] = updated_at if updated_at is not None else ts
 
     def _persist(
         self,
@@ -458,38 +732,230 @@ class HybridSemanticMemory(SemanticMemory):
         query: str,
         limit: int = 5,
         filters: dict[str, Any] | None = None,
+        since: Any = None,
+        until: Any = None,
+        time_bucket: str | None = None,
     ) -> list[ScoredDoc]:
-        """Hybrid retrieval: vector + keyword, merged + ranked.
+        """Hybrid retrieval: vector + keyword, merged + de-duplicated + re-ranked.
 
         Args:
             query: Query text.
             limit: Maximum number of results.
             filters: Optional metadata key/value filters
                 (e.g. ``{'source': 'kb', 'tags': ['x']}``).
+            since: Optional lower bound (unix float, or datetime) for the
+                memory timestamp window.
+            until: Optional upper bound (unix float, or datetime).
+            time_bucket: Optional ``'day'`` / ``'week'`` / ``'month'`` bucket —
+                restricts results to the current bucket when ``since``/``until``
+                are not provided.
 
         Returns:
             Ranked :class:`~.semantic_memory.ScoredDoc` list (descending score).
         """
+        since, until = self._resolve_window(since, until, time_bucket)
         q_tokens = tokenize(query)
         q_vec = self._index.embedder.embed(query)
-        ranked: list[ScoredDoc] = []
+        merged: dict[str, ScoredDoc] = {}
         with self._lock:
             for doc in self._iter_candidates(filters):
+                ts = self._updated_at.get(doc.id, self._created_at.get(doc.id, 0.0)) or 0.0
+                if not _window_ok(since, until, ts):
+                    continue
                 vec = max(0.0, min(1.0, cosine_similarity(q_vec, doc.vector)))
-                kw = keyword_score(q_tokens, tokenize(doc.text))
+                doc_tokens = tokenize(doc.text)
+                kw = keyword_score(q_tokens, doc_tokens)
                 blended = (self._kw_weight * kw) + ((1.0 - self._kw_weight) * vec)
-                ranked.append(
-                    ScoredDoc(
+                if kw > 0.0 and _exact_tokens(q_tokens, doc_tokens):
+                    blended += EXACT_TOKEN_BONUS
+                self._access_count[doc.id] = self._access_count.get(doc.id, 0) + 1
+                existing = merged.get(doc.id)
+                if existing is not None:
+                    existing.score = max(existing.score, round(blended, 6))
+                else:
+                    merged[doc.id] = ScoredDoc(
                         id=doc.id,
                         score=round(blended, 6),
                         text=doc.text,
                         metadata=dict(doc.metadata),
                     )
-                )
-        ranked.sort(key=lambda s: s.score, reverse=True)
+        ranked = sorted(merged.values(), key=lambda s: s.score, reverse=True)
         if limit <= 0:
             return []
         return ranked[:limit]
+
+    def _resolve_window(
+        self, since: Any, until: Any, time_bucket: str | None
+    ) -> tuple[float | None, float | None]:
+        """Combine explicit ``since``/``until`` with an optional ``time_bucket``."""
+        if time_bucket:
+            start, end = _bucket_range(time_bucket)
+            if since is None:
+                since = start
+            if until is None:
+                until = end
+        return _coerce_ts(since), _coerce_ts(until)
+
+    def recall_since(self, since: Any) -> list[dict[str, Any]]:
+        """Return memories created at/after ``since`` (temporal recall).
+
+        Args:
+            since: A datetime, unix-epoch float, or similar timestamp.
+
+        Returns:
+            List of memory dicts (``id``, ``text``, ``metadata``, ``user_id``,
+            ``created_at``, ``updated_at``) ordered newest-first.
+        """
+        ts = _coerce_ts(since) or 0.0
+        out = [it for it in self.list() if (it.get("created_at") or 0.0) >= ts]
+        out.sort(key=lambda d: d.get("updated_at") or 0.0, reverse=True)
+        return out
+
+    def group_by_time_bucket(
+        self, bucket: str = "day", key: str = "updated_at"
+    ) -> dict[str, dict[str, Any]]:
+        """Group memories into time buckets (Zep temporal recall).
+
+        Args:
+            bucket: One of ``'day'``, ``'week'`` (Monday-start), ``'month'``.
+            key: Which timestamp to bucket by (``'updated_at'`` or ``'created_at'``).
+
+        Returns:
+            ``{bucket_label: {"count": int, "memories": [dicts]}}``.
+        """
+        groups: dict[str, dict[str, Any]] = {}
+        for it in self.list():
+            ts = it.get(key) or it.get("created_at") or 0.0
+            label = _bucket_key(bucket, ts)
+            g = groups.setdefault(label, {"count": 0, "memories": []})
+            g["count"] += 1
+            g["memories"].append(it)
+        return groups
+
+    def _importance(self, row_id: str, doc: Any) -> float:
+        """Importance score from metadata priority + hit-frequency (mem0-style)."""
+        meta = doc.metadata if doc is not None else {}
+        score = 0.0
+        pri = meta.get("priority")
+        if isinstance(pri, (int, float)):
+            score += float(pri)
+        if meta.get("important") is True:
+            score += 1.0
+        score += math.log1p(max(0, self._access_count.get(row_id, 0)))
+        return score
+
+    def ranking(
+        self,
+        limit: int | None = None,
+        recency_weight: float = DEFAULT_RECENCY_WEIGHT,
+        importance_weight: float = DEFAULT_IMPORTANCE_WEIGHT,
+    ) -> list[dict[str, Any]]:
+        """Rank all memories by recency + importance, descending (mem0 ranking).
+
+        Importance is normalized to ``[0,1]`` across the current store; recency
+        decays as ``1 / (1 + age_seconds)``. Returns dicts including ``rank``,
+        ``score``, ``recency``, ``importance`` and the stored fields.
+        """
+        now = time.time()
+        items = self.list()
+        raws: list[tuple[dict[str, Any], float, float]] = []
+        for it in items:
+            rid = it["id"]
+            doc = self._index.get(rid)
+            importance = self._importance(rid, doc)
+            updated = it.get("updated_at") or it.get("created_at") or now
+            recency = 1.0 / (1.0 + max(0.0, now - updated))
+            raws.append((it, recency, importance))
+        results: list[dict[str, Any]] = []
+        for it, recency, importance in raws:
+            imp_norm = float(importance) / (1.0 + float(importance))  # saturating -> [0,1]
+            score = recency_weight * recency + importance_weight * imp_norm
+            results.append(
+                {
+                    "id": it["id"],
+                    "text": it["text"],
+                    "metadata": it["metadata"],
+                    "user_id": it["user_id"],
+                    "created_at": it["created_at"],
+                    "updated_at": it["updated_at"],
+                    "recency": round(recency, 6),
+                    "importance": round(imp_norm, 6),
+                    "score": round(score, 6),
+                }
+            )
+        results.sort(key=lambda d: d["score"], reverse=True)
+        for idx, d in enumerate(results, start=1):
+            d["rank"] = idx
+        if limit is not None and limit > 0:
+            results = results[:limit]
+        return results
+
+    def consolidate(
+        self,
+        max_age: float | None = None,
+        min_importance: float | None = None,
+        merge_threshold: float | None = 0.7,
+    ) -> dict[str, Any]:
+        """Prune/merge stale + low-importance memories (mem0 ranking idea).
+
+        A memory is removed only when it is BOTH stale (older than ``max_age``,
+        if given) AND low-importance (normalized importance below
+        ``min_importance``, if given). Redundant stale/low-importance memories
+        that are near-duplicates of retained ones are counted as ``merged``
+        rather than ``pruned``.
+
+        Returns:
+            ``{"pruned", "pruned_ids", "merged", "merged_ids", "kept"}``.
+        """
+        now = time.time()
+        ranked = self.ranking()
+        pruned: list[str] = []
+        merged: list[str] = []
+        for item in ranked:
+            rid = item["id"]
+            updated = item.get("updated_at") or item.get("created_at") or now
+            age = max(0.0, now - updated)
+            stale = max_age is not None and age >= float(max_age)
+            low_imp = min_importance is not None and item["importance"] < float(min_importance)
+            if not (stale and low_imp):
+                continue
+            if (
+                merge_threshold is not None
+                and self._redundant_with(rid, ranked, float(merge_threshold))
+            ):
+                merged.append(rid)
+            else:
+                pruned.append(rid)
+            self.delete(rid)
+        return {
+            "pruned": len(pruned),
+            "pruned_ids": pruned,
+            "merged": len(merged),
+            "merged_ids": merged,
+            "kept": self.stats()["total"],
+        }
+
+    def _redundant_with(
+        self, row_id: str, ranked: list[dict[str, Any]], threshold: float
+    ) -> bool:
+        """True if ``row_id`` is a near-duplicate (hybrid sim >= threshold) of any retained doc."""
+        doc = self._index.get(row_id)
+        if doc is None:
+            return False
+        q_tokens = tokenize(doc.text)
+        q_vec = doc.vector
+        for other in ranked:
+            if other["id"] == row_id:
+                continue
+            odoc = self._index.get(other["id"])
+            if odoc is None:
+                continue
+            vec = max(0.0, min(1.0, cosine_similarity(q_vec, odoc.vector)))
+            kw = keyword_score(q_tokens, tokenize(odoc.text))
+            blended = (self._kw_weight * kw) + ((1.0 - self._kw_weight) * vec)
+            if blended >= threshold:
+                return True
+        return False
 
     def recall(
         self,
@@ -547,6 +1013,7 @@ class HybridSemanticMemory(SemanticMemory):
                 self._user_ids.pop(row_id, None)
                 self._created_at.pop(row_id, None)
                 self._updated_at.pop(row_id, None)
+                self._access_count.pop(row_id, None)
                 self._delete_row(row_id)
             return removed
 

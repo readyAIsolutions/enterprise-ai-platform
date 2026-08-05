@@ -25,12 +25,15 @@ Version: 1.0.0
 
 from __future__ import annotations
 
+import abc
 import asyncio
 import inspect
 import json
 import logging
 import os
+import sys
 import threading
+import time
 import types
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -40,10 +43,14 @@ from typing import Any, Union, get_args, get_origin, get_type_hints
 __all__ = [
     "Tool",
     "ToolRegistry",
+    "ToolServer",
     "ToolCallError",
     "ValidationError",
     "tool",
     "register_builtin_tools",
+    "Transport",
+    "StdioTransport",
+    "MemoryTransport",
 ]
 
 _logger = logging.getLogger("enterprise.mcp_tools")
@@ -710,3 +717,245 @@ def get_env(name: str) -> str:
 def upper(text: str) -> str:
     """:param text: the text to uppercase."""
     return text.upper()
+
+
+# =========================================================================
+# FastMCP-style ToolServer
+# =========================================================================
+
+
+class ToolServer:
+    """FastMCP-style server facade over a :class:`ToolRegistry`.
+
+    Provides the familiar ``@server.tool`` decorator ergonomics layered on top
+    of the thread-safe registry: registering a plain sync or async callable
+    auto-derives its JSON Schema from the signature + docstring, and the same
+    callable stays directly callable/testable.
+
+        server = ToolServer()
+        @server.tool(description="Add two integers")
+        def add(a: int, b: int) -> int:
+            return a + b
+
+        server.list()                          # auto-built schemas
+        server.call("add", {"a": 2, "b": 3})   # -> 5
+        asyncio.run(server.handle_request("tools/call", {...}))
+
+    Both sync and async handlers are supported transparently through
+    :meth:`call` / :meth:`acall`, and JSON-RPC 2.0 responses for
+    ``tools/list`` / ``tools/call`` are produced by :meth:`handle_request`.
+    """
+
+    def __init__(self, name: str = "mcp", registry: ToolRegistry | None = None) -> None:
+        self.name = name
+        self.registry = registry if registry is not None else ToolRegistry()
+
+    # -- Registration decorator -------------------------------------------
+
+    def tool(
+        self,
+        name: str | None = None,
+        *,
+        description: str | None = None,
+        tags: list[str] | None = None,
+        version: str | None = None,
+    ) -> Callable[..., Any]:
+        """Decorator that registers a callable as a tool on this server.
+
+        Supports both ``@server.tool`` (bare) and ``@server.tool(...)``
+        (with options). The decorated callable is preserved (and tagged with
+        ``_mcp_tool``) so it stays directly callable, and it is immediately
+        registered for dispatch. Sync and async handlers both work.
+        """
+
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            decorated = tool(
+                name=name,
+                description=description,
+                tags=tags,
+                version=version,
+            )(func)
+            self.register(decorated, name=name)
+            return decorated
+
+        if isinstance(name, Callable):  # bare @server.tool usage
+            func = name
+            name = None
+            return decorator(func)
+        return decorator
+
+    # -- Registry passthrough ---------------------------------------------
+
+    def register(self, tool_or_decorator: Any, name: str | None = None) -> Tool:
+        """Register a Tool / decorated / bare callable and return the Tool."""
+        return self.registry.register(tool_or_decorator, name=name)
+
+    def unregister(self, name: str) -> bool:
+        """Remove the tool registered under ``name`` (True if removed)."""
+        return self.registry.unregister(name)
+
+    def get(self, name: str) -> Tool | None:
+        """Return the :class:`Tool` registered under ``name`` (or None)."""
+        return self.registry.get(name)
+
+    def has(self, name: str) -> bool:
+        """Return True if a tool named ``name`` is registered."""
+        return self.registry.has(name)
+
+    def count(self) -> int:
+        """Return the number of registered tools."""
+        return self.registry.count()
+
+    def list(self) -> list[dict[str, Any]]:
+        """Return JSON-serializable auto-built schemas for every tool."""
+        return self.registry.list()
+
+    # -- Dispatch ----------------------------------------------------------
+
+    def call(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
+        """Synchronously dispatch to the tool named ``name``.
+
+        Async handlers are awaited transparently. Raises :class:`ToolCallError`
+        for an unknown tool and :class:`ValidationError` for bad arguments.
+        """
+        return self.registry.call(name, arguments=arguments)
+
+    async def acall(
+        self, name: str, arguments: dict[str, Any] | None = None
+    ) -> Any:
+        """Asynchronously dispatch to the tool named ``name``."""
+        return await self.registry.acall(name, arguments=arguments)
+
+    # -- MCP / JSON-RPC wire layer ----------------------------------------
+
+    async def handle_request(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        request_id: Any = None,
+    ) -> dict[str, Any]:
+        """Serve ``tools/list`` / ``tools/call`` as JSON-RPC 2.0 responses."""
+        return await self.registry.handle_request(
+            method, params=params, request_id=request_id
+        )
+
+
+# =========================================================================
+# Pluggable transports
+# =========================================================================
+
+
+class Transport(abc.ABC):
+    """Abstract base class for MCP message transports.
+
+    A transport carries JSON-RPC 2.0 shaped dictionaries between a peer (the
+    client) and the :class:`ToolServer`. Concrete transports (stdio,
+    in-memory, HTTP/SSE later) implement :meth:`send` and :meth:`receive`;
+    :meth:`request` provides a convenience round-trip helper.
+    """
+
+    @abc.abstractmethod
+    def send(self, message: dict[str, Any]) -> None:
+        """Send one JSON-RPC message to the peer."""
+
+    @abc.abstractmethod
+    def receive(self) -> dict[str, Any] | None:
+        """Receive one JSON-RPC message, or None when nothing is pending."""
+
+    def request(self, message: dict[str, Any], timeout: float = 5.0) -> dict[str, Any]:
+        """Send ``message`` and block until a response arrives (or ``timeout``).
+
+        Useful for request/response round-trips over a synchronous transport.
+        """
+        deadline = time.monotonic() + timeout
+        self.send(message)
+        while time.monotonic() < deadline:
+            response = self.receive()
+            if response is not None:
+                return response
+            time.sleep(0.005)
+        raise TimeoutError(f"Timed out after {timeout}s waiting for a response")
+
+    def serve(
+        self,
+        handler: Callable[[dict[str, Any]], dict[str, Any] | None],
+    ) -> None:
+        """Run a synchronous read/serve loop, dispatching to ``handler``.
+
+        Calls ``handler(message)`` for each received message and, if it
+        returns a response, sends it back. Stops on EOF. Useful for stdio
+        servers and in-memory test harnesses.
+        """
+        while True:
+            message = self.receive()
+            if message is None:
+                break
+            response = handler(message)
+            if response is not None:
+                self.send(response)
+
+
+class MemoryTransport(Transport):
+    """Bidirectional in-memory transport for tests and concurrent servers.
+
+    Two :class:`MemoryTransport` endpoints connected with :meth:`connect`
+    pass messages to each other synchronously (no blocking I/O).
+    """
+
+    def __init__(self) -> None:
+        self._peer: MemoryTransport | None = None
+        self._inbox: list[dict[str, Any]] = []
+        self._closed = False
+
+    def connect(self, peer: MemoryTransport) -> None:
+        """Pair this endpoint with ``peer`` so sends route into its inbox."""
+        self._peer = peer
+        peer._peer = self
+
+    def send(self, message: dict[str, Any]) -> None:
+        if self._peer is None:
+            raise RuntimeError("MemoryTransport is not connected to a peer")
+        if self._closed:
+            raise RuntimeError("MemoryTransport is closed")
+        self._peer._inbox.append(message)
+
+    def receive(self) -> dict[str, Any] | None:
+        if not self._inbox:
+            return None
+        return self._inbox.pop(0)
+
+    def close(self) -> None:
+        self._closed = True
+
+
+class StdioTransport(Transport):
+    """JSON-RPC transport over ``stdin``/``stdout`` (or given file objects).
+
+    Each message is a single UTF-8 JSON line. Suitable for MCP over stdio:
+    the server reads a request line, writes a response line, and exits on EOF.
+    """
+
+    def __init__(self, stdin: Any = None, stdout: Any = None) -> None:
+        self._stdin = stdin if stdin is not None else sys.stdin
+        self._stdout = stdout if stdout is not None else sys.stdout
+        self._eof = False
+
+    def send(self, message: dict[str, Any]) -> None:
+        self._stdout.write(json.dumps(message, default=str) + "\n")
+        self._stdout.flush()
+
+    def receive(self) -> dict[str, Any] | None:
+        if self._eof:
+            return None
+        line = self._stdin.readline()
+        if line == "":
+            self._eof = True
+            return None
+        line = line.strip()
+        if not line:
+            return None
+        try:
+            parsed = json.loads(line)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid JSON-RPC line: {line!r}") from None
+        return parsed if isinstance(parsed, dict) else parsed
