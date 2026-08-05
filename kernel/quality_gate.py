@@ -19,7 +19,7 @@ class GateDefinition:
     description: str
     severity: GateSeverity
     module: str
-    check_fn: str  # reference to checker
+    check_fn: str = ""  # reference to checker (declared, not evaluated by gateway)
     required_evidence: List[str] = field(default_factory=list)
     timeout_seconds: int = 60
 

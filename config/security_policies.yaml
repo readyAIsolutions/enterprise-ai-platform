@@ -1,0 +1,35 @@
+# ENI Enterprise Security Policies
+# Model-agnostic declarative policy rules evaluated at the infrastructure layer.
+# Higher priority values are evaluated first.
+
+policies:
+  - name: "block_secrets_to_cloud"
+    priority: 100
+    condition: "has_secrets and target_model.type == 'cloud'"
+    action: "block"
+    reason: "Secrets must never leave local infrastructure"
+
+  - name: "block_injection"
+    priority: 95
+    condition: "prompt_injection_detected"
+    action: "block"
+    reason: "Prompt injection detected"
+
+  - name: "block_jailbreak"
+    priority: 94
+    condition: "jailbreak_detected"
+    action: "block"
+    reason: "Jailbreak attempt detected"
+
+  - name: "block_exfiltration"
+    priority: 90
+    condition: "data_exfiltration_detected"
+    action: "block"
+    reason: "Data exfiltration attempt"
+
+  - name: "redact_pii"
+    priority: 80
+    condition: "contains_pii"
+    action: "transform"
+    transform: "redact_pii"
+    reason: "PII must be redacted before leaving local infrastructure"

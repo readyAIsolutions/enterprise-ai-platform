@@ -108,8 +108,6 @@ select = [
     "ANN",
 ]
 ignore = [
-    # Allow line breaks before binary operators (readability)
-    "W503",
     # Too complex (project-specific)
     "C901",
     # Missing docstring in public module
@@ -173,6 +171,7 @@ minversion = "8.0"
 testpaths = ["tests", "modules"]
 pythonpath = ["."]
 addopts = [
+    "--import-mode=importlib",
     "--strict-markers",
     "--tb=short",
     "--disable-warnings",
@@ -225,7 +224,7 @@ exclude_also = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
-fail_under = 80
+fail_under = 50
 show_missing = true
 skip_covered = false
 

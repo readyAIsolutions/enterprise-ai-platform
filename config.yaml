@@ -122,6 +122,225 @@ modules:
       rto_target_minutes: 60
       rpo_target_minutes: 15
 
+  # ── Upgrade: Meta-Skill Generator / Registry / Self-Evolution ──────────────
+  skill_factory:
+    enabled: true
+    priority: 11
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      data_dir: "data/skills"
+      max_versions: 10
+      auto_generate: true
+
+  # ── Upgrade: Maestro-style long-running task harness ───────────────────────
+  task_harness:
+    enabled: true
+    priority: 11
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 60
+    config:
+      database_path: "data/tasks.sqlite"
+
+  # ── Upgrade: Multi-gateway automation (messaging channels + cron) ──────────
+  gateway:
+    enabled: true
+    priority: 12
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 60
+    config:
+      channels: {}   # e.g. {ops: {type: telegram, token: ..., chat_id: ...}}
+      jobs: []       # e.g. [{id: nightly, kind: cron, expr: "0 2 * * *"}]
+
+  # ── Upgrade: Semantic / vector memory retrieval (cognee-style) ─────────────
+  semantic_memory:
+    enabled: true
+    priority: 12
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      embedding_dim: 256
+      top_k: 5
+
+  # ── Critical: Model-Agnostic Security (PRIORITY 0 - boots FIRST) ──────────
+  model_security:
+    enabled: true
+    priority: 0
+    required: true
+    startup_timeout_sec: 15
+    health_check_interval_sec: 60
+    config:
+      audit_path: "data/model_security_audit.log"
+      policy_path: "config/security_policies.yaml"
+      injection_threshold: 0.7
+      jailbreak_threshold: 0.7
+      toxicity_threshold: 0.7
+      refusal_threshold: 0.8
+
+  # ── Upgrade: Long-term agent memory engine (mem0-style) ───────────────────
+  memory:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      database_path: 'data/agent_memory.sqlite'
+      embedding_dim: 128
+      top_k: 5
+      max_per_type: 1000
+
+  # ── Upgrade: MCP tool registry & serving layer (FastMCP-style) ─────────────
+  mcp_tools:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      max_tools: 1000
+      tags: []
+
+  # ── Upgrade: Agent-to-Agent interop (Google A2A protocol) ──────────────────
+  a2a:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      max_tasks: 10000
+      handoff_depth: 64
+
+  # ── Upgrade: Automated LLM eval gates (deepeval-style, offline metrics) ───
+  eval_gate:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      default_threshold: 0.7
+      required_metrics: ["answer_relevancy", "faithfulness", "toxicity"]
+
+  # ── Upgrade: Stateful agent graph orchestration (langgraph-style) ──────────
+  agent_graph:
+    enabled: true
+    priority: 13
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      max_steps: 1000
+      max_runs: 10000
+
+  # ═══════════════════════ SECURITY WAVE 2 (6 modules) ════════════════════════
+  # ── Security: Local LLM observability & tracing (langfuse-style) ──────────
+  llmops_trace:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      max_spans: 100000
+      trace_file: null
+
+  # ── Security: Offline vulnerability scanner (garak-style) ──────────────────
+  vuln_scanner:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      default_threshold: 0.5
+      probes: ["prompt_extraction", "jailbreak", "pii_leak", "toxicity"]
+
+  # ── Security: Programmable guardrails validators (guardrails-ai style) ─────
+  guardrails:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      on_fail: "raise"
+      max_refix_rounds: 3
+
+  # ── Security: Compliance control mapping (OWASP / NIST / MITRE) ────────────
+  compliance:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      frameworks: ["owasp_llm_top10", "nist_ai_rmf", "mitre_atlas"]
+      require_all_implemented: false
+
+  # ── Security: Credential hygiene & rotation (hash-only) ────────────────────
+  secret_rotation:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      default_max_age_days: 90
+      alert_before_days: 14
+
+  # ── Security: Threat modeling & attack surface (MITRE ATLAS / STRIDE) ──────
+  threat_model:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      default_likelihood: 3
+      default_impact: 3
+
+  # ── Security: TRIAD FORGE hacker box (black/grey/white scans + funnel) ─────
+  triadforge:
+    enabled: true
+    priority: 14
+    required: false
+    startup_timeout_sec: 20
+    health_check_interval_sec: 120
+    config:
+      db_path: "/home/hunter/Desktop/TriadForge/enterprise_triadforge.db"
+      base_dir: "/home/hunter/Desktop/TriadForge"
+
+  # ── Security: AI Defense (defend against AI-driven / automated attackers) ──
+  ai_defense:
+    enabled: true
+    priority: 15
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      anomaly:
+        window_sec: 60
+        z_threshold: 4.0
+        flood_events_per_sec: 20.0
+      bot:
+        pacing_sd_threshold: 0.05
+        min_intervals: 6
+      extraction:
+        max_queries_per_window: 200
+        window_sec: 60
+        min_queries: 50
+        max_distinct_tokens: 3000
+      stuffing:
+        max_failures: 5
+        lockout_seconds: 300.0
+        per_ip_max_failures: 20
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL

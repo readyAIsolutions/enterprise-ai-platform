@@ -14,8 +14,9 @@ import time
 import unittest
 from datetime import datetime, timedelta
 
-# Ensure the module is importable
-_MODULE_PARENT = "/home/hunter/Desktop/Eni Builder/enterprise/modules"
+# Ensure the module is importable (portable — resolve relative to this file)
+from pathlib import Path
+_MODULE_PARENT = str(Path(__file__).resolve().parents[2])
 if _MODULE_PARENT not in sys.path:
     sys.path.insert(0, _MODULE_PARENT)
 
