@@ -39,6 +39,20 @@ Four new modules added to extend autonomous operation:
 | `gateway` | Multi-channel automation | stdlib-only Telegram / Discord / webhook connectors (injectable for tests) + 5-field cron + interval scheduler for pushing events and scheduled runs. |
 | `semantic_memory` | Semantic/vector memory | Dependency-free embedding (feature-hash) + cosine retrieval + metadata filtering + knowledge-graph ingestion adapter (cognee-style). |
 
+### Upgrade: Demiurge Enterprise Boost (2026-08-04)
+
+| Module | Capability | What it does |
+|--------|-----------|--------------|
+| `model_router` | Model routing / fallback gateway | LiteLLM-style retry/cooldown state machine — per-deployment cooldown, per-exception retry policy, weighted dispatch, cross-model failover with `max_fallbacks`. Offline EchoAdapter for deterministic tests + urllib HTTPAdapter for real providers. |
+
+**Kernel fixes in this wave:** `ModuleRegistry.discover()` now actually imports module
+packages so every `@module` class binds (all 38 modules boot HEALTHY — previously it
+silently initialized nothing); kernel `MetricsCollector` is now fed at startup; the
+defined-but-dead `PAUSE`/`RECOVERING` lifecycle paths are implemented via
+`PlatformOS.pause()/resume()` (resume re-inits failed modules); per-module startup
+timeouts are honored. The 10 unregistered OS modules are now kernel-registered with
+health probes.
+
 ## Quick start
 
 ```bash
