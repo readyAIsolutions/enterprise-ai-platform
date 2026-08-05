@@ -24,6 +24,13 @@ from enterprise.platform_kernel import (
     module,
 )
 
+from .adversary_gate import (
+    AdversaryGate,
+    AgentForceHarness,
+    GateDecision,
+    GateProfile,
+    PROFILES,
+)
 from .ai_defense import (
     AIDefenseFacade,
     AIDefenseModule,
