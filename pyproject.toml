@@ -108,8 +108,6 @@ select = [
     "ANN",
 ]
 ignore = [
-    # Allow line breaks before binary operators (readability)
-    "W503",
     # Too complex (project-specific)
     "C901",
     # Missing docstring in public module

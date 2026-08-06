@@ -37,7 +37,7 @@ def enterprise_root():
 @pytest.fixture(scope="session")
 def platform_kernel_class():
     """Return the PlatformKernel class for session-wide use."""
-    from enterprise.kernel.kernel import PlatformKernel
+    from kernel.kernel import PlatformKernel
     return PlatformKernel
 
 
@@ -47,7 +47,7 @@ def platform():
 
     The kernel is fully shut down after the test completes.
     """
-    from enterprise.kernel.kernel import PlatformKernel
+    from kernel.kernel import PlatformKernel
     kernel = PlatformKernel()
     kernel.initialize()
     kernel.start()
@@ -122,35 +122,35 @@ def temp_config_file(temp_workspace):
 @pytest.fixture
 def safety_guardrail():
     """Return a configured SafetyGuardrail instance."""
-    from enterprise.modules.safety_governance.guardrails import SafetyGuardrail
+    from modules.safety_governance.guardrails import SafetyGuardrail
     return SafetyGuardrail()
 
 
 @pytest.fixture
 def prompt_registry():
     """Return a fresh PromptRegistry instance."""
-    from enterprise.modules.prompt_context import PromptRegistry
+    from modules.prompt_context import PromptRegistry
     return PromptRegistry()
 
 
 @pytest.fixture
 def context_manager():
     """Return a fresh ContextManager instance."""
-    from enterprise.modules.prompt_context import ContextManager
+    from modules.prompt_context import ContextManager
     return ContextManager()
 
 
 @pytest.fixture
 def agent_registry():
     """Return a fresh AgentRegistry instance."""
-    from enterprise.modules.agent_coordination.agents import AgentRegistry
+    from modules.agent_coordination.agents import AgentRegistry
     return AgentRegistry()
 
 
 @pytest.fixture
 def entity_registry():
     """Return a fresh EntityRegistry instance."""
-    from enterprise.modules.knowledge_graph.entities import EntityRegistry
+    from modules.knowledge_graph.entities import EntityRegistry
     return EntityRegistry()
 
 

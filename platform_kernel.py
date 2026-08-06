@@ -30,7 +30,6 @@ import inspect
 import json
 import logging
 import os
-import queue
 import signal
 import sys
 import threading
@@ -46,9 +45,9 @@ from pathlib import Path
 from types import ModuleType
 from typing import (
     Any,
+    Awaitable,
     Callable,
     ClassVar,
-    Concatenate,
     Dict,
     Generic,
     Iterable,
@@ -246,7 +245,7 @@ class Event:
 
 
 # Callback type: async or sync
-EventHandler = Callable[[Event], Optional[Any]]
+EventHandler = Callable[[Event], Union[None, Awaitable[None]]]
 
 
 @dataclass
@@ -302,7 +301,7 @@ class EventBus:
         self._subscriptions: Dict[str, List[Subscription]] = defaultdict(list)
         self._subscriptions_by_id: Dict[str, Subscription] = {}
         self._async_dispatch: bool = cfg.get("async_dispatch", True)
-        self._max_workers: int = cfg.get("max_workers", 8)
+        self._max_workers: int = max(1, cfg.get("max_workers", 8))
         self._executor: Optional[ThreadPoolExecutor] = None
         if self._async_dispatch:
             self._executor = ThreadPoolExecutor(
@@ -443,6 +442,19 @@ class EventBus:
         """Dispatch a single event to a single subscriber. Handles errors."""
         try:
             result = sub.handler(event)
+            if asyncio.iscoroutine(result):
+                # Schedule the coroutine to run in the executor if async_dispatch
+                if self._async_dispatch and self._executor is not None:
+                    self._executor.submit(self._run_async_handler, result, event, sub)
+                    return
+                else:
+                    # If not async dispatch, we need to run the coroutine
+                    # This should only happen in sync mode with an async handler
+                    loop = asyncio.new_event_loop()
+                    try:
+                        loop.run_until_complete(result)
+                    finally:
+                        loop.close()
             with self._lock:
                 self._total_delivered += 1
         except Exception as exc:
@@ -462,6 +474,27 @@ class EventBus:
         # Auto-unsubscribe once-only
         if sub.once:
             self.unsubscribe(sub.id)
+
+    def _run_async_handler(self, coro: Awaitable[None], event: Event, sub: Subscription) -> None:
+        """Run an async handler in a new event loop."""
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(coro)
+            with self._lock:
+                self._total_delivered += 1
+        except Exception as exc:
+            with self._lock:
+                self._total_failed += 1
+            if self._dead_letter_enabled:
+                with self._lock:
+                    self._dead_letter.append((event, sub, exc))
+            logging.getLogger("eni.eventbus").error(
+                "Event dispatch failed: topic=%s subscriber=%s error=%s",
+                event.topic,
+                sub.subscriber_name,
+                exc,
+                exc_info=True,
+            )
 
     def _record_event(self, event: Event) -> None:
         """Add event to history, trimming if necessary."""
@@ -670,10 +703,16 @@ class ModuleRegistry:
 
         Args:
             modules_path: Path to the modules directory.
-            config: Platform configuration dict (reads 'modules' section).
+            config: Platform configuration dict (reads 'modules' section
+                    and 'platform.modules_path' for override).
         """
-        self._modules_path: Path = modules_path or self.DEFAULT_MODULES_PATH
-        self._config: Dict[str, Any] = config or {}
+        cfg = config or {}
+        # Allow config to override modules_path (e.g., from ENI_MODULES_PATH env)
+        config_modules_path = cfg.get("platform", {}).get("modules_path")
+        self._modules_path: Path = modules_path or (
+            Path(config_modules_path) if config_modules_path else self.DEFAULT_MODULES_PATH
+        )
+        self._config: Dict[str, Any] = cfg
         self._lock: threading.RLock = threading.RLock()
         self._records: Dict[str, ModuleRecord] = {}
         self._discovered: bool = False
@@ -798,12 +837,13 @@ class ModuleRegistry:
         )
 
         for record in ordered:
+            instance = None
             try:
                 instance = record.module_class(config=record.config)  # type: ignore[misc]
-                record.instance = instance
                 await instance.initialize()
                 instance._started_at = datetime.now(timezone.utc)
                 instance.status = HealthStatus.HEALTHY
+                record.instance = instance
                 results[record.name] = HealthStatus.HEALTHY
                 logging.getLogger("eni.registry").info(
                     "Initialized module: %s", record.name
@@ -816,8 +856,10 @@ class ModuleRegistry:
                     traceback.format_exc(),
                 )
                 results[record.name] = HealthStatus.UNHEALTHY
-                if record.instance:
-                    record.instance.status = HealthStatus.UNHEALTHY
+                if instance is not None:
+                    instance.status = HealthStatus.UNHEALTHY
+                # Do not store instance if initialization failed
+                record.instance = None
 
         return results
 
@@ -959,21 +1001,41 @@ class HealthChecker:
         self._success_counts: Dict[str, int] = defaultdict(int)
 
     async def run_all_checks(self) -> List[HealthReport]:
-        """Run health checks on all initialized modules.
+        """Run health checks on all initialized modules concurrently.
 
         Returns:
             List of HealthReports, one per module plus a platform aggregate.
         """
-        reports: List[HealthReport] = []
         records = self._registry.list_modules()
-
+        tasks = []
         for record in records:
             if record.instance is None:
                 continue
+            tasks.append(self._check_one(record.instance, record.name))
 
-            report = await self._check_one(record.instance, record.name)
+        if not tasks:
+            # Platform aggregate for no modules
+            platform_report = self._aggregate([])
+            return [platform_report]
+
+        reports = await asyncio.gather(*tasks, return_exceptions=True)
+
+        valid_reports = []
+        for record, result in zip([r for r in records if r.instance is not None], reports):
+            if isinstance(result, HealthReport):
+                report = result
+            elif isinstance(result, Exception):
+                report = HealthReport(
+                    module_name=record.name,
+                    status=HealthStatus.UNHEALTHY,
+                    response_time_ms=0.0,
+                    timestamp=datetime.now(timezone.utc),
+                    details={"error": str(result)},
+                )
+            else:
+                continue
             self._update_tracking(report)
-            reports.append(report)
+            valid_reports.append(report)
 
             if self._event_bus:
                 self._event_bus.publish(
@@ -985,9 +1047,9 @@ class HealthChecker:
                 )
 
         # Platform aggregate
-        platform_report = self._aggregate(reports)
-        reports.append(platform_report)
-        return reports
+        platform_report = self._aggregate(valid_reports)
+        valid_reports.append(platform_report)
+        return valid_reports
 
     async def run_check_for(self, module_name: str) -> Optional[HealthReport]:
         """Run a health check for a single module by name."""
@@ -1144,7 +1206,7 @@ class MetricsCollector:
         cfg = config or {}
         self._enabled: bool = cfg.get("enabled", True)
         self._lock: threading.RLock = threading.RLock()
-        self._counters: Dict[str, Dict[str, float]] = defaultdict(
+        self._counters: Dict[str, Dict[Tuple[str, ...], float]] = defaultdict(
             lambda: defaultdict(float)
         )
         self._gauges: Dict[str, float] = {}
@@ -1162,7 +1224,7 @@ class MetricsCollector:
         """Increment a counter metric."""
         if not self._enabled:
             return
-        tag_key = json.dumps(tags or {}, sort_keys=True)
+        tag_key = self._make_tag_key(tags)
         with self._lock:
             self._counters[name][tag_key] += value
             self._record(MetricPoint(name=name, value=value, tags=tags or {}, module=module))
@@ -1195,6 +1257,12 @@ class MetricsCollector:
             self._histograms[name].append(value)
             self._record(MetricPoint(name=name, value=value, tags=tags or {}, module=module))
 
+    def _make_tag_key(self, tags: Optional[Dict[str, str]]) -> Tuple[str, ...]:
+        """Create a hashable key from tags dict."""
+        if not tags:
+            return ()
+        return tuple(sorted((k, v) for k, v in tags.items()))
+
     def _record(self, point: MetricPoint) -> None:
         """Store a metric point in history."""
         self._history.append(point)
@@ -1205,7 +1273,7 @@ class MetricsCollector:
         self, name: str, tags: Optional[Dict[str, str]] = None
     ) -> float:
         """Get the current value of a counter."""
-        tag_key = json.dumps(tags or {}, sort_keys=True)
+        tag_key = self._make_tag_key(tags)
         with self._lock:
             return self._counters.get(name, {}).get(tag_key, 0.0)
 
@@ -1539,6 +1607,10 @@ class ConfigurationLoader:
         if log_level and "logging" in self._config:
             self._config["logging"]["level"] = log_level.upper()
 
+        modules_path = os.environ.get("ENI_MODULES_PATH")
+        if modules_path:
+            self._config.setdefault("platform", {})["modules_path"] = modules_path
+
     def get(self, key: str, default: Any = None) -> Any:
         """Get a nested config value using dot notation.
 
@@ -1850,10 +1922,13 @@ class PlatformOS:
             self._transition_to(LifecycleState.DEGRADED)
             self._logger.error("Platform health degraded!")
         elif platform_report.status == HealthStatus.HEALTHY and self._state == LifecycleState.DEGRADED:
-            self._transition_to(LifecycleState.RECOVERING)
-            self._logger.info("Platform recovering from degraded state...")
-            # If everything is healthy, transition back to RUNNING
-            self._transition_to(LifecycleState.RUNNING)
+            # Check if all modules are actually healthy before transitioning to RUNNING
+            module_reports = [r for r in reports if r.module_name != "platform"]
+            all_healthy = all(r.status == HealthStatus.HEALTHY for r in module_reports)
+            if all_healthy:
+                self._transition_to(LifecycleState.RECOVERING)
+                self._logger.info("Platform recovering from degraded state...")
+                self._transition_to(LifecycleState.RUNNING)
 
     async def run_health_check(self) -> List[HealthReport]:
         """Manually trigger a full health check.
@@ -1999,11 +2074,11 @@ class PlatformOS:
             sig_name = signal.Signals(signum).name
             self._logger.info("Received signal %s, initiating shutdown...", sig_name)
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
             except RuntimeError:
+                # No running loop - can't schedule shutdown
                 return
-            if loop.is_running():
-                loop.create_task(self.shutdown())
+            loop.create_task(self.shutdown())
 
         signal.signal(signal.SIGINT, _handle_signal)
         signal.signal(signal.SIGTERM, _handle_signal)

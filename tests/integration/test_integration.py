@@ -29,7 +29,7 @@ class TestPlatformKernelBoot:
 
     def test_platform_os_singleton_pattern(self):
         """PlatformOS.instance() returns the singleton."""
-        from enterprise.platform_kernel import PlatformOS
+        from platform_kernel import PlatformOS
 
         p1 = PlatformOS.instance()
         p2 = PlatformOS.instance()
@@ -46,7 +46,7 @@ class TestModuleRegistration:
 
     def test_registry_list_and_get(self):
         """ModuleRegistry can list modules and retrieve by name."""
-        from enterprise.platform_kernel import ModuleRegistry
+        from platform_kernel import ModuleRegistry
 
         registry = ModuleRegistry()
         modules = registry.list_modules()
@@ -63,7 +63,7 @@ class TestEventFlow:
 
     def test_event_bus_creation(self):
         """EventBus can be created with default config."""
-        from enterprise.platform_kernel import EventBus
+        from platform_kernel import EventBus
 
         bus = EventBus()
         assert bus is not None
@@ -71,7 +71,7 @@ class TestEventFlow:
 
     def test_event_creation_and_publish(self):
         """Events can be created and published on the bus."""
-        from enterprise.platform_kernel import EventBus, Event
+        from platform_kernel import EventBus, Event
 
         bus = EventBus(config={"async_dispatch": False})
         received = []
@@ -92,7 +92,7 @@ class TestEventFlow:
 
     def test_event_bus_wildcard_subscription(self):
         """Wildcard subscriptions receive all events."""
-        from enterprise.platform_kernel import EventBus, Event
+        from platform_kernel import EventBus, Event
 
         bus = EventBus(config={"async_dispatch": False})
         all_events = []
@@ -109,7 +109,7 @@ class TestEventFlow:
 
     def test_event_bus_once_subscription(self):
         """Once subscriptions auto-unsubscribe after first delivery."""
-        from enterprise.platform_kernel import EventBus, Event
+        from platform_kernel import EventBus, Event
 
         bus = EventBus(config={"async_dispatch": False})
         once_events = []
@@ -126,7 +126,7 @@ class TestEventFlow:
 
     def test_event_bus_stats(self):
         """EventBus reports accurate statistics."""
-        from enterprise.platform_kernel import EventBus, Event
+        from platform_kernel import EventBus, Event
 
         bus = EventBus(config={"async_dispatch": False})
         bus.publish_sync(Event.create("stats.test", "src", {}))
@@ -138,7 +138,7 @@ class TestEventFlow:
 
     def test_cross_module_event_flow(self):
         """Events can flow between simulated module handlers."""
-        from enterprise.platform_kernel import EventBus, Event
+        from platform_kernel import EventBus, Event
 
         bus = EventBus(config={"async_dispatch": False})
         module_b_received = []
@@ -165,7 +165,7 @@ class TestHealthChecks:
 
     def test_health_status_values(self):
         """HealthStatus enum provides correct operational checks."""
-        from enterprise.platform_kernel import HealthStatus
+        from platform_kernel import HealthStatus
 
         assert HealthStatus.HEALTHY.is_operational() is True
         assert HealthStatus.DEGRADED.is_operational() is True
@@ -175,7 +175,7 @@ class TestHealthChecks:
 
     def test_health_checker_creation(self):
         """HealthChecker can be instantiated with a registry."""
-        from enterprise.platform_kernel import HealthChecker, ModuleRegistry
+        from platform_kernel import HealthChecker, ModuleRegistry
 
         registry = ModuleRegistry()
         checker = HealthChecker(registry)
@@ -183,7 +183,7 @@ class TestHealthChecks:
 
     def test_health_report_creation(self):
         """HealthReport dataclass works correctly."""
-        from enterprise.platform_kernel import HealthReport, HealthStatus
+        from platform_kernel import HealthReport, HealthStatus
 
         report = HealthReport(
             module_name="test_module",
@@ -196,7 +196,7 @@ class TestHealthChecks:
 
     def test_platform_health_status(self):
         """Platform health status enum works correctly."""
-        from enterprise.platform_kernel import HealthStatus
+        from platform_kernel import HealthStatus
 
         assert HealthStatus.HEALTHY.is_operational() is True
         assert HealthStatus.DEGRADED.is_operational() is True
@@ -213,10 +213,10 @@ class TestModuleIntegration:
 
     def test_safety_guardrail_integration(self):
         """Safety guardrail can process input and return structured results."""
-        from enterprise.modules.safety_governance.guardrails import (
-            SafetyGuardrail,
-            GuardrailResult,
-        )
+        from modules.safety_governance.guardrails import (
+                    SafetyGuardrail,
+                    GuardrailResult,
+                )
 
         guardrail = SafetyGuardrail()
         result = guardrail.process_input("Hello, how are you?")
@@ -224,7 +224,7 @@ class TestModuleIntegration:
 
     def test_prompt_registry_crud(self):
         """Prompt registry supports full CRUD lifecycle."""
-        from enterprise.modules.prompt_context import PromptRegistry
+        from modules.prompt_context import PromptRegistry
 
         registry = PromptRegistry()
         prompt_id = registry.define(
@@ -246,10 +246,10 @@ class TestModuleIntegration:
 
     def test_agent_registry_creates_agents(self):
         """Agent registry can create and list agents."""
-        from enterprise.modules.agent_coordination.agents import (
-            AgentRegistry,
-            AgentFactory,
-        )
+        from modules.agent_coordination.agents import (
+                    AgentRegistry,
+                    AgentFactory,
+                )
 
         factory = AgentFactory()
         agent = factory.create(agent_id="agent-qa-engineer")
@@ -257,10 +257,10 @@ class TestModuleIntegration:
 
     def test_knowledge_graph_entity_crud(self):
         """Knowledge graph supports entity lifecycle."""
-        from enterprise.modules.knowledge_graph.entities import (
-            EntityRegistry,
-            EntityType,
-        )
+        from modules.knowledge_graph.entities import (
+                    EntityRegistry,
+                    EntityType,
+                )
 
         registry = EntityRegistry()
         entity = registry.create(
@@ -273,10 +273,10 @@ class TestModuleIntegration:
 
     def test_context_manager_methods(self):
         """Context manager supports block lifecycle via convenience methods."""
-        from enterprise.modules.prompt_context import (
-            ContextManager,
-            ContextPriority,
-        )
+        from modules.prompt_context import (
+                    ContextManager,
+                    ContextPriority,
+                )
 
         ctx = ContextManager()
         # Use convenience add methods
@@ -288,7 +288,7 @@ class TestModuleIntegration:
 
     def test_feature_flags_basic(self):
         """Feature flag manager evaluates flags correctly."""
-        from enterprise.foundation.config_feature_flags.flags import FeatureFlagManager, Flag
+        from foundation.config_feature_flags.flags import FeatureFlagManager, Flag
 
         manager = FeatureFlagManager()
         # Check flag state (may exist from defaults)
@@ -296,23 +296,23 @@ class TestModuleIntegration:
         assert isinstance(flags, list)
 
     def test_policy_engine_imports(self):
-        """Policy engine classes are importable."""
-        from enterprise.foundation.policy_engine import (
-            PolicyDefinition,
-            PolicySet,
-            PolicyEnforcer,
-            PolicyRule,
-        )
+            """Policy engine classes are importable."""
+            from foundation.policy_engine import (
+                PolicyDefinition,
+                PolicySet,
+                PolicyEnforcer,
+                PolicyRule,
+            )
 
-        # Create a simple policy
-        rule = PolicyRule(
-            name="test_rule",
-            description="Test rule for integration",
-            conditions=[{"field": "action", "operator": "equals", "value": "allowed"}],
-            action="allow",
-            severity="low",
-        )
-        assert rule.name == "test_rule"
+            # Create a simple policy
+            rule = PolicyRule(
+                name="test_rule",
+                description="Test rule for integration",
+                conditions=[{"field": "action", "operator": "equals", "value": "allowed"}],
+                action="allow",
+                severity="low",
+            )
+            assert rule.name == "test_rule"
 
 
 # ==============================================================================
@@ -325,8 +325,8 @@ class TestMultiModuleWorkflow:
 
     def test_prompt_to_safety_pipeline(self):
         """Prompt goes through registry, context, and safety gate."""
-        from enterprise.modules.prompt_context import PromptRegistry
-        from enterprise.modules.safety_governance.guardrails import SafetyGuardrail
+        from modules.prompt_context import PromptRegistry
+        from modules.safety_governance.guardrails import SafetyGuardrail
 
         registry = PromptRegistry()
         prompt_id = registry.define(
@@ -346,7 +346,7 @@ class TestMultiModuleWorkflow:
 
     def test_event_driven_module_chain(self):
         """Multiple modules can be chained via event bus."""
-        from enterprise.platform_kernel import EventBus, Event
+        from platform_kernel import EventBus, Event
 
         bus = EventBus(config={"async_dispatch": False})
         pipeline_stages: list = []
@@ -388,7 +388,7 @@ class TestPlatformLifecycle:
 
     def test_event_bus_shutdown(self):
         """EventBus shutdown releases executor resources."""
-        from enterprise.platform_kernel import EventBus
+        from platform_kernel import EventBus
 
         bus = EventBus()
         bus.shutdown()
@@ -397,7 +397,7 @@ class TestPlatformLifecycle:
 
     def test_platform_lifecycle_via_create_platform(self):
         """create_platform returns a booted platform that can be shut down."""
-        from enterprise.platform_kernel import create_platform
+        from platform_kernel import create_platform
 
         platform = create_platform()
         assert platform is not None
@@ -407,7 +407,7 @@ class TestPlatformLifecycle:
 
     def test_lifecycle_state_transitions(self):
         """LifecycleState enum validates transitions correctly."""
-        from enterprise.platform_kernel import LifecycleState
+        from platform_kernel import LifecycleState
 
         # Valid transition
         assert LifecycleState.UNINITIALIZED.can_transition_to(
@@ -429,7 +429,7 @@ class TestErrorHandling:
 
     def test_event_bus_dead_letter_queue(self):
         """Failing handlers go to dead letter queue, not crash the bus."""
-        from enterprise.platform_kernel import EventBus, Event
+        from platform_kernel import EventBus, Event
 
         bus = EventBus(config={"async_dispatch": False, "dead_letter_enabled": True})
 
@@ -455,7 +455,7 @@ class TestErrorHandling:
 
     def test_platform_is_singleton(self):
         """PlatformOS.instance() always returns same instance."""
-        from enterprise.platform_kernel import PlatformOS
+        from platform_kernel import PlatformOS
 
         p1 = PlatformOS.instance()
         p2 = PlatformOS.instance()
