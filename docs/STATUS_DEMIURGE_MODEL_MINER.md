@@ -106,3 +106,19 @@ multi-drive cycle is fully validated on the Qwen family.
   rips training from cloud models as we use them." Verified live: a free-router
   call auto-created a `controller_cloud_rip_*.md` KB entry.
 - Config flag: `cloud_ripple: true` (default on).
+
+## UPDATE 3 (2026-08-05): high-value ripping upgrades
+- **DEEP_TOPICS battery** (10 expert probes): agent-runtime-architecture, multi-agent
+  design patterns, LLM threat model, RAG, agent-eval, GPU inference optimization,
+  prompt-injection defense, local knowledge compounding, agent memory, MLOps-for-agents.
+  Demands concrete-implementable, novel, expert answers — for strong models (7B+ /
+  DeepSeek-V3.1 via free-router), not tiny 0.5B toys.
+- **--deep flag**: `eni_miner_boot.py --mine --deep` rips with the expert battery +
+  demanding system prompt. `mine()`/`rip()` accept `deep=True`.
+- **Smart cloud-ripple topics**: new `classification.py` derives a stable KB topic from
+  the actual prompt (security/infrastructure/engineering/data-science/mcp-lsp/prompting/
+  devops/testing + subject fallback) so cloud-rip KB entries organize by real subject
+  instead of a generic label. 5 unit tests.
+- **Verdict on value:** the 0.5B-1.5B rips are textbook-quality (medium value). The
+  pipeline is the real asset; high-value content comes from DEEP rips of strong models
+  + the auto cloud-ripple compounding.
