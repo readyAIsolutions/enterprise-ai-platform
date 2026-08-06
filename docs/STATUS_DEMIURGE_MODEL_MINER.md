@@ -157,3 +157,9 @@ FIX (committed in controller):
 
 LESSON: per-model isolation + delete_after can silently DESTROY the asset when the
 rip silently fails. The guard turns that into keep-for-retry.
+
+## VERIFIED FIX (live, end-to-end)
+`--train Qwen/Qwen2.5-0.5B-Instruct --deep` -> **ok:true, extracted:10, saved:10**
+(ALL 10 DEEP_TOPICS), deleted_after:true (freed ~1.9GB), duration 470s.
+KB model_rip entries: 39 -> **49**. The deep battery now fires for real on the
+train path. Regression suite: 31 passed, ruff clean.
