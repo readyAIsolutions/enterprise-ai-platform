@@ -133,3 +133,27 @@ agent-runtime-architecture, multi-agent-design-patterns (646w), llm-security-thr
 - vs old: deep content is expert/novel (OWASP mappings, concrete tools) not textbook.
 - **Verdict confirmed:** high-value rips come from strong models + deep battery. The
   pipeline + cloud-ripple are the compounding asset.
+
+## RESULT: --train-batch bug found + fixed (deep never propagated)
+LAUNCHED `--train-batch --limit 6 --deep`. Outcome: **all 6 failed, ZERO KB entries**
+banked, but **~25.7GB freed** (models downloaded then deleted).
+- ROOT CAUSE (real bug, not download): `run_batch` had NO `deep` param and never
+  forwarded topics; `train_and_rip` did `topics or []` which turned the None default
+  into an EMPTY list, so `rip()` never applied DEEP_TOPICS/RIP_TOPICS. Result:
+  rip loop ran over 0 topics -> saved:0, error:null, and delete_after=True deleted
+  the model anyway (the delete-after-rip trap).
+- gemma-2b/9b: 401 gated repos (need HF login/agreement) - expected, not a bug.
+- Qwen2.5-3B: real serve crash (server exited early rc=1; serve_hf fallback failed).
+
+FIX (committed in controller):
+1. Propagated `deep` through run_batch -> train_and_rip -> _rip_with_server -> rip()
+   so `--train-batch --deep` actually uses DEEP_TOPICS.
+2. Stopped `topics or []` from clobbering the battery default (rip() applies its
+   own default when topics is None).
+3. DELETE-AFTER-RIP GUARD: model is now kept cached for retry when a rip banks 0
+   entries (force_delete=True opts out). No more destroy-before-learn.
+4. Regression tests: +3 (deep selects DEEP_TOPICS, default selects RIP_TOPICS,
+   guard defaults on). **31 tests pass, ruff clean.**
+
+LESSON: per-model isolation + delete_after can silently DESTROY the asset when the
+rip silently fails. The guard turns that into keep-for-retry.
