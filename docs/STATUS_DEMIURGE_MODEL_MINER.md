@@ -94,3 +94,15 @@ real, usable training. Verified on disk.
 should fall back to the stdlib `serve_hf.py` server or be retried — currently a single
 server crash means that model's residual topics are skipped. The batch / delete-after /
 multi-drive cycle is fully validated on the Qwen family.
+
+## UPDATE 2 (2026-08-05): Gemma fallback + auto cloud-ripple
+- **Server fallback:** `train_and_rip` now auto-retries once with the stdlib
+  `serve_hf.py` server when the primary (airllm) server underperforms / crashes
+  (fixes the Gemma-family skip from the first batch). Each model is fully ripped
+  instead of being dropped.
+- **Auto CloudRipple:** `ModelRouter.chat()` now calls `_maybe_cloud_ripple()` on
+  EVERY successful completion (free-router OR OpenRouter), persisting a sanitized
+  (model, prompt, response) KB entry tagged `cloud_rip`. So Hermes "consistently
+  rips training from cloud models as we use them." Verified live: a free-router
+  call auto-created a `controller_cloud_rip_*.md` KB entry.
+- Config flag: `cloud_ripple: true` (default on).
