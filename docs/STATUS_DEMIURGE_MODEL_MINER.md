@@ -122,3 +122,14 @@ multi-drive cycle is fully validated on the Qwen family.
 - **Verdict on value:** the 0.5B-1.5B rips are textbook-quality (medium value). The
   pipeline is the real asset; high-value content comes from DEEP rips of strong models
   + the auto cloud-ripple compounding.
+
+## RESULT: high-value deep rip (free-router / DeepSeek-V3.1)
+Ran `--mine --deep` → **ALL 10 expert deep topics captured** to the KB:
+agent-runtime-architecture, multi-agent-design-patterns (646w), llm-security-threat-model
+(641w, OWASP LLM top-10 mapped, layered mitigations), retrieval-augmented-generation
+(578w), agent-evaluation (322w), gpu-inference-optimization (395w), prompt-injection
+-defense (439w), local-knowledge-compounding (740w), agent-memory (608w), mlops-for
+-agents (306w). Total model-rip KB entries: **39**.
+- vs old: deep content is expert/novel (OWASP mappings, concrete tools) not textbook.
+- **Verdict confirmed:** high-value rips come from strong models + deep battery. The
+  pipeline + cloud-ripple are the compounding asset.
