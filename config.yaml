@@ -465,6 +465,47 @@ modules:
       registry_path: "~/.hermes/enterprise_look_and_feel_registry.json"
       default_modules_path: "data/look_and_feel_modules.txt"
 
+  # ── Agent OS: unified AI agent operating system ────────────────────────────
+  agent_os:
+    enabled: true
+    priority: 10
+    required: false
+    startup_timeout_sec: 20
+    health_check_interval_sec: 60
+    config:
+      max_conflicts: 20
+
+  # ── Autonomous Agent Runtime: multi-provider LLM abstraction ───────────────
+  autonomous_agent_runtime:
+    enabled: true
+    priority: 10
+    required: false
+    startup_timeout_sec: 20
+    health_check_interval_sec: 60
+    config:
+      default_provider: "openai_compatible"
+
+  # ── Production RAG: chunking / embeddings / retrieval / reranking / pipeline ──
+  rag:
+    enabled: true
+    priority: 10
+    required: false
+    startup_timeout_sec: 20
+    health_check_interval_sec: 60
+    config:
+      embedder: "hash"
+
+  # ── MLOps/LLMOps Lifecycle: experiment tracking, canary, drift, rollback ──
+  mlops_lifecycle:
+    enabled: true
+    priority: 10
+    required: false
+    startup_timeout_sec: 20
+    health_check_interval_sec: 60
+    config:
+      experiment_store: "data/mlops_experiments.sqlite"
+      drift_threshold: 0.05
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL

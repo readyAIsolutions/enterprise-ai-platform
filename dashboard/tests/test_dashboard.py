@@ -126,3 +126,30 @@ class TestDashboardServer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestControlConsole(unittest.TestCase):
+    """Control-console endpoint tests (POST /api/control)."""
+
+    def test_control_route_registered(self) -> None:
+        routes = [r.path for r in app.routes]
+        assert "/api/control" in routes
+
+    def test_control_rejects_unknown_verb(self) -> None:
+        resp = client.post("/api/control", json={"verb": "rm -rf /tmp/x"})
+        assert resp.status_code == 400
+        assert resp.json().get("ok") is False
+
+    def test_control_rejects_bad_agent_os_sub_verb(self) -> None:
+        resp = client.post("/api/control", json={"verb": "agent-os", "args": {"verb": "drop database"}})
+        assert resp.status_code == 400
+
+    def test_control_agent_os_status_runs(self) -> None:
+        resp = client.post("/api/control", json={"verb": "agent-os", "args": {"verb": "status"}})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "ok" in data
+
+    def test_homepage_has_console(self) -> None:
+        resp = client.get("/")
+        assert "CONTROL CONSOLE" in resp.text.upper()

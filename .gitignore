@@ -51,6 +51,7 @@ htmlcov/
 data/
 !modules/agent_catalog/data/
 !modules/agent_catalog/data/agent_catalog.json
+modules/agent_catalog/data/agents/
 metrics/
 
 # Temporary

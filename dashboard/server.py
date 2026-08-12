@@ -429,6 +429,62 @@ async def api_health(_req: Request) -> JSONResponse:
     )
 
 
+async def api_control(req: Request) -> JSONResponse:
+    """Control surface: run enterprise/agent-os verbs from the browser.
+
+    Dispatches to the validated `eni_cli` runner via subprocess (the repo's
+    bulletproof pattern — sidesteps import-path / event-loop / singleton
+    issues inside the Starlette process). Body: {"verb": "...", "args": {...}}.
+    """
+    _record_http("http.control_requests")
+    try:
+        data = await req.json()
+    except Exception:
+        data = {}
+    verb = str(data.get("verb", "")).strip()
+    args = data.get("args", {}) or {}
+    cli = HERE.parent / "scripts" / "eni_cli.py"
+    # Map verb -> CLI args (whitelisted — never pass raw input to shell).
+    if verb == "agent-os":
+        sub_verb = str(args.get("verb", "status"))
+        if sub_verb not in {"status", "brief", "oracle", "draft", "publish_latest", "voice", "hermes"}:
+            return JSONResponse({"ok": False, "error": f"disallowed agent-os verb: {sub_verb}"}, status_code=400)
+        cmd = [sys.executable, str(cli), "agent-os", sub_verb]
+        if sub_verb == "voice":
+            txt = str(args.get("text", ""))[:500]
+            cmd += ["--text", txt]
+        if sub_verb == "brief":
+            cmd += ["--deliver", str(args.get("deliver", "file"))]
+        if sub_verb == "publish_latest":
+            cmd += ["--limit", str(int(args.get("limit", 1)))]
+    elif verb == "brief":
+        deliver = str(args.get("deliver", "file"))
+        if deliver not in {"file", "signal", "both"}:
+            deliver = "file"
+        cmd = [sys.executable, str(cli), "brief", "--deliver", deliver]
+    elif verb == "status":
+        cmd = [sys.executable, str(cli), "status"]
+    elif verb == "doctor":
+        cmd = [sys.executable, str(cli), "doctor"]
+    elif verb == "modules":
+        cmd = [sys.executable, str(cli), "modules"]
+    else:
+        return JSONResponse({"ok": False, "error": f"unknown control verb: {verb}"}, status_code=400)
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90, cwd=str(HERE.parent))
+    except subprocess.TimeoutExpired:
+        return JSONResponse({"ok": False, "error": "command timed out"})
+    return JSONResponse(
+        {
+            "ok": proc.returncode == 0,
+            "exit": proc.returncode,
+            "stdout": proc.stdout[-4000:],
+            "stderr": proc.stderr[-1000:],
+        }
+    )
+
+
 app = Starlette(debug=False)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.routes.extend(
@@ -440,6 +496,7 @@ app.routes.extend(
         Route("/api/events", api_events),
         Route("/api/health", api_health),
         Route("/api/metrics", api_metrics),
+        Route("/api/control", api_control, methods=["POST"]),
     ]
 )
 if (HERE / "static").exists():
@@ -451,4 +508,4 @@ v = _get_validation()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8421, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=8421, log_level="info")

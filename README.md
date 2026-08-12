@@ -54,6 +54,24 @@ defined-but-dead `PAUSE`/`RECOVERING` lifecycle paths are implemented via
 timeouts are honored. The 10 unregistered OS modules are now kernel-registered with
 health probes.
 
+### Release v2.0.0 — Golden Boot (2026-08-11)
+
+All previously-scaffolded-but-non-booting modules are now complete, first-class,
+Kernel-registered modules. Platform gold-boots on **49 modules**.
+
+| Module | Capability | What it does |
+|--------|-----------|--------------|
+| `agent_catalog` | Unified specialist-agent registry | Fuses 172 Codex subagents + 263 Agency agents into 432 deduplicated specialists; SQLite faceted search, A2A AgentCard registration, offline canonical JSON + refresh ingest. Hermes skill: `agent-catalog`. |
+| `mlops_lifecycle` | Experiment / LLMOps lifecycle | Feature+label store (SQLite), experiment tracking, canary rollout state machine, eval gates, OpenTelemetry-style observability, statistical drift (KS + PSI), rollback controller, pipeline orchestrator — all `@module`-registered. |
+| `rag` | Production RAG pipeline | Chunking, embeddings, retrieval, reranking, context assembly, citation formatting, composable RAGPipeline (offline via deterministic HashEmbedder). |
+| `autonomous_agent_runtime` | Multi-provider LLM abstraction | Provider registry, cost tracking, fallback/circuit-breaker, streaming SSE normalization — now a bootable facade module. |
+| `agent_os` | Agent OS control surface | Dashboard (`:8421`) + `eni_cli.py` control Hermes/Oracle/Paperclip/Jarvis; browser-submittable commands. |
+
+**Hygiene:** removed root/child `conftest.py` namespace-package shims that were
+pre-registering `rag`/`mlops_lifecycle` to dodge missing-submodule imports — they
+now import cleanly and self-register. Replaced nondeterministic `hash()` in the RAG
+`HashEmbedder` with stable `hashlib`-derived hashing (killed a latent CI flake).
+
 ## Quick start
 
 ```bash

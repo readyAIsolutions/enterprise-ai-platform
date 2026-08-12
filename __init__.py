@@ -3,7 +3,7 @@ ENI Enterprise Platform — Core package.
 All enterprise modules are orchestrated by the Platform Kernel.
 """
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __author__ = "Eni Builder Enterprise"
 
 # Import the kernel only when this file is loaded as a real package (i.e. has a

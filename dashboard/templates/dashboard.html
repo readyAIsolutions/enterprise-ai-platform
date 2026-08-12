@@ -129,13 +129,31 @@
       <span class="swarm-value" id="swarm-concurrency">{{ swarm.get('concurrency', '—') }} agents</span>
     </div>
     <div class="swarm-item">
-      <span class="swarm-label">Turbocharger</span>
-      <span class="swarm-value {{ 'green-text' if swarm.get('turbocharger') else 'red-text' }}">
-        {{ 'RUNNING :8922' if swarm.get('turbocharger') else 'OFFLINE' }}
-      </span>
+        <span class="swarm-label">Turbocharger</span>
+        <span class="swarm-value {{ 'green-text' if swarm.get('turbocharger') else 'red-text' }}">
+          {{ 'RUNNING :8922' if swarm.get('turbocharger') else 'OFFLINE' }}
+        </span>
+      </div>
     </div>
-  </div>
-</section>
+    </section>
+
+    <!-- CONTROL CONSOLE -->
+    <section class="section" id="console-section">
+    <h2>⬡ CONTROL CONSOLE — build with Hermes from here</h2>
+    <div class="control-bar">
+      <button class="ctrl-btn" data-verb="agent-os" data-sub="status">Agent OS status</button>
+      <button class="ctrl-btn" data-verb="agent-os" data-sub="brief">Brief (file)</button>
+      <button class="ctrl-btn" data-verb="brief" data-deliver="signal">Brief → Signal</button>
+      <button class="ctrl-btn" data-verb="agent-os" data-sub="publish_latest">Publish latest news</button>
+      <button class="ctrl-btn" data-verb="agent-os" data-sub="voice" data-text="status">Voice: status</button>
+      <button class="ctrl-btn" data-verb="doctor">Doctor</button>
+      <button class="ctrl-btn" data-verb="modules">Modules</button>
+      <button class="ctrl-btn danger" id="console-clear">Clear</button>
+    </div>
+    <div class="console-output" id="console-output">
+      <div class="console-line muted">— Console ready. Click a control to run it through the enterprise. —</div>
+    </div>
+    </section>
 
 <!-- FOOTER -->
 <footer>
@@ -168,6 +186,53 @@ setInterval(async () => {
 setInterval(() => {
   document.getElementById('clock').textContent = new Date().toLocaleTimeString();
 }, 1000);
+
+/* ── Control Console wiring ─────────────────────────── */
+(function () {
+  const out = document.getElementById('console-output');
+  if (!out) return;
+  const stamp = () => new Date().toLocaleTimeString();
+  function append(text, cls) {
+    const line = document.createElement('div');
+    line.className = 'console-line' + (cls ? ' ' + cls : '');
+    line.innerHTML = '<span class="t">[' + stamp() + ']</span> ' + text;
+    out.appendChild(line);
+    out.scrollTop = out.scrollHeight;
+  }
+  function clear() { while (out.firstChild) out.removeChild(out.firstChild); append('Console cleared.', 'muted'); }
+
+  document.querySelectorAll('.ctrl-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (btn.id === 'console-clear') { clear(); return; }
+      btn.disabled = true;
+      append('running: ' + btn.textContent.trim());
+      try {
+        const payload = { verb: btn.dataset.verb, args: {} };
+        if (btn.dataset.sub) payload.args.verb = btn.dataset.sub;
+        if (btn.dataset.deliver) payload.args.deliver = btn.dataset.deliver;
+        if (btn.dataset.text) payload.args.text = btn.dataset.text;
+        const res = await fetch('/api/control', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        const body = (data.stdout || '').trim() + (data.stderr ? '\n[stderr] ' + data.stderr.trim() : '');
+        append(esc(body) || (data.ok ? 'done.' : 'failed.'));
+        if (data.error) append('error: ' + data.error, 'muted');
+      } catch (e) {
+        append('error: ' + e, 'muted');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+})();
 </script>
 </body>
 </html>
