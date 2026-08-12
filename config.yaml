@@ -144,6 +144,18 @@ modules:
     config:
       database_path: "data/tasks.sqlite"
 
+  # ── Upgrade: Unified specialist-agent catalog (Codex subagents + Agency divisions) ──
+  agent_catalog:
+    enabled: true
+    priority: 11
+    required: false
+    startup_timeout_sec: 20
+    health_check_interval_sec: 60
+    config:
+      db_path: "data/agent_catalog.db"
+      canonical_path: "modules/agent_catalog/data/agent_catalog.json"
+      refresh_ingest: false
+
   # ── Upgrade: Multi-gateway automation (messaging channels + cron) ──────────
   gateway:
     enabled: true
@@ -439,6 +451,19 @@ modules:
         injection_threshold: 1.0
         jailbreak_threshold: 1.0
         allowlist: []
+
+  # ── Look & Feel Registry: visual design ruleset store ──────────────────────
+  # Parses + persists UI look-and-feel modules; exposed via programmatic API
+  # and 'lookandfeel' CLI for consistent visual design across generators.
+  look_and_feel:
+    enabled: true
+    priority: 9
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      registry_path: "~/.hermes/enterprise_look_and_feel_registry.json"
+      default_modules_path: "data/look_and_feel_modules.txt"
 
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
