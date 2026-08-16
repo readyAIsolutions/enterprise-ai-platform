@@ -536,6 +536,36 @@ modules:
       policy_mode: "assistive"
       detection_sensitivity: "medium"
 
+  unified_inbox:
+    enabled: true
+    priority: 23
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      default_channel_weight: 1.0
+      attention_threshold: 5
+
+  unified_work_system:
+    enabled: true
+    priority: 24
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      lenses: ["creative", "technical", "business"]
+      memory_enabled: true
+
+  artifact_pipeline:
+    enabled: true
+    priority: 25
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      catalog_store: "memory"
+      scan_root: "data/artifacts"
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL

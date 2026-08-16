@@ -19,7 +19,10 @@
     "procurement_bid_automation",
     "ai_memory_hierarchy",
     "model_psychometrics",
-    "video_as_code"
+    "video_as_code",
+    "unified_inbox",
+    "unified_work_system",
+    "artifact_pipeline"
   ],
   "transcripts": {
     "JEVanClief": {
