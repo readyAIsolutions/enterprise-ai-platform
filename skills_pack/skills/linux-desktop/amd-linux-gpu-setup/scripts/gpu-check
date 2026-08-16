@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# gpu-check — terminal snapshot of your RX 5700 XT + CPU tuning state
+# (a lightweight "task manager" for the terminal)
+echo "== Vulkan device =="
+vulkaninfo --summary 2>/dev/null | grep -iE 'deviceName|driverName' || echo "  (vulkaninfo not installed)"
+echo
+echo "== OpenCL devices =="
+if command -v clinfo >/dev/null 2>&1; then
+  clinfo 2>/dev/null | grep -iE 'radeon|navi|device' | head || echo "  (no OpenCL platform)"
+else
+  echo "  (clinfo not installed — re-run ~/amd-ultimate-tune.sh)"
+fi
+echo
+echo "== amdgpu power state =="
+for d in /sys/class/drm/card*/device; do
+  lvl=$(cat "$d/power_dpm_force_performance_level" 2>/dev/null)
+  busy=$(cat "$d/gpu_busy_percent" 2>/dev/null)
+  echo "  $d -> DPM=$lvl  GPU_busy=${busy}%"
+done
+echo
+echo "== live GPU clocks (sclk/mclk) =="
+D=/sys/class/drm/card0/device
+echo "  sclk:"; cat "$D/pp_dpm_sclk" 2>/dev/null | sed 's/^/    /'
+echo "  mclk:"; cat "$D/pp_dpm_mclk" 2>/dev/null | sed 's/^/    /'
+echo
+echo "== UV/OC table =="
+cat "$D/pp_od_clk_voltage" 2>/dev/null | sed 's/^/    /' || echo "  (overdrive not exposed)"
+echo
+echo "== CPU governor =="
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null

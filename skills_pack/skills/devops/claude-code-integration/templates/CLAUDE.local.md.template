@@ -1,0 +1,165 @@
+# CLAUDE.local.md Template
+
+This file contains PRIVATE, machine-specific instructions for AI agents.
+It is gitignored and never shared with the team.
+
+## Local Environment
+
+**Machine:** {{MACHINE_NAME}}
+**OS:** {{OS_VERSION}}
+**Shell:** {{SHELL}}
+**Editor:** {{EDITOR}}
+
+## Local Paths
+
+```bash
+# Project root (may differ from team standard)
+PROJECT_ROOT="{{LOCAL_PROJECT_PATH}}"
+
+# Common directories
+DATA_DIR="{{LOCAL_DATA_DIR}}"
+CACHE_DIR="{{LOCAL_CACHE_DIR}}"
+LOGS_DIR="{{LOCAL_LOGS_DIR}}"
+```
+
+## Local Tool Versions
+
+```bash
+# Language runtimes
+{{LANGUAGE_VERSIONS}}
+
+# Tools
+{{TOOL_VERSIONS}}
+```
+
+## Local Overrides
+
+### Environment Variables
+```bash
+# Override team defaults
+export {{OVERRIDE_VAR_1}}="{{VALUE_1}}"
+export {{OVERRIDE_VAR_2}}="{{VALUE_2}}"
+```
+
+### Aliases
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+alias {{ALIAS_1}}="{{COMMAND_1}}"
+alias {{ALIAS_2}}="{{COMMAND_2}}"
+```
+
+## Machine-Specific Config
+
+### Git
+```bash
+# Local git config (not shared)
+git config user.email "{{LOCAL_GIT_EMAIL}}"
+git config user.name "{{LOCAL_GIT_NAME}}"
+```
+
+### SSH / GPG
+```bash
+# SSH key for this machine
+export SSH_KEY_PATH="{{SSH_KEY_PATH}}"
+
+# GPG signing key
+export GPG_KEY="{{GPG_KEY_ID}}"
+```
+
+## IDE / Editor Settings
+
+```json
+// VS Code settings.json (local)
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/__pycache__": true
+  }
+}
+```
+
+## Local Database / Services
+
+```bash
+# Local PostgreSQL
+export DATABASE_URL="postgresql://{{DB_USER}}:{{DB_PASS}}@localhost:5432/{{DB_NAME}}"
+
+# Local Redis
+export REDIS_URL="redis://localhost:6379/0"
+
+# Local Elasticsearch
+export ELASTICSEARCH_URL="http://localhost:9200"
+```
+
+## API Keys (Local Only)
+
+```bash
+# NEVER commit these - use .env.local or password manager
+export OPENAI_API_KEY="{{OPENAI_API_KEY}}"
+export ANTHROPIC_API_KEY="{{ANTHROPIC_API_KEY}}"
+export GITHUB_TOKEN="{{GITHUB_TOKEN}}"
+export AWS_ACCESS_KEY_ID="{{AWS_KEY}}"
+export AWS_SECRET_ACCESS_KEY="{{AWS_SECRET}}"
+```
+
+## Local Testing
+
+```bash
+# Use local test database
+export TEST_DATABASE_URL="postgresql://{{TEST_DB_USER}}:{{TEST_DB_PASS}}@localhost:5432/{{TEST_DB_NAME}}"
+
+# Parallel test workers
+export PYTEST_XDIST_WORKERS="{{TEST_WORKERS}}"
+```
+
+## Personal Preferences
+
+### Code Style Overrides
+- **Line length:** {{PERSONAL_LINE_LENGTH}} (team: {{TEAM_LINE_LENGTH}})
+- **Quote style:** {{PERSONAL_QUOTES}} (team: {{TEAM_QUOTES}})
+- **Import sorting:** {{PERSONAL_IMPORTS}} (team: {{TEAM_IMPORTS}})
+
+### Workflow
+- **Auto-format on save:** {{AUTO_FORMAT}}
+- **Run tests on save:** {{TEST_ON_SAVE}}
+- **Lint on save:** {{LINT_ON_SAVE}}
+
+## Machine-Specific Commands
+
+```bash
+# Start local dev stack
+{{DEV_START_CMD}}
+
+# Stop local dev stack
+{{DEV_STOP_CMD}}
+
+# Reset local database
+{{DB_RESET_CMD}}
+
+# Run full test suite locally
+{{FULL_TEST_CMD}}
+```
+
+## Troubleshooting
+
+### Common Issues
+1. **{{ISSUE_1}}** → {{SOLUTION_1}}
+2. **{{ISSUE_2}}** → {{SOLUTION_2}}
+3. **{{ISSUE_3}}** → {{SOLUTION_3}}
+
+### Performance
+- **Memory limit:** {{MEMORY_LIMIT}}
+- **CPU cores:** {{CPU_CORES}}
+- **Disk space:** {{DISK_SPACE}}
+
+## Notes
+
+- This file is in .gitignore
+- Copy to new machines, don't share
+- Update when local setup changes
+- Reference in CLAUDE.md with `@CLAUDE.local.md`

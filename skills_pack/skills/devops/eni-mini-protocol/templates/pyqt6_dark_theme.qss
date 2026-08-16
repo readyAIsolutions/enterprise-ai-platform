@@ -1,0 +1,95 @@
+/* Starter PyQt6 dark "glass" theme — adapt the objectNames to your app.
+ * Drop as ui/styles.qss beside a loader that reads it (e.g.
+ * `Path(__file__).with_suffix('.qss').read_text() if exists else ""`).
+ * Unknown selectors are ignored by Qt, so it is safe to extend. Palette:
+ * deep violet-black panels, luminous violet accent (#9b7bff), lavender text.
+ */
+
+QWidget {
+    background: #0d0a1a;
+    color: #f2f0ff;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 13px;
+}
+QMainWindow, #MainWindow {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #0d0a1a, stop:1 #120e22);
+}
+QFrame { background: transparent; }
+
+/* sidebar / nav */
+#Sidebar { background: rgba(20,15,38,0.92); border-right: 1px solid #2a2342; }
+#BrandText { font-size: 20px; font-weight: 800; color: #f2f0ff; }
+#Nav {
+    padding: 0 14px; border: none; border-radius: 10px;
+    background: transparent; color: #9b93c4; font-weight: 600;
+}
+#Nav:hover { background: rgba(155,123,255,0.10); color: #f2f0ff; }
+#Nav:checked {
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+        stop:0 rgba(155,123,255,0.28), stop:1 rgba(155,123,255,0.10));
+    color: #ffffff;
+}
+#Hint { color: #6b6390; font-size: 11px; }
+
+/* inputs */
+#Search, #Monitor, QLineEdit, QComboBox, QSpinBox {
+    background: #1a1530; border: 1px solid #2a2342; border-radius: 8px;
+    padding: 6px 10px; color: #f2f0ff; selection-background-color: #9b7bff;
+}
+#Search:focus, QLineEdit:focus, QComboBox:focus, QSpinBox:focus {
+    border: 1px solid #9b7bff;
+}
+QComboBox QAbstractItemView {
+    background: #1a1530; color: #f2f0ff; selection-background-color: #9b7bff;
+}
+
+/* primary button */
+#Apply, QPushButton {
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+        stop:0 #a98bff, stop:1 #7c5cff);
+    color: #0d0a1a; font-weight: 700; border: none;
+    border-radius: 9px; padding: 8px 14px;
+}
+#Apply:hover, QPushButton:hover { background: #b89cff; }
+#Apply:pressed, QPushButton:pressed { background: #6f50e6; }
+QPushButton:disabled { background: #2a2342; color: #6b6390; }
+
+/* toggles + sliders */
+QCheckBox { spacing: 8px; color: #d9d3f5; }
+QCheckBox::indicator {
+    width: 18px; height: 18px; border-radius: 5px;
+    background: #1a1530; border: 1px solid #2a2342;
+}
+QCheckBox::indicator:checked { background: #9b7bff; border: 1px solid #9b7bff; }
+QSlider::groove:horizontal { height: 4px; border-radius: 2px; background: #2a2342; }
+QSlider::handle:horizontal {
+    width: 14px; height: 14px; border-radius: 7px;
+    background: #9b7bff; margin: -5px 0;
+}
+
+/* library cards + monitor chips */
+#Hero { font-size: 24px; font-weight: 800; color: #f2f0ff; }
+#Status { color: #9b93c4; font-size: 12px; }
+#Card { background: #15112a; border: 1px solid #2a2342; border-radius: 14px; }
+#Card:hover { border: 1px solid #9b7bff; background: #1b1638; }
+#CardTitle { font-weight: 700; color: #f2f0ff; }
+#CardMeta { color: #9b93c4; font-size: 11px; }
+#Badge {
+    background: rgba(155,123,255,0.16); color: #cdbcff;
+    border-radius: 6px; font-size: 10px; font-weight: 700;
+}
+#MonitorChip { background: #15112a; border: 1px dashed #3a3160; border-radius: 12px; }
+#MonitorChip[active="true"] {
+    border: 1px solid #9b7bff; background: rgba(155,123,255,0.12);
+}
+#Current { color: #cdbcff; font-size: 10px; }
+
+/* scrollbars */
+QScrollArea { border: none; background: transparent; }
+QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
+QScrollBar::handle:vertical {
+    background: #2a2342; border-radius: 5px; min-height: 24px;
+}
+QScrollBar::handle:vertical:hover { background: #3a3160; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }

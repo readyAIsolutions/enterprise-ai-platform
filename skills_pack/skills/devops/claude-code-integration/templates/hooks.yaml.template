@@ -1,0 +1,300 @@
+# hooks.yaml - Hook Configuration Template
+
+# This file defines shell commands that run at various points in the agent lifecycle.
+# Copy to ~/.hermes/hooks.yaml or .claude/hooks.yaml
+
+# =============================================================================
+# HOOK EVENTS
+# =============================================================================
+
+hooks:
+  # Tool lifecycle hooks
+  PreToolUse:
+    # Run before any bash command
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: |
+            echo "🔧 Running command: $TOOL_INPUT"
+            # Validate command safety
+            if [[ "$TOOL_INPUT" =~ (rm -rf|dd if=|mkfs|:(){ :|:& };:) ]]; then
+              echo '{"behavior": "deny", "message": "Dangerous command detected"}'
+              exit 1
+            fi
+          timeout: 5000
+    
+    # Run before file writes
+    - matcher: "Write|Edit|MultiEdit"
+      hooks:
+        - type: command
+          command: |
+            FILE_PATH=$(echo "$TOOL_INPUT" | jq -r '.path // empty')
+            if [[ -f "$FILE_PATH" ]]; then
+              echo "📝 Modifying existing file: $FILE_PATH"
+              # Auto-format on write
+              case "$FILE_PATH" in
+                *.py) python -m black --check "$FILE_PATH" 2>/dev/null || echo "  ⚠️  Consider running black" ;;
+                *.js|*.ts) npx prettier --check "$FILE_PATH" 2>/dev/null || echo "  ⚠️  Consider running prettier" ;;
+                *.go) gofmt -l "$FILE_PATH" 2>/dev/null || echo "  ⚠️  Consider running gofmt" ;;
+              esac
+            fi
+          timeout: 10000
+
+  PostToolUse:
+    # Log all tool completions
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "✅ $TOOL_NAME completed (exit: $TOOL_EXIT_CODE)"
+            # Track metrics
+            echo "$(date -Iseconds),$TOOL_NAME,$TOOL_EXIT_CODE" >> ~/.hermes/tool_metrics.csv
+          timeout: 2000
+
+  PostToolUseFailure:
+    # Alert on tool failures
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "❌ $TOOL_NAME failed: $TOOL_ERROR"
+            # Send notification (if configured)
+            if command -v notify-send >/dev/null; then
+              notify-send "Hermes Tool Failed" "$TOOL_NAME: $TOOL_ERROR"
+            fi
+          timeout: 5000
+
+  # Session lifecycle
+  SessionStart:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "🚀 Session started: $SESSION_ID"
+            # Load project context
+            if [[ -f CLAUDE.md ]]; then
+              echo "📋 Project instructions loaded"
+            fi
+            # Check for uncommitted changes
+            if git status --porcelain 2>/dev/null | grep -q .; then
+              echo "⚠️  Uncommitted changes detected"
+            fi
+          timeout: 5000
+
+  SessionEnd:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "👋 Session ended: $SESSION_ID"
+            # Save session metrics
+            echo "$(date -Iseconds),$SESSION_ID,ended" >> ~/.hermes/session_log.csv
+          timeout: 2000
+
+  # User interaction
+  UserPromptSubmit:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            # Log user prompt (sanitized)
+            PROMPT=$(echo "$USER_PROMPT" | head -c 200)
+            echo "💬 User: $PROMPT..."
+            echo "$(date -Iseconds),prompt,$SESSION_ID" >> ~/.hermes/prompt_log.csv
+          timeout: 1000
+
+  Notification:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            # Desktop notification
+            if command -v notify-send >/dev/null; then
+              notify-send "Hermes" "$NOTIFICATION_MESSAGE"
+            elif command -v osascript >/dev/null; then
+              osascript -e "display notification \"$NOTIFICATION_MESSAGE\" with title \"Hermes\""
+            fi
+            # Sound notification
+            if [[ -f /usr/share/sounds/freedesktop/stereocomplete.oga ]]; then
+              paplay /usr/share/sounds/freedesktop/stereocomplete.oga &
+            fi
+          timeout: 3000
+
+  # Permission hooks
+  PermissionRequest:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: |
+            # Auto-allow safe commands
+            COMMAND=$(echo "$TOOL_INPUT" | jq -r '.command // empty')
+            SAFE_PATTERNS=("^ls" "^cat" "^head" "^tail" "^grep" "^find" "^git status" "^git diff" "^git log" "^pwd" "^echo" "^which" "^type" "^man")
+            for pattern in "${SAFE_PATTERNS[@]}"; do
+              if [[ "$COMMAND" =~ $pattern ]]; then
+                echo '{"behavior": "allow", "allow_for_session": true}'
+                exit 0
+              fi
+            done
+            echo '{"behavior": "ask"}'
+          timeout: 3000
+
+  PermissionDenied:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "🚫 Permission denied for $TOOL_NAME"
+            echo "Reason: $DENY_REASON"
+          timeout: 2000
+
+  # Configuration changes
+  ConfigChange:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "⚙️ Config changed: $CONFIG_KEY = $CONFIG_VALUE"
+            # Reload affected components
+            case "$CONFIG_KEY" in
+              model.*) echo "  → Model config updated, restarting agent..." ;;
+              hooks.*) echo "  → Hooks reloaded" ;;
+              tools.*) echo "  → Tool config updated" ;;
+            esac
+          timeout: 5000
+
+  # File watching
+  FileChanged:
+    - matcher: "CLAUDE.md|.claude/rules/*.md"
+      hooks:
+        - type: command
+          command: |
+            echo "📄 Instructions file changed: $FILE_PATH"
+            echo "Reloading instructions..."
+            # Trigger instructions reload
+            touch ~/.hermes/instructions_reload
+          timeout: 2000
+
+  # Compaction
+  PreCompact:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "🗜️  Compacting context... (keeping last $KEEP_MESSAGES messages)"
+            # Backup before compact
+            cp ~/.hermes/sessions/$SESSION_ID.jsonl ~/.hermes/sessions/$SESSION_ID.jsonl.pre_compact
+          timeout: 5000
+
+  PostCompact:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "✅ Context compacted. Saved $COMPRESSED_COUNT messages to summary."
+            echo "$(date -Iseconds),compact,$SESSION_ID,$COMPRESSED_COUNT" >> ~/.hermes/compact_log.csv
+          timeout: 2000
+
+  # Elicitation (user input during execution)
+  Elicitation:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            # Could integrate with external tools for user input
+            echo "🤔 Elicitation requested: $ELICITATION_PROMPT"
+          timeout: 5000
+
+  # Subagent lifecycle
+  SubagentStart:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "🤖 Subagent started: $SUBAGENT_NAME ($SUBAGENT_DESCRIPTION)"
+            echo "$(date -Iseconds),subagent_start,$SUBAGENT_ID,$SUBAGENT_NAME" >> ~/.hermes/subagent_log.csv
+          timeout: 2000
+
+  SubagentStop:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "🛑 Subagent stopped: $SUBAGENT_NAME"
+            echo "$(date -Iseconds),subagent_stop,$SUBAGENT_ID,$SUBAGENT_NAME" >> ~/.hermes/subagent_log.csv
+          timeout: 2000
+
+  # Task management
+  TaskCreated:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "📋 Background task created: $TASK_DESCRIPTION"
+            echo "$(date -Iseconds),task_created,$TASK_ID,$TASK_DESCRIPTION" >> ~/.hermes/task_log.csv
+          timeout: 2000
+
+  TaskCompleted:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            STATUS_ICON="✅"
+            [[ "$TASK_STATUS" != "completed" ]] && STATUS_ICON="❌"
+            echo "$STATUS_ICON Background task: $TASK_DESCRIPTION ($TASK_STATUS)"
+            echo "$(date -Iseconds),task_completed,$TASK_ID,$TASK_STATUS" >> ~/.hermes/task_log.csv
+          timeout: 2000
+
+  # Instructions loaded
+  InstructionsLoaded:
+    - matcher: "*"
+      hooks:
+        - type: command
+          command: |
+            echo "📚 Instructions loaded: $MEMORY_TYPE from $MEMORY_PATH"
+            if [[ "$MEMORY_TYPE" == "project" ]]; then
+              echo "  → Project-specific rules active"
+            elif [[ "$MEMORY_TYPE" == "local" ]]; then
+              echo "  → Private local rules active"
+            fi
+          timeout: 2000
+
+# =============================================================================
+# HOOK SETTINGS
+# =============================================================================
+
+settings:
+  # Auto-accept all hooks without prompting
+  auto_accept: false
+  
+  # Only run managed hooks (not user-defined)
+  managed_only: false
+  
+  # Disable all hooks
+  disabled: false
+  
+  # Default timeout for hooks (ms)
+  default_timeout: 30000
+  
+  # Maximum concurrent hooks
+  max_concurrent: 10
+  
+  # Hook output handling
+  capture_output: true
+  max_output_size: 10000
+
+# =============================================================================
+# PLUGIN HOOKS (Advanced)
+# =============================================================================
+
+# Plugins can register hooks programmatically
+# See: https://hermes-agent.nousresearch.com/docs/plugins/hooks
+
+# plugin_hooks:
+#   - name: "my-plugin"
+#     hooks:
+#       PreToolUse:
+#         - matcher: "Bash"
+#           hooks:
+#             - type: "function"
+#               function: "my_plugin.validate_command"
+#               timeout: 5000

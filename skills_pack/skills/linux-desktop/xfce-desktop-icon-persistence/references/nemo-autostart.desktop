@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Nemo Desktop
+Comment=Draw the desktop and its icons with Nemo (so they survive a reboot)
+Exec=nemo-desktop
+AutostartCondition=GSettings org.nemo.desktop show-desktop-icons
+X-GNOME-Autostart-Phase=Desktop
+X-GNOME-Autostart-Delay=2
+X-GNOME-AutoRestart=true
+NoDisplay=true

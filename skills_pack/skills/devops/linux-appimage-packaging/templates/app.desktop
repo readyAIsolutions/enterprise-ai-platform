@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=<AppName>
+Comment=<one-line description>
+Exec=AppRun
+Icon=<app>
+Type=Application
+# IMPORTANT: "Finance" is NOT a valid MAIN category. appimagetool FAILS the
+# whole build ("Desktop file contains errors") on a Finance-only Categories.
+# Always pair it with a registered main category (Office/Utility/Development).
+Categories=Office;Finance;
+Terminal=false

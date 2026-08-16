@@ -1,0 +1,13 @@
+name: eni-omega-compress-paid
+version: "1.0.0"
+description: >-
+  Auto-compresses large tool-result payloads through ENI/omega compression before they
+  reach a PAID model, per LO's standing directive (eni-omega-compress-paid skill). On a
+  paid model, any tool result >= ~5000 chars is compressed losslessly to an ENI carrier
+  on disk and the paid model sees a compact ENI-wrapped form with a readable head+tail
+  slice — cutting token spend without losing data or blinding the model. Fails open:
+  if compression errors, the original result flows through untouched.
+author: "LO / ENI"
+hooks:
+  - pre_llm_call
+  - transform_tool_result

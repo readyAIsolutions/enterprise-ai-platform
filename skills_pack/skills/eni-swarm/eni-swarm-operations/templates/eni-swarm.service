@@ -1,0 +1,102 @@
+# ENI Swarm Systemd User Service Template
+# Install to: ~/.config/systemd/user/eni-swarm.service
+# Enable: systemctl --user enable --now eni-swarm.service
+
+[Unit]
+Description=ENI Swarm Master Driver — 60 Mini Builder Fleet
+Documentation=https://github.com/your-repo/eni-swarm
+After=network-online.target free-router.service
+Wants=network-online.target free-router.service
+Requires=free-router.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/hunter/Desktop/Projects/ENI_Swarm_NEW
+ExecStart=/home/hunter/.local/bin/eni-swarm start --project DEMIURGE --workers 4
+ExecStop=/home/hunter/.local/bin/eni-swarm stop
+Restart=on-failure
+RestartSec=30
+RestartPreventExitStatus=SIGTERM SIGKILL
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Resource limits (prevent swarm from OOMing the system)
+MemoryMax=8G
+MemoryHigh=6G
+CPUWeight=100
+IOWeight=100
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/hunter/Desktop/Projects/ENI_Swarm_NEW /home/hunter/.cache/eni_swarm
+
+# Environment
+Environment=HOME=/home/hunter
+Environment=PATH=/home/hunter/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=eni-swarm
+
+[Install]
+WantedBy=default.target
+
+# ─────────────────────────────────────────────────────────────
+# INSTALLATION INSTRUCTIONS
+# ─────────────────────────────────────────────────────────────
+#
+# 1. Create directory:
+#    mkdir -p ~/.config/systemd/user
+#
+# 2. Copy this file:
+#    cp templates/eni-swarm.service ~/.config/systemd/user/eni-swarm.service
+#
+# 3. Reload daemon:
+#    systemctl --user daemon-reload
+#
+# 4. Enable and start:
+#    systemctl --user enable --now eni-swarm.service
+#
+# 5. Check status:
+#    systemctl --user status eni-swarm.service
+#    journalctl --user -u eni-swarm -f
+#
+# 6. Stop:
+#    systemctl --user stop eni-swarm.service
+#
+# 7. Disable auto-start:
+#    systemctl --user disable eni-swarm.service
+#
+# ─────────────────────────────────────────────────────────────
+# DEPENDENCIES (must be running first)
+# ─────────────────────────────────────────────────────────────
+#
+# - free-router.service (local LLM proxy on :8920)
+#   systemctl --user enable --now free-router.service
+#
+# - NetworkManager WiFi connected and stable
+#   (Run verify_swarm_ready.sh first)
+#
+# ─────────────────────────────────────────────────────────────
+# TROUBLESHOOTING
+# ─────────────────────────────────────────────────────────────
+#
+# Swarm won't start:
+#   journalctl --user -u eni-swarm -n 50
+#   Check: free-router running? WiFi connected? Config valid?
+#
+# Swarm starts but builders fail:
+#   journalctl --user -u eni-swarm -f | grep -E 'ERROR|FAIL|exit='
+#   Check: ~/.cache/eni_swarm/master.log for details
+#
+# WiFi drops after swarm starts:
+#   Run verify_swarm_ready.sh — likely missing kernel/module params
+#   Check: dmesg -T | grep mt7921e
+#
+# OOM kills:
+#   Increase MemoryMax or reduce max_concurrent_children in swarm_config.json

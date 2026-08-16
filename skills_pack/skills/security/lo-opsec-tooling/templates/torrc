@@ -1,0 +1,12 @@
+# ENI onion paste — torrc for self-hosting a hidden service (run: tor -f torrc)
+# Publishes onion_paste.py as a Tor hidden service. Tor writes the .onion to
+# tor-data/hs/hostname on first run.
+DataDirectory ./tor-data
+SocksPort 9050
+# Hidden service: ONLY your local paste server (127.0.0.1:8899)
+HiddenServiceDir ./tor-data/hs
+HiddenServicePort 80 127.0.0.1:8899
+# Safety: no exit relay, no clearnet listen
+ORPort 0
+ExitPolicy reject *:*
+Log notice file ./tor-data/notice.log

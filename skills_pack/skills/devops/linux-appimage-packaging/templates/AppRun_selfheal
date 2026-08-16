@@ -1,0 +1,41 @@
+#!/bin/sh
+# Self-healing AppImage launcher — restarts a crashing GUI until a budget is hit.
+# Generic template: set APP_MODULE and (optionally) RESTART_BUDGET, then drop in as AppRun.
+#
+# Two layers of resilience:
+#   1. in-process (Python supervise()) catches exceptions/non-zero exits
+#   2. this shell loop catches hard segfaults the Python side can't
+# Run the app with --no-supervise so THIS loop is the only process-level restarter.
+#
+# PITFALL: do NOT add `set -e`. With set -e, the first non-zero child exit aborts
+# the script instead of looping. `set -u` only.
+set -u
+HERE="$(dirname "$(readlink -f "$0")")"
+APP_MODULE="${APP_MODULE:-demiurge.frontend_qt}"
+RESTART_BUDGET="${RESTART_BUDGET:-5}"
+
+PYBIN="$HERE/usr/bin/python3"
+[ -x "$PYBIN" ] || PYBIN="$(command -v python3)"
+PVER="$("$PYBIN" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null || echo 3)"
+
+export PYTHONPATH="$HERE/usr/lib/python$PVER/site-packages:$HERE/usr/share/app:${PYTHONPATH:-}"
+# System-wide PyQt6 fallback (Qt not bundled): append dist-packages additively.
+export PYTHONPATH="$PYTHONPATH:/usr/lib/python3/dist-packages"
+export DEMIURGE_HOME="${DEMIURGE_HOME:-$HERE/usr/share/app}"
+export QT_QPA_PLATFORM_PLUGIN_PATH="${QT_QPA_PLATFORM_PLUGIN_PATH:-$HERE/usr/lib/python$PVER/site-packages/PyQt6/Qt/plugins}"
+
+restarts=0
+while true; do
+  "$PYBIN" -m "$APP_MODULE" --no-supervise "$@"
+  code=$?
+  if [ "$code" -eq 0 ]; then
+    exit 0
+  fi
+  restarts=$((restarts+1))
+  if [ "$restarts" -ge "$RESTART_BUDGET" ]; then
+    echo "ERROR: $APP_MODULE exceeded restart budget ($RESTART_BUDGET); giving up." >&2
+    exit 1
+  fi
+  echo "WARN: $APP_MODULE exited $code; self-healing ($restarts/$RESTART_BUDGET)..." >&2
+  sleep 1
+done

@@ -1,255 +1,64 @@
 # =============================================================================
-# ENI Enterprise Platform — Docker Compose (ROOT WRAPPER)
-# This file delegates to docker/docker-compose.yml with all 14+ services.
-# Use: docker compose -f docker/docker-compose.yml up -d
-# Or:  make -f docker/Makefile run
+# ENI Enterprise — Hermes Portable Layer (SLICE C)
+# -----------------------------------------------------------------------------
+# A small, focused compose that stands up the portable Hermes layer plus the
+# platform kernel so a company can self-host in one command:
+#   docker compose -f docker-compose.yml up -d
+#
+# The full 14+ service platform compose continues to live at docker/docker-
+# compose.yml (reuse that one for the whole stack). This file vendors the
+# skills/LSP/MCP/plugin pack from this repo into a disposable Hermes home and
+# attaches the platform kernel image as a companion service.
 # =============================================================================
-
 version: "3.9"
 
 services:
-  # ── Platform Kernel ────────────────────────────────────────────────────────
-  kernel:
+  # -- Hermes portable layer (skills/LSP/MCP/plugin pack) --------------------
+  hermes-layer:
+    image: python:3.12-slim
+    container_name: eni-hermes-layer
+    restart: unless-stopped
+    working_dir: /workspace
+    environment:
+      HERMES_HOME: /hermes
+      ENI_CONFIG: /workspace/config
+    volumes:
+      # read-only source of truth
+      - ./:/workspace:ro
+      # writable Hermes home seeded from the pack by the installer
+      - hermes_home:/hermes
+    entrypoint: >
+      /bin/sh -c
+      "bash /workspace/scripts/install_skillspack.sh --target=/hermes &&
+       exec python3 /workspace/scripts/eni_cli doctor"
+    profiles: ["hermes"]   # opt-in: not started by default platform `up`
+
+  # -- companion: platform kernel (ephemeral doctor) ------------------------
+  platform-kernel:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: eni-kernel
+      dockerfile: docker/Dockerfile
+    container_name: eni-platform-kernel
     restart: unless-stopped
+    working_dir: /app
     environment:
-      ENI_ENV: production
-      LOG_LEVEL: INFO
-      TZ: UTC
-      MODULE_REGISTRY_BACKEND: redis
-      REDIS_URL: redis://redis:6379/0
-    ports:
-      - "${KERNEL_PORT:-8000}:8000"
+      ENI_CONFIG: /app/config
     volumes:
-      - kernel_data:/app/data
-      - ./kernel:/app/kernel:ro
+      - ./modules:/app/modules:ro
       - ./foundation:/app/foundation:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-    deploy:
-      resources:
-        limits: { cpus: "2", memory: 512M }
-        reservations: { cpus: "0.5", memory: 256M }
-    networks:
-      - eni-internal
-    command: ["python", "-m", "kernel"]
+      - ./kernel:/app/kernel:ro
+    command: python3 -m kernel
 
-  # ── API Gateway ────────────────────────────────────────────────────────────
-  api-gateway:
+  # -- dev variant of the platform kernel -----------------------------------
+  platform-kernel-dev:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: eni-api-gateway
+      dockerfile: docker/Dockerfile.dev
+    container_name: eni-platform-kernel-dev
     restart: unless-stopped
-    environment:
-      ENI_ENV: production
-      LOG_LEVEL: INFO
-      TZ: UTC
-      KERNEL_URL: http://kernel:8000
-    ports:
-      - "${GATEWAY_PORT:-8080}:8080"
-    volumes:
-      - ./integration:/app/integration:ro
-    depends_on:
-      kernel:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-    deploy:
-      resources:
-        limits: { cpus: "2", memory: 512M }
-        reservations: { cpus: "0.5", memory: 256M }
-    networks:
-      - eni-internal
-    command: ["python", "-m", "integration.gateway"]
-
-  # ── Dashboard ──────────────────────────────────────────────────────────────
-  dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: eni-dashboard
-    restart: unless-stopped
-    environment:
-      ENI_ENV: production
-      LOG_LEVEL: INFO
-      TZ: UTC
-      KERNEL_URL: http://kernel:8000
-      GATEWAY_URL: http://api-gateway:8080
-    ports:
-      - "${DASHBOARD_PORT:-3000}:3000"
-    volumes:
-      - ./dashboard:/app/dashboard:ro
-    depends_on:
-      api-gateway:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-    deploy:
-      resources:
-        limits: { cpus: "2", memory: 512M }
-        reservations: { cpus: "0.5", memory: 256M }
-    networks:
-      - eni-internal
-    command: ["python", "-m", "dashboard.server"]
-
-  # ── Modules ────────────────────────────────────────────────────────────────
-  module-agent-coordination:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-agent-coordination
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/agent_coordination:/app/modules/agent_coordination:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "1", memory: 384M }, reservations: { cpus: "0.25", memory: 128M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.agent_coordination"]
-
-  module-customer-experience:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-customer-experience
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/customer_experience:/app/modules/customer_experience:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "1", memory: 384M }, reservations: { cpus: "0.25", memory: 128M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.customer_experience"]
-
-  module-developer-experience:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-developer-experience
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/developer_experience:/app/modules/developer_experience:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "1", memory: 384M }, reservations: { cpus: "0.25", memory: 128M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.developer_experience"]
-
-  module-disaster-recovery:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-disaster-recovery
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/disaster_recovery:/app/modules/disaster_recovery:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "1", memory: 384M }, reservations: { cpus: "0.25", memory: 128M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.disaster_recovery"]
-
-  module-innovation-rd:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-innovation-rd
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/innovation_rd:/app/modules/innovation_rd:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "1", memory: 384M }, reservations: { cpus: "0.25", memory: 128M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.innovation_rd"]
-
-  module-knowledge-graph:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-knowledge-graph
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/knowledge_graph:/app/modules/knowledge_graph:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "2", memory: 512M }, reservations: { cpus: "0.5", memory: 256M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.knowledge_graph"]
-
-  module-privacy-data:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-privacy-data
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/privacy_data:/app/modules/privacy_data:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "1", memory: 384M }, reservations: { cpus: "0.25", memory: 128M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.privacy_data"]
-
-  module-prompt-context:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-prompt-context
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/prompt_context:/app/modules/prompt_context:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "1", memory: 384M }, reservations: { cpus: "0.25", memory: 128M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.prompt_context"]
-
-  module-release-change:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-release-change
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/release_change:/app/modules/release_change:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "1", memory: 384M }, reservations: { cpus: "0.25", memory: 128M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.release_change"]
-
-  module-safety-governance:
-    build: { context: ., dockerfile: Dockerfile }
-    container_name: eni-module-safety-governance
-    restart: unless-stopped
-    environment: { ENI_ENV: production, LOG_LEVEL: INFO, TZ: UTC, KERNEL_URL: "http://kernel:8000" }
-    volumes: ["./modules/safety_governance:/app/modules/safety_governance:ro"]
-    depends_on: { kernel: { condition: service_healthy } }
-    deploy: { resources: { limits: { cpus: "1", memory: 384M }, reservations: { cpus: "0.25", memory: 128M } } }
-    networks: [eni-internal]
-    command: ["python", "-m", "modules.safety_governance"]
-
-  # ── Infrastructure ─────────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: eni-redis
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    deploy:
-      resources:
-        limits: { cpus: "0.5", memory: 256M }
-        reservations: { cpus: "0.1", memory: 64M }
-    networks:
-      - eni-internal
-
-networks:
-  eni-internal:
-    driver: bridge
-    name: eni-internal
+    working_dir: /app
+    command: python3 -m kernel
+    profiles: ["dev"]
 
 volumes:
-  kernel_data:
-    name: eni-kernel-data
-  redis_data:
-    name: eni-redis-data
+  hermes_home:

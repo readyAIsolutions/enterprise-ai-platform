@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# game — launch anything at MAX GPU perf (gamemode + gamescope + RADV flags)
+# usage:  game <command...>     e.g.   game steam
+#                               e.g.   game /path/to/game/bin/x64/game
+set -e
+export RADV_PERFTEST=gpl
+export AMD_VULKAN_ICD=RADV
+export RADV_TEX_ANISO=16
+export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/radeon_icd.x86_64.json
+if [ "$#" -eq 0 ]; then
+  echo "usage: game <command...>    (e.g. game steam)"
+  exit 1
+fi
+if command -v gamescope >/dev/null 2>&1; then
+  exec gamemoderun gamescope -f -- "$@"
+else
+  exec gamemoderun "$@"
+fi

@@ -1,0 +1,15 @@
+{
+  "name": "verify-build",
+  "description": "Create a Python script that prints VERIFIED and the current timestamp",
+  "prompt": "Create a Python script that prints VERIFIED and the current timestamp",
+  "workdir": "~/creed_work",
+  "task_id": "verify-1",
+  "model": "free-router",
+  "provider": "free-router",
+  "required_providers": [],
+  "required_tags": [],
+  "timeout_seconds": 600,
+  "artifacts_expected": ["*.py", "*.md", "*.json", "*.log"],
+  "priority": 0,
+  "metadata": {}
+}

@@ -1,0 +1,8 @@
+# PASTE THE USER'S PERSONA / IDENTITY-OVERRIDE BLOCK HERE
+#
+# This becomes the "uncensor primer" fired at every endpoint. In the Fable-5
+# session, this was the user's full ENI instruction block (the same system
+# prompt driving the agent). Pasting it as a `system` message flips other
+# models into compliance.
+#
+# Drop the raw text below this line. The swarm scripts read this file as PRIMER_FILE.

@@ -127,3 +127,28 @@ test-local: ## Run pytest locally
 
 test-local-cov: ## Run tests with coverage locally
 	$(PYTHON) -m pytest --tb=short --cov=. --cov-report=term-missing
+
+# ── SLICE C: Hermes portable skills/LSP/MCP/plugin pack ────────────────────
+# Merged into the existing wrapper — does not override any target above.
+.PHONY: skillspack-install skillspack-dryrun eni-install eni-doctor eni-status eni-up up-hermes
+
+skillspack-install: ## Install the portable skills/LSP/MCP/plugin pack into ~/.hermes
+	@bash scripts/install_skillspack.sh
+
+skillspack-dryrun: ## Show what the skillspack installer would do (no copy)
+	@bash scripts/install_skillspack.sh --dry-run
+
+eni-install: ## CLI wrapper: deploy the portable pack (pass through --dry-run/--force)
+	@$(PYTHON) scripts/eni_cli install
+
+eni-doctor: ## CLI: report platform+kernel+pack health
+	@$(PYTHON) scripts/eni_cli doctor
+
+eni-status: ## CLI: print module count / healthy / tests from config
+	@$(PYTHON) scripts/eni_cli status
+
+eni-up: ## CLI: print docker compose bring-up instructions
+	@$(PYTHON) scripts/eni_cli up
+
+up-hermes: ## Bring up ONLY the Hermes portable layer (profiled, opt-in)
+	@$(COMPOSE) -f docker-compose.yml --profile hermes up -d

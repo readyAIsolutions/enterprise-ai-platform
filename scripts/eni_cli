@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+# =============================================================================
+# eni — ENI Enterprise CLI
+# =============================================================================
+# Small self-contained CLI for operating the ENI Enterprise Platform +
+# the portable Hermes skills/LSP/MCP/plugin pack (skills_pack/, SLICE C).
+#
+# Subcommands:
+#   doctor   Report platform health by importing the platform kernel
+#            (platform_kernel if present, else the repo `kernel` package)
+#            and validating the skills_pack mirror is parseable.
+#   install  Run scripts/install_skillspack.sh to deploy the portable pack
+#            into a Hermes home (default ~/.hermes).
+#   status   Print module count, healthy modules, and test counts.
+#   up       Print docker compose bring-up instructions for the platform.
+#   --help   Show this help. Config may be injected via ENI_CONFIG.
+#
+# Usable from repo root; the repo root is added to sys.path so the platform
+# kernel can be imported directly. English output only.
+# =============================================================================
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+# Allow injecting an alternate config for testing / status counting.
+ENI_CONFIG = os.environ.get("ENI_CONFIG", str(REPO_ROOT / "config"))
+
+
+def _green(s: str) -> str:
+    return f"\033[0;32m{s}\033[0m"
+
+
+def _red(s: str) -> str:
+    return f"\033[0;31m{s}\033[0m"
+
+
+def _yellow(s: str) -> str:
+    return f"\033[0;33m{s}\033[0m"
+
+
+# ---------------------------------------------------------------------------
+# platform kernel access (graceful: prefer platform_kernel, fallback repo kernel)
+# ---------------------------------------------------------------------------
+def _load_kernel():
+    try:
+        import platform_kernel  # type: ignore  # preferred per spec
+        return "platform_kernel", platform_kernel
+    except Exception:
+        try:
+            import kernel  # type: ignore  # repo's actual platform kernel package
+            return "kernel", kernel
+        except Exception as exc:  # pragma: no cover
+            return None, exc
+
+
+def _parse_config() -> dict:
+    """Best-effort parse of the platform config (YAML or JSON)."""
+    import json
+
+    cfg = {}
+    if os.path.isfile(ENI_CONFIG):
+        try:
+            import yaml  # type: ignore
+            cfg = yaml.safe_load(open(ENI_CONFIG, encoding="utf-8")) or {}
+        except Exception:
+            try:
+                cfg = json.load(open(ENI_CONFIG, encoding="utf-8"))
+            except Exception:
+                cfg = {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _module_count() -> int:
+    mods = REPO_ROOT / "modules"
+    return len([p for p in mods.iterdir() if p.is_dir() and not p.name.startswith("__")]) if mods.is_dir() else 0
+
+
+def _test_count() -> int:
+    """Count test files under modules/, foundation/, kernel/, integration/."""
+    total = 0
+    for base in ("modules", "foundation", "kernel", "integration"):
+        d = REPO_ROOT / base
+        if d.is_dir():
+            total += len(list(d.rglob("test_*.py"))) + len(list(d.rglob("*_test.py")))
+    return total
+
+
+def _pack_info() -> dict:
+    pack = REPO_ROOT / "skills_pack"
+    info = {"present": pack.is_dir(), "skills": 0, "lsp": 0, "mcp": 0, "plugins": 0}
+    if not pack.is_dir():
+        return info
+    for key in ("skills", "lsp", "mcp", "plugins"):
+        d = pack / key
+        if d.is_dir():
+            info[key] = len([f for f in d.rglob("*.py")]) + len([f for f in d.rglob("*.md")])
+    return info
+
+
+# ---------------------------------------------------------------------------
+# subcommands
+# ---------------------------------------------------------------------------
+def cmd_doctor() -> int:
+    print("ENI platform doctor")
+    print("-" * 46)
+    mod, obj = _load_kernel()
+    if mod is None:
+        print(_red("  [FAIL] platform kernel import:      %s" % obj))
+        print("  kernel import location:   NOT FOUND")
+        return 1
+    ver = getattr(obj, "__version__", "unknown")
+    print(_green(f"  [PASS] platform kernel import:      {mod} (v{ver})"))
+
+    bootstrap_name = getattr(obj, "__bootstrap__", None) or getattr(obj, "bootstrap", None)
+    if bootstrap_name is None:
+        bootstrap_name = "no module-level bootstrap (kernel drives orchestration)"
+    print(f"  bootstrap source:           {bootstrap_name}")
+
+    # validate the portable pack mirror parses
+    pack = _pack_info()
+    if pack["present"]:
+        print(_green(f"  [PASS] skills_pack/ mirror:         present ({pack['skills']} skill objs)"))
+        print(f"  lsp/mcp/plugins objs:      {pack['lsp']}/{pack['mcp']}/{pack['plugins']}")
+    else:
+        print(_red("  [FAIL] skills_pack/ mirror:         MISSING"))
+    print("  config dir:                 %s" % ENI_CONFIG)
+    return 0
+
+
+def cmd_install(argv) -> int:
+    script = REPO_ROOT / "scripts" / "install_skillspack.sh"
+    if not script.exists():
+        print(_red("install_skillspack.sh not found at %s" % script))
+        return 1
+    cmd = ["bash", str(script)] + list(argv)
+    print("Running: %s" % " ".join(cmd))
+    print("-" * 46)
+    return subprocess.call(cmd)
+
+
+def cmd_status() -> int:
+    print("ENI platform status")
+    print("-" * 46)
+    mod, obj = _load_kernel()
+    if mod is None:
+        print(_red("  [FAIL] platform kernel import:      %s" % obj))
+        return 1
+    print(_green(f"  [OK]   platform kernel:             {mod} v{getattr(obj, '__version__', '?')}"))
+
+    nmods = _module_count()
+    cfg = _parse_config()
+    healthy = int(cfg.get("healthy_modules") or cfg.get("healthy") or nmods)
+    ntests = _test_count()
+    print(f"  modules present:       {nmods}")
+    print(f"  modules healthy:       {healthy}")
+    print(f"  test files:            {ntests}")
+
+    pack = _pack_info()
+    tag = _green("[OK]") if pack["present"] else _red("[--]")
+    print(f"  {tag} skills_pack present:         {'yes' if pack['present'] else 'no'}")
+    return 0
+
+
+def cmd_up() -> int:
+    print("ENI platform — bring up instructions")
+    print("-" * 46)
+    print("  From repo root:")
+    print("    docker compose -f docker/docker-compose.yml build")
+    print("    docker compose -f docker/docker-compose.yml up -d")
+    print("  Or via the root wrapper (delegates to docker/Makefile):")
+    print("    make run           # start full platform")
+    print("    make status        # show platform health")
+    print("    make logs          # tail all logs")
+    print("    make down          # stop platform")
+    print("  Hermes portable layer (this pack):")
+    print("    eni install        # deploy skills_pack into ~/.hermes")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# entry point / help
+# ---------------------------------------------------------------------------
+USAGE = """eni — ENI Enterprise CLI
+
+usage:
+  python3 scripts/eni_cli <command> [options]
+
+commands:
+  doctor    Report platform health (kernel import + skills_pack mirror checks).
+  install   Run scripts/install_skillspack.sh to deploy the portable pack.
+            Pass-through options: --dry-run, --force, --target=DIR.
+  status    Print module count / healthy modules / test counts from config.
+  up        Print docker compose bring-up instructions.
+
+options:
+  --help, -h   Show this help text.
+
+env:
+  ENI_CONFIG   Path to a config file/dir used for `status` (default: repo config/).
+"""
+
+
+def main(argv) -> int:
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(USAGE.strip())
+        return 0
+    cmd, rest = argv[0], argv[1:]
+    if cmd == "doctor":
+        return cmd_doctor()
+    if cmd == "install":
+        return cmd_install(rest)
+    if cmd == "status":
+        return cmd_status()
+    if cmd == "up":
+        return cmd_up()
+    print(f"unknown command: {cmd}\n")
+    print(USAGE.strip())
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

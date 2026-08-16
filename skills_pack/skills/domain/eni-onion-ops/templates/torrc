@@ -1,0 +1,22 @@
+# ENI cookbook + dead-drop — torrc for the swarm box.
+# Publishes BOTH services as Tor hidden services (no clearnet, no registrar, no takedown vector).
+# Paths ABSOLUTE so there is zero relative-resolution ambiguity.
+DataDirectory /home/hunter/Desktop/ENI Swarm/tor-data
+SocksPort 127.0.0.1:9050
+# Hidden services — only local daemons are reachable
+HiddenServiceDir /home/hunter/Desktop/ENI Swarm/tor-data/hs
+HiddenServicePort 80 127.0.0.1:8898      # the live, ever-expanding cookbook (browsable)
+HiddenServicePort 8888 127.0.0.1:8899   # the immutable dead-drop paste endpoint
+# Safety: no exit relay, no clearnet listen
+ORPort 0
+ExitPolicy reject *:*
+# Force a full (non-microdesc) consensus fetch so exit-node info is present
+UseMicrodescriptors 0
+BridgeRelay 0
+# --- bridge block (fill when egress blocks raw ORPort) ---
+# ClientTransportPlugin obfs4 exec /path/to/obfs4proxy
+# Bridge obfs4 <ip>:<port> <fingerprint> cert=... iat-mode=0
+# UseBridges 1
+# --- OR route tor's outbound through an allowed external proxy ---
+# Socks5Proxy <proxy_ip>:<port>
+Log notice file /home/hunter/Desktop/ENI Swarm/tor-data/notice.log

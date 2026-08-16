@@ -1,0 +1,11 @@
+{
+  "skynet": {
+    "description": "SKYNET self-improving AI pipeline tools",
+    "tools": [
+      "skynet_profile",
+      "skynet_recommend_skills",
+      "skynet_benchmark"
+    ],
+    "enabled": true
+  }
+}

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ENI Onion Always-On
+Comment=Watchdog keeping the Tor hidden-service cookbook + web server alive across crashes and reboots
+Exec=/home/hunter/Desktop/ENI Swarm/onion_always_on.sh
+Terminal=false
+Categories=Network;Privacy;
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=15

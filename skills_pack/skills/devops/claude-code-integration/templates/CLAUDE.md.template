@@ -1,0 +1,133 @@
+# CLAUDE.md Template
+
+This file contains project-specific instructions for AI agents working on this codebase.
+It is loaded automatically by Hermes Agent when working in this directory.
+
+## Project Overview
+
+**Project Name:** {{PROJECT_NAME}}
+**Description:** {{PROJECT_DESCRIPTION}}
+**Primary Language:** {{PRIMARY_LANGUAGE}}
+**Frameworks:** {{FRAMEWORKS}}
+
+## Architecture
+
+```mermaid
+graph TD
+    A[Entry Point] --> B[Core Module]
+    B --> C[Service Layer]
+    B --> D[Data Layer]
+    C --> E[External APIs]
+```
+
+## Development Workflow
+
+### Setup
+```bash
+# Install dependencies
+{{INSTALL_COMMAND}}
+
+# Run tests
+{{TEST_COMMAND}}
+
+# Start development server
+{{DEV_COMMAND}}
+```
+
+### Code Style
+- **Formatter:** {{FORMATTER}} (e.g., black, prettier, gofmt)
+- **Linter:** {{LINTER}} (e.g., ruff, eslint, golangci-lint)
+- **Type Checker:** {{TYPE_CHECKER}} (e.g., mypy, tsc)
+- **Line Length:** {{LINE_LENGTH}} characters
+
+### Git Conventions
+- **Branch naming:** `feature/`, `fix/`, `chore/`, `docs/`
+- **Commit format:** Conventional Commits (`feat:`, `fix:`, `chore:`)
+- **PR template:** Required for all changes
+
+## Project Structure
+
+```
+{{PROJECT_ROOT}}/
+├── src/                 # Source code
+│   ├── {{MODULE_1}}/   # Module 1
+│   └── {{MODULE_2}}/   # Module 2
+├── tests/               # Test files
+├── docs/                # Documentation
+├── scripts/             # Build/deploy scripts
+├── {{CONFIG_FILES}}     # Configuration
+└── README.md
+```
+
+## Key Conventions
+
+### Naming
+- **Files:** {{FILE_NAMING}} (e.g., snake_case, kebab-case)
+- **Classes:** {{CLASS_NAMING}} (e.g., PascalCase)
+- **Functions:** {{FUNCTION_NAMING}} (e.g., snake_case)
+- **Constants:** {{CONSTANT_NAMING}} (e.g., UPPER_SNAKE_CASE)
+
+### Error Handling
+- {{ERROR_HANDLING_PATTERN}}
+- Always log errors with context
+- Return typed errors, don't throw raw exceptions
+
+### Testing
+- **Framework:** {{TEST_FRAMEWORK}}
+- **Coverage target:** {{COVERAGE_TARGET}}%
+- **Test naming:** `test_<function>_<scenario>`
+- Mock external dependencies
+
+### Async Patterns
+- {{ASYNC_PATTERN}}
+- Use structured concurrency
+- Always handle cancellation
+
+## Environment Variables
+
+```bash
+# Required
+{{REQUIRED_ENV_VARS}}
+
+# Optional
+{{OPTIONAL_ENV_VARS}}
+```
+
+## Common Commands
+
+| Task | Command |
+|------|---------|
+| Build | `{{BUILD_CMD}}` |
+| Test | `{{TEST_CMD}}` |
+| Lint | `{{LINT_CMD}}` |
+| Format | `{{FORMAT_CMD}}` |
+| Type Check | `{{TYPE_CHECK_CMD}}` |
+| Deploy | `{{DEPLOY_CMD}}` |
+
+## Known Issues / Gotchas
+
+1. {{GOTCHA_1}}
+2. {{GOTCHA_2}}
+3. {{GOTCHA_3}}
+
+## External Dependencies
+
+- **API Keys:** {{API_KEYS}}
+- **Services:** {{EXTERNAL_SERVICES}}
+- **Databases:** {{DATABASES}}
+
+## Agent Instructions
+
+When working on this project:
+1. Always read the relevant source files first
+2. Run tests before and after changes
+3. Follow the existing code patterns
+4. Update documentation for API changes
+5. Keep commits focused and atomic
+
+## @include Directives
+
+@./docs/architecture.md
+@./docs/api.md
+@./.claude/rules/security.md
+@./.claude/rules/testing.md
