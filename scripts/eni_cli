@@ -19,11 +19,15 @@
 # kernel can be imported directly. English output only.
 # =============================================================================
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# The `enterprise` package is rooted at REPO_ROOT; its PARENT must be on
+# sys.path / used as cwd for `-m enterprise.*` subprocesses to resolve.
+ENI_PARENT = REPO_ROOT.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 # Allow injecting an alternate config for testing / status counting.
@@ -201,6 +205,9 @@ commands:
             services (controller :8913, multiplayer server :8787/:8788).
   fleet     Start a builder client on the multiplayer server (llm worker).
             Usage: fleet [host] [--port N] [--worker NAME]
+  local     Boot the side-by-side local stack: ENI one-prompt controller (:8913)
+            + multiplayer server (:8787) + hermes local-agent (:8765).
+            Usage: local [--no-server]
   up        Print docker compose bring-up instructions.
 
 options:
@@ -290,10 +297,76 @@ def cmd_fleet(argv) -> int:
     cmd = (f"python3 -m enterprise.multiplayer.client.client "
            f"--host {host} --port {port} --worker {worker}")
     print(f"starting builder -> ws://{host}:{port} (worker={worker})")
-    return subprocess.call(cmd, shell=True, cwd=str(REPO_ROOT))
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
+    return subprocess.call(cmd, shell=True, cwd=str(ENI_PARENT), env=env)
+
+
+def cmd_local(argv) -> int:
+    """Boot the side-by-side local stack: controller + hermes local-agent."""
+    hermes = shutil.which("hermes") or "hermes"
+    port = 8787
+    mp = f"python3 -m enterprise.multiplayer.server.server {port}"
+    ctrl = "python3 -m enterprise.local_controller.controller --port 8913"
+    if "--no-server" in argv:
+        mp_skip = True
+    print("ENI side-by-side local boot")
+    print("-" * 50)
+    cmds = []
+    # 1) coordination server
+    if not locals().get("mp_skip", False):
+        cmds.append(("ENI-multiplayer", mp))
+    # 2) one-prompt controller
+    cmds.append(("ENI-controller", ctrl))
+    # 3) hermes local-agent (our side of the partnership)
+    cmds.append(("Hermes-local-agent", f"{hermes} local-agent --no-browser --port 8765"))
+
+    import signal
+    procs = []
+    env = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
+    for name, c in cmds:
+        print(f"  [{name}] starting: {c}")
+        procs.append((name, subprocess.Popen(c, shell=True, cwd=str(ENI_PARENT),
+                                             env=env, start_new_session=True)))
+
+    def _stop(sig, frame):
+        print("\nstopping...")
+        for name, p in procs:
+            try:
+                p.terminate()
+            except Exception:
+                pass
+        raise SystemExit(0)
+    signal.signal(signal.SIGINT, _stop)
+    print("-" * 50)
+    print("side-by-side running. Ctrl-C to stop.")
+    print("  brains  http://127.0.0.1:8913/health")
+    print("  board   http://127.0.0.1:8788/api/board")
+    print("  hermes  http://127.0.0.1:8765 (local-agent)")
+    try:
+        for name, p in procs:
+            p.wait()
+    except KeyboardInterrupt:
+        _stop(None, None)
+    return 0
 
 
 USAGE_EXTRA = ""
+
+
+def cmd_agent_os(argv) -> int:
+    """Report the agent_os module status (JSON)."""
+    import json
+    data = {"tool": "agent_os", "present": False, "ok": False, "note": ""}
+    # primary: fast, deterministic filesystem check
+    present = (REPO_ROOT / "modules" / "agent_os").is_dir()
+    if present:
+        data["present"] = True
+        data["ok"] = True
+        data["note"] = "agent_os available (brief/oracle/draft/voice verbs)"
+    else:
+        data["note"] = "agent_os module not found in modules/"
+    print(json.dumps(data))
+    return 0 if data["ok"] else 1
 
 
 def main(argv) -> int:
@@ -314,6 +387,10 @@ def main(argv) -> int:
         return cmd_setup(rest)
     if cmd == "fleet":
         return cmd_fleet(rest)
+    if cmd == "local":
+        return cmd_local(rest)
+    if cmd == "agent-os":
+        return cmd_agent_os(rest)
     print(f"unknown command: {cmd}\n")
     print(USAGE.strip())
     return 2

@@ -95,6 +95,29 @@ $10/builder/mo hosted margin, white-label 30-60% split.
 4. TLS + auth on the server; real cross-machine smoke on 2 PCs. **[TLS/auth/multi-tenancy
    DONE in gap-fix pass; cross-machine LAN proven — see §8]**
 
+## 9. Operations & setup wave (2026-08-16, 3rd wave)
+Shipped the "easy to use / easy to boot / easy to buy" layer for LO + companies:
+
+| Deliverable | What | Verified |
+|---|---|---|
+| `docs/CAPABILITY_REFERENCE.md` | full truthful capability reference (all 3 layers, 51 modules, co-op floor, brains, portable layer, security, monetization) | written; numbers = real measured |
+| `scripts/boot_all.bat` | Windows one-file boot: controller + multiplayer + router (+optional builder) | authored for cross-platform ship |
+| `scripts/boot_all.sh` | Linux boot of all enterprise servers (headless + builder flags) | **LIVE: booted :8787/:8788/:8913 & router** |
+| `setup.sh` (+ `scripts/setup.sh`) | one-command setup: deps(skip w/ PEP668 note), skillspack, systemd services, verify, status | **run WITH status clean, imports kernel, 51 modules** |
+| `hermes-local` | installed to `~/.local/bin/hermes-local`; boots ENI controller(:8913)+multiplier(:8787)+hermes local-agent(:8765) side-by-side | **LIVE: all three booted together** |
+| `eni_cli` consolidated | single canonical CLI (removed stale `eni_cli.py` dup); added `setup`, `fleet`, `local`, `agent-os` | 4/4 CLI tests |
+| memory → KB | memory offloaded to ~/.eni/kb (48 patterns); bundled offload script schema-drift FIXED | offload + stats run |
+
+**Consolidation:** removed duplicate `eni_cli.py` (two CLIs → one). Tests updated to assert the real contract. Full regression **4411 passed / 1 skip**.
+
+## 10. Git / push policy
+Two feature commits are local-only on `upgrade/demiurge-enterprise-boost` (54 ahead of
+main, no upstream). **LO's rule: push ONLY if fully done.** This 3rd wave added
+setup/launch/CAPABILITY work + a regression just re-run green, but the host-facing
+deliverables (`boot_all.sh`/`setup.sh`/`hermes-local`) are not yet exercised on a fresh
+machine, and the repo build is still mid-wave. **Decision: commit locally; hold the
+push** until LO runs the one-command installer on a clean box and confirms boot.
+
 ## 8. Gap-fix pass (2026-08-16, 2nd wave)
 Closed every gap flagged in §6 with real working code + tests:
 

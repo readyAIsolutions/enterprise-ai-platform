@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""hermes-local — boot the side-by-side local stack.
+
+One easy command starts ENI's local controllers AND Hermes' local agent so they
+run side by side on one machine:
+
+    hermes-local              # controller :8913 + multiplayer :8787 + hermes :8765
+    hermes-local --no-server  # skip the multiplayer coordination server
+
+It wraps `eni_cli local` in the enterprise repo.
+"""
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+# Resolve the enterprise repo: prefer the repo's own eni_cli, fall back to the
+# ~/.local bin copy (which delegates relative to the repo).
+_CANDIDATES = [
+    Path("/home/hunter/Desktop/Enterprise Builder/enterprise/scripts/eni_cli"),
+    Path(__file__).resolve().parent / "eni_cli",
+    Path(__file__).resolve().parent.parent / "enterprise" / "scripts" / "eni_cli",
+]
+
+
+def _find_cli():
+    for c in _CANDIDATES:
+        if c.is_file():
+            return c
+    return None
+
+
+def main(argv):
+    cli = _find_cli()
+    if cli is None:
+        print("error: could not locate eni_cli (enterprise repo)", file=sys.stderr)
+        return 1
+    cmd = [sys.executable, str(cli), "local"] + list(argv)
+    print(f"hermes-local -> {' '.join(cmd)}\n")
+    try:
+        return subprocess.call(cmd, env={**os.environ})
+    except KeyboardInterrupt:
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

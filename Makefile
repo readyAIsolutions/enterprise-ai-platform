@@ -152,3 +152,13 @@ eni-up: ## CLI: print docker compose bring-up instructions
 
 up-hermes: ## Bring up ONLY the Hermes portable layer (profiled, opt-in)
 	@$(COMPOSE) -f docker-compose.yml --profile hermes up -d
+# --- one-command operations (added 2026-08-16) ------------------------------
+.PHONY: eni-setup eni-local eni-fleet eni-boot
+eni-setup: ## One-command setup: skillspack + systemd services + verify
+	@PYTHONPATH=. $(PYTHON) scripts/eni_cli setup
+eni-local: ## Boot the side-by-side local stack (controller + mp + hermes local-agent)
+	@PYTHONPATH=. $(PYTHON) scripts/eni_cli local
+eni-fleet: ## Start a builder client (llm worker) on the multiplayer server
+	@PYTHONPATH=. $(PYTHON) scripts/eni_cli fleet
+eni-boot: ## Boot all enterprise servers (headless)
+	@bash scripts/boot_all.sh --headless --no-builder
