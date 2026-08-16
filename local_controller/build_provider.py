@@ -29,8 +29,12 @@ import traceback
 import urllib.request
 from typing import Any, Dict, List, Optional
 
-from local_controller import vault as _vault
-from local_controller.planner import Plan, parse_goal
+try:  # tolerate plain `local_controller` OR `enterprise.local_controller` import
+    from local_controller import vault as _vault
+    from local_controller.planner import Plan, parse_goal
+except Exception:  # pragma: no cover - enterprise-prefixed package path
+    from enterprise.local_controller import vault as _vault  # type: ignore
+    from enterprise.local_controller.planner import Plan, parse_goal  # type: ignore
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DEFAULT_SESSIONS_DIR = os.path.join(_REPO_ROOT, "data", "build_sessions")

@@ -1,0 +1,17 @@
+[Unit]
+Description=ENI Local Controller (one-prompt -> program brain on :8913)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m enterprise.local_controller.controller --port 8913
+WorkingDirectory=/home/hunter/Desktop/Enterprise Builder
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

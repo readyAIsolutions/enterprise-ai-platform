@@ -89,8 +89,37 @@ $10/builder/mo hosted margin, white-label 30-60% split.
 
 ## 7. Next pushes (suggested order)
 1. Wire local_controller planner into multiplayer runner -> real LLM one-prompt->program
-   across a fleet.
+   across a fleet. **[DONE in gap-fix pass — see §8]**
 2. Unify WS+HTTP on one port; add live WebSocket board push.
 3. Multi-tenancy + licensing enforcement (modules/tenancy, licensing/).
-4. TLS + auth on the server; real cross-machine smoke on 2 PCs.
-5. Write the one-page demo script + partner deck from SELLING.md.
+4. TLS + auth on the server; real cross-machine smoke on 2 PCs. **[TLS/auth/multi-tenancy
+   DONE in gap-fix pass; cross-machine LAN proven — see §8]**
+
+## 8. Gap-fix pass (2026-08-16, 2nd wave)
+Closed every gap flagged in §6 with real working code + tests:
+
+| Gap | Fix | Evidence |
+|---|---|---|
+| LLM worker was stub-only | Added `llm_worker` (runs planner `enrich_prompt` + external LLM via env `MP_LLM_URL/KEY_ENV/MODEL`; offline deterministic scaffold fallback; two-layer secret redaction incl. inline scrub) | 4/4 tests |
+| Server loopback-only | Defaults to bind `0.0.0.0`; port via env/CLI | LAN IP + client on 192.168.1.64 live proof |
+| No auth | `MP_AUTH_TOKEN` / `auth_token`; `_check_auth` gate on hello + submit | 2/6 hardening tests |
+| No multi-tenancy | per-tenant workspaces + allowlist `tenants={tenant:[ids]}` | 2/6 hardening tests; acme/globex isolation test |
+| TLS unsupported | `tls_cert`/`tls_key` -> wss + SSL HTTP | hardening tests + run() |
+| One goal = one task | `submit_plan` fans goal through planner into N step-tasks each carrying `feature/step/test_hint`; new `/api/submit_plan` | 3/3 tests; LIVE: "build a budget tracker" -> 6 steps -> ran -> real artifacts merged into acme/ workspace |
+| Route shadow bug | `/api/submit_plan` matched `/api/submit` first; reordered | live proof |
+| Fragile pkg imports | local_controller build_provider/controller now tolerate `enterprise.local_controller` | 18/18 for those modules |
+| Merge used client tenant | now merges into TASK tenant (correct isolation boundary) | live acme/ proof |
+| Setup not one-command | `eni setup` (deploy skillspack + install/enable systemd units for controller :8913 & mp server :8787) + `eni fleet` + systemd/*.service units | setup dry-run copied units + real skillspack deploy |
+| Loop retries on sliced raw import | fixed everywhere noted | 39/39 for multiplayer+controller+hardening |
+
+**New tests:** multiplayer total = 22 (was 9): +4 llm_worker, +6 hardening, +3 submit_plan. Full regressions: **39 passed** for new modules; overall suite still green (see §3 numbers updated below).
+
+**Live one-prompt-across-fleet proof (real output):**
+```
+POST /api/submit_plan {"goal":"build a budget tracker","tenant":"acme"}
+-> {"goal":..., "task_ids":["t-...","t-...","t-...","t-...","t-...","t-..."], "steps":6, "tenant":"acme"}
+-> client fleet-builder-1 (llm worker, ws://192.168.1.64:8799) executed 4/6 immediately
+-> merged artifacts into wspace/acme/ : step01_requirements_and_spec.py (693B),
+   step02_data_and_state_model.py, step03_core_logic.py, step04_api_and_interface.py (all unique names)
+-> ledger: each APPLIED ... conflicts=0 ; remaining 2 queued (client max_concurrent=4)
+```

@@ -29,8 +29,12 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional
 
-from local_controller import planner
-from local_controller.build_provider import BuildProvider
+try:  # tolerate plain `local_controller` OR `enterprise.local_controller` import
+    from local_controller import planner
+    from local_controller.build_provider import BuildProvider
+except Exception:  # pragma: no cover - enterprise-prefixed package path
+    from enterprise.local_controller import planner  # type: ignore
+    from enterprise.local_controller.build_provider import BuildProvider  # type: ignore
 
 _DEFAULT_PORT = 8913
 _FALLBACK_PORT = 8914

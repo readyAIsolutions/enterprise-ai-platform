@@ -1,0 +1,20 @@
+[Unit]
+Description=ENI Multiplayer Coordination Server (WebSocket :8787 + HTTP :8788)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+# Auth is disabled by default; set a token to enable it, e.g.:
+# Environment=MP_AUTH_TOKEN=change-me
+# Environment=MP_HOST=0.0.0.0
+ExecStart=/usr/bin/python3 -m enterprise.multiplayer.server.server 8787
+WorkingDirectory=/home/hunter/Desktop/Enterprise Builder
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

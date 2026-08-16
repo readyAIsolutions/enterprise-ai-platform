@@ -24,7 +24,7 @@ import os
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from ..protocol import PROTOCOL_VERSION, TaskState, decode, make_message
 from .broker import Broker, HEARTBEAT_TIMEOUT, run_assign_loop
@@ -37,9 +37,13 @@ FRAME_LOG_LIMIT = 4000
 
 class MultiplayerServer:
     def __init__(self, host: str = "127.0.0.1", port: int = 8787,
-                 data_dir: Optional[str] = None) -> None:
+                 data_dir: Optional[str] = None, auth_token: Optional[str] = None,
+                 tenants: Optional[Dict[str, List[str]]] = None) -> None:
         self.host = host
         self.port = port
+        self.auth_token = auth_token or os.environ.get("MP_AUTH_TOKEN", "").strip()
+        # tenants: {tenant_name: [allowed_client_ids]} — empty list = any client
+        self.tenants: Dict[str, List[str]] = tenants or {}
         self.data_dir = data_dir or os.path.normpath(
             os.path.join(os.path.dirname(__file__), "..", "..", "data", "multiplayer"))
         os.makedirs(self.data_dir, exist_ok=True)
@@ -50,6 +54,31 @@ class MultiplayerServer:
         self._conn_ws: Dict[str, str] = {}   # client_id -> ephemeral, values: ws id (unused)
         self._ws_by_client: Dict[str, Any] = {}
         self._httpd_api: Optional[ThreadingHTTPServer] = None
+        self._client_tenant: Dict[str, str] = {}
+        self._task_tenant: Dict[str, str] = {}
+
+    # ------------------------------------------------------------- tenancy
+    def _tenant_for(self, client_id: str) -> str:
+        """Tenant for a client. First registered match, else 'default'."""
+        return self._client_tenant.get(client_id, "default")
+
+    def _tenant_workspace(self, tenant: str) -> str:
+        """Each tenant gets an isolated workspace (no cross-tenant clobber)."""
+        safe = "".join(c for c in (tenant or "default") if c.isalnum() or c in "-_") or "default"
+        ws = os.path.join(self._workspace_dir(), safe)
+        os.makedirs(ws, exist_ok=True)
+        return ws
+
+    def _check_auth(self, token: str) -> bool:
+        """True when auth is disabled or the token matches."""
+        if not self.auth_token:
+            return True
+        return bool(token) and token == self.auth_token
+
+    def _client_allowed(self, client_id: str, tenant: str) -> bool:
+        """For a tenant, an empty allowlist admits anyone; otherwise require the id."""
+        allow = self.tenants.get(tenant, [])
+        return (not allow) or (client_id in allow)
 
     # ------------------------------------------------------------- helpers
     def _broker_deliver(self, client_id: str, message: Dict[str, Any]) -> None:
@@ -93,6 +122,15 @@ class MultiplayerServer:
     async def _hello(self, client_id: str, msg: Dict[str, Any]) -> None:
         cap = msg.get("capabilities", {}) or {}
         mach = msg.get("machine", {}) or {}
+        # Auth + tenancy gate.
+        tenant = (msg.get("tenant") or "default")
+        if not self._check_auth(msg.get("token", "")) or not self._client_allowed(client_id, tenant):
+            await self._send(client_id, make_message(
+                "error", message="unauthorized: bad token or tenant not allowed",
+                task_id="", code="unauthorized"))
+            return
+        self._client_tenant[client_id] = tenant
+        self._tenant_workspace(tenant)
         rec = ClientRecord(
             client_id=client_id,
             connected_at=time.time(),
@@ -125,8 +163,10 @@ class MultiplayerServer:
                 assigned_client=client_id)
             if ok:
                 from .workspace_merge import apply_artifacts
-                ws = os.path.join(self._workspace_dir(), "default")
-                os.makedirs(ws, exist_ok=True)
+                # Merge into the TASK's tenant (from submit), not the client's —
+                # this is the correct isolation boundary.
+                task_tenant = self._task_tenant.get(tid, self._tenant_for(client_id))
+                ws = self._tenant_workspace(task_tenant)
                 ledger = os.path.join(self.data_dir, "work_merge.ledger")
                 merged = apply_artifacts(ws, artifacts, ledger_path=ledger,
                                          task_id=tid, client_id=client_id)
@@ -157,11 +197,69 @@ class MultiplayerServer:
         snap = await self.board.board_snapshot()
         snap["server_version"] = PROTOCOL_VERSION
         snap["heartbeat_timeout"] = HEARTBEAT_TIMEOUT
+        snap["tenants"] = sorted(self.tenants.keys())
+        snap["auth_required"] = bool(self.auth_token)
         return snap
 
     async def submit(self, goal: str, **fields) -> Dict[str, Any]:
+        tenant = fields.pop("tenant", "default")
+        token = fields.pop("token", "")
+        if not self._check_auth(token):
+            return {"error": "unauthorized", "ok": False}
         rec = await self.broker.submit(goal, **fields)
+        self._task_tenant[rec.task_id] = tenant
         return {"task_id": rec.task_id, "status": rec.status.value, "goal": rec.goal}
+
+    async def submit_plan(self, goal: str, **fields) -> Dict[str, Any]:
+        """Fan a bare goal out through the local planner into one task per step.
+
+        Each step task carries its own feature/step/test_hint and an enriched
+        prompt, so builders get unique, correctly-named artifacts (no collision)
+        that the LLM worker writes and self-tests. Returns the list of task_ids.
+        """
+        tenant = fields.pop("tenant", "default")
+        token = fields.pop("token", "")
+        if not self._check_auth(token):
+            return {"error": "unauthorized", "ok": False}
+        # Use the planner when importable (plain or enterpriced path).
+        plan = None
+        for modname in ("local_controller.planner", "enterprise.local_controller.planner"):
+            try:
+                import importlib
+                mod = importlib.import_module(modname)
+                plan = mod.parse_goal(goal)
+                enrich = getattr(mod, "enrich_prompt", None)
+                print(f"[submit_plan] planner via {modname} steps={len(plan.tasks)}") if enrich else None
+                break
+            except Exception as exc:
+                print(f"[submit_plan] import {modname} failed: {exc}")
+                continue
+        if plan is None:
+            # planner unavailable -> single opaque task
+            return await self.submit(goal, tenant=tenant, token=token, **fields)
+
+        tasks = plan.tasks or []
+        if not tasks:
+            return await self.submit(goal, tenant=tenant, token=token,
+                                     **{k: v for k, v in fields.items() if k != "goal"})
+        ids = []
+        for t in tasks:
+            prompt = t.prompt
+            # enrich each step prompt for better artifacts
+            try:
+                from local_controller.planner import enrich_prompt as _enrich
+                prompt = _enrich(t.prompt, goal=goal)
+            except Exception:
+                pass
+            rec = await self.broker.submit(
+                goal, prompt=prompt, repo=fields.get("repo", ""),
+                feature=t.feature, step=t.step, test_hint=t.test_hint,
+                model_hint=fields.get("model_hint", ""),
+                tags=fields.get("tags", []) or [])
+            self._task_tenant[rec.task_id] = tenant
+            ids.append(rec.task_id)
+        return {"goal": goal, "task_ids": ids, "steps": len(ids),
+                "tenant": tenant}
 
 
 def _request_handler_factory(server: MultiplayerServer):
@@ -197,7 +295,23 @@ def _request_handler_factory(server: MultiplayerServer):
                 self._json(404, {"error": "not found"})
 
         def do_POST(self):
-            if self.path.startswith("/api/submit"):
+            if self.path.startswith("/api/submit_plan"):
+                try:
+                    n = int(self.headers.get("Content-Length", 0))
+                    body = json.loads(self.rfile.read(n) or b"{}")
+                except Exception:
+                    body = {}
+                goal = body.get("goal", "")
+                if not goal:
+                    self._json(400, {"error": "missing 'goal'"})
+                    return
+                res = _loop_run(server.submit_plan(
+                    goal,
+                    repo=body.get("repo", ""),
+                    tenant=body.get("tenant", "default"),
+                    token=body.get("token", "")))
+                self._json(200, res)
+            elif self.path.startswith("/api/submit"):
                 try:
                     n = int(self.headers.get("Content-Length", 0))
                     body = json.loads(self.rfile.read(n) or b"{}")
@@ -212,7 +326,9 @@ def _request_handler_factory(server: MultiplayerServer):
                     prompt=body.get("prompt", ""),
                     repo=body.get("repo", ""),
                     artifacts=body.get("artifacts", []),
-                    model_hint=body.get("model_hint", "")))
+                    model_hint=body.get("model_hint", ""),
+                    tenant=body.get("tenant", "default"),
+                    token=body.get("token", "")))
                 # assignment happens on the main loop's run_assign_loop task
                 self._json(200, res)
             else:
@@ -282,10 +398,20 @@ def websocket_handler(server: MultiplayerServer):
     return _adapt
 
 
-def run(host: str = "127.0.0.1", port: int = 8787, data_dir: Optional[str] = None) -> None:
-    """Run the server (blocking). WS on `port`, HTTP API on `port+1`."""
+def run(host: str = "0.0.0.0", port: int = 8787, data_dir: Optional[str] = None,
+        auth_token: Optional[str] = None, tenants: Optional[Dict[str, List[str]]] = None,
+        tls_cert: Optional[str] = None, tls_key: Optional[str] = None) -> None:
+    """Run the server (blocking). WS on `port`, HTTP API on `port+1`.
+
+    Defaults to binding 0.0.0.0 so other machines on the LAN can join with their
+    own builder clients. Enable auth by passing auth_token or setting MP_AUTH_TOKEN.
+    Enable TLS by passing tls_cert/tls_key (PEM cert + key). Tenancy provides
+    isolated per-tenant workspaces (dict tenant -> allowed client ids).
+    """
     import websockets
-    server = MultiplayerServer(host, port, data_dir)
+    import ssl
+    server = MultiplayerServer(host, port, data_dir, auth_token=auth_token,
+                               tenants=tenants)
 
     http_port = port + 1
     api_httpd = ThreadingHTTPServer((host, http_port), _request_handler_factory(server))
@@ -293,8 +419,14 @@ def run(host: str = "127.0.0.1", port: int = 8787, data_dir: Optional[str] = Non
 
     async def main():
         await server.broker.resume_from_disk()
+        ws_kwargs = {"ping_interval": 25}
+        if tls_cert and tls_key:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(tls_cert, tls_key)
+            ws_kwargs["ssl"] = ctx
+        scheme = "wss" if ws_kwargs.get("ssl") else "ws"
         serve = websockets.serve(websocket_handler(server),
-                                 host, port, ping_interval=25)
+                                 host, port, **ws_kwargs)
         await serve
         asyncio.ensure_future(_reap(server))
         # The assign loop drives QUEUED -> ASSIGNED on the MAIN event loop so
@@ -302,10 +434,12 @@ def run(host: str = "127.0.0.1", port: int = 8787, data_dir: Optional[str] = Non
         loop_stop = asyncio.Event()
         asyncio.ensure_future(run_assign_loop(server.broker, interval=1.0,
                                               stop=loop_stop))
-        print(f"Multiplayer server ready: ws://{host}:{port}  http://{host}:{http_port}")
+        auth_note = "auth=enabled" if server.auth_token else "auth=disabled"
+        print(f"Multiplayer server ready: {scheme}://{host}:{port}  http://{host}:{http_port} [{auth_note}]")
         print(f"  health http://{host}:{http_port}/health")
         print(f"  board  http://{host}:{http_port}/api/board")
-        print(f"  submit POST http://{host}:{http_port}/api/submit  {{'goal': '...'}}")
+        print(f"  submit POST http://{host}:{http_port}/api/submit  {{'goal': '...', 'token': '...'}}")
+        print(f"  tenants {list(server.tenants.keys())}")
         await asyncio.Future()
 
     try:
@@ -317,4 +451,5 @@ def run(host: str = "127.0.0.1", port: int = 8787, data_dir: Optional[str] = Non
 
 if __name__ == "__main__":
     import sys
-    run(port=int(sys.argv[1]) if len(sys.argv) > 1 else 8787)
+    run(host=os.environ.get("MP_HOST", "0.0.0.0"),
+        port=int(sys.argv[1]) if len(sys.argv) > 1 else 8787)

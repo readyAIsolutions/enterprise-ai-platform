@@ -81,6 +81,8 @@ class BuilderClient:
             client_id=self.client_id,
             capabilities=self._capacity,
             machine=default_machine_profile(),
+            tenant=os.environ.get("MP_TENANT", "default"),
+            token=os.environ.get("MP_TOKEN", ""),
         )))
 
     async def run_forever(self) -> None:

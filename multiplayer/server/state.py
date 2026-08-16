@@ -30,6 +30,9 @@ class TaskRecord:
     created_at: float
     prompt: str = ""
     repo: str = ""
+    feature: str = ""
+    step: int = 1
+    test_hint: str = ""
     artifacts: List[Dict[str, str]] = field(default_factory=list)
     model_hint: str = ""
     provider: str = ""
