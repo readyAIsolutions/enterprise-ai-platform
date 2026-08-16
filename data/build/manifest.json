@@ -10,7 +10,10 @@
     "automation_triage",
     "ai_coding_harness",
     "ai_systems_thinking",
-    "ai_education_guardrails"
+    "ai_education_guardrails",
+    "agentic_rag",
+    "human_in_the_loop",
+    "engineering_tradeoff"
   ],
   "transcripts": {
     "JEVanClief": {
@@ -133,8 +136,22 @@
         "title": "Artificial Minds, Real Ideas Ep. 1: Who Controls EdTech?",
         "status": "built",
         "module": "ai_education_guardrails"
+      },
+      "30N9gLucrHg": {
+        "status": "built",
+        "module": "human_in_the_loop"
+      },
+      "-YursW-UIoY": {
+        "status": "built",
+        "module": "engineering_tradeoff"
       }
     },
-    "matthew_berman": {}
+    "matthew_berman": {},
+    "ColeMedin": {
+      "p0FERNkpyHE": {
+        "status": "built",
+        "module": "agentic_rag"
+      }
+    }
   }
 }
