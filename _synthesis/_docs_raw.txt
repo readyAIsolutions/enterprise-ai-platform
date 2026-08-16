@@ -1,0 +1,962 @@
+==== a2a
+ENI A2A Module -- Agent-to-Agent protocol (Google A2A style).
+
+A stdlib-only implementation of agent-to-agent messaging and task
+orchestration. Agents advertise themselves with an ``AgentCard`` (resolved to
+an ``AgentKey``), exchange structured ``Message`` envelopes, and coordinate
+work through ``Task`` objects in an in-memory ``TaskManager`` that enforces
+valid life-cycle transitions, idempotency keys and bounded retries.
+
+The module is a registered Platform Kernel module implementing the standard
+lifecycle (``initialize`` / ``health_check`` / ``shutdown``) and the event-bus
+wiring contract (``set_event_bus``). A public ``A2AFacade`` exposes
+``register_agent_card`` / ``list_agents`` / ``create_task`` / ``get_task`` /
+``send_message`` / ``handoff``.
+
+Version: 1.0.0
+Python: 3.11+
+
+==== agent_catalog
+ENI Agent Catalog Module -- unified specialist-agent registry.
+
+Fuses two complementary specialist-agent catalogs into one normalized,
+searchable platform module:
+
+  * **Codex** subagents  (~/Desktop/awesome-codex-subagents-main) — 172
+    engineering-focused agents in native Codex ``.toml`` format, each carrying
+    a model hint, reasoning effort and sandbox mode.
+  * **Agency** division agents (~/Desktop/agency-agents-main) — 263 business /
+    product / sales / marketing / design / engineering agents in Markdown with
+    YAML frontmatter (someone "persona" agents with emoji + color + vibe).
+
+"Rebuilt better" means: a single normalized schema, cross-source slug
+deduplication (shared roles collapse into one record with unioned categories
+and sources), SQLite persistence with faceted search, and every agent
+registered as an A2A ``AgentCard`` so it can participate in the platform's
+agent-to-agent network.
+
+The module is a registered Platform Kernel module implementing the standard
+lifecycle (``initialize`` / ``health_check`` / ``shutdown``) and the event-bus
+wiring contract (``set_event_bus``). A public ``AgentCatalogFacade`` exposes
+``search`` / ``get`` / ``overview`` / ``register_all_in_a2a``.
+
+The canonical catalog JSON is committed to ``data/agent_catalog.json`` so the
+module works offline; ``python -m modules.agent_catalog.ingest`` regenerates it
+from the live source repos, and ``create_agent_catalog_module`` may pass a
+``refresh_ingest=True`` config to re-ingest on boot.
+
+==== agent_coordination
+Agent Communication & Coordination OS — Multi-agent orchestration, task scheduling,
+shared knowledge, conflict resolution, verification, and fault tolerance.
+
+Version: 1.0.0
+
+==== agent_core
+Claude Code Core — Enterprise Platform Kernel Module v2.0.0
+============================================================
+
+Re-implementation of Anthropic's Claude Code QueryEngine, Coordinator,
+Task system, State management, Context manager, Hooks engine, and
+Services as native Python async classes that plug into the ENI
+Enterprise Platform Kernel.
+
+100x better than the TypeScript original:
+  - Model-agnostic (Anthropic, OpenAI, Google, local models)
+  - Async-native with asyncio
+  - Parallel-by-default with DAG scheduling
+  - Self-healing with automatic retry and circuit breaking
+  - Metric-emitting with Prometheus-compatible counters
+
+Architecture:
+  ClaudeCodeModule (Module)
+  ├── SuperiorQueryEngine   — multi-model routing, streaming, tool loop
+  ├── TaskCoordinator       — DAG scheduling, retry, timeout, parallel dispatch
+  ├── TaskScheduler         — background tasks, swarm integration
+  ├── SmartContext          — embeddings-based relevance, multi-tier compression
+  ├── HooksEngine           — 25+ lifecycle hooks, sync+async, plugin system
+  ├── StateManager          — distributed state with CRDT
+  └── ServiceRegistry       — ModelService, ToolService, MemoryService, AuthService
+
+Version: 2.0.0
+Python: 3.10+
+
+==== agent_graph
+ENI Agent Graph Module — langgraph-style stateful agent graph orchestration.
+
+A dependency-free (stdlib-only) engine for building and running directed
+graphs of stateful agent nodes, with checkpoint persistence for replay and
+inspection.
+
+Features:
+- ``add_node`` / ``add_edge`` build-time validation (undefined node targets
+  raise ``ValueError``).
+- ``run`` walks the graph in topological order, honoring conditional edges,
+  with START/END markers and cycle/back-edge protection via ``max_steps``.
+- :class:`StateCheckpointStore` persists intermediate states keyed by
+  ``run_id``.
+- :class:`SupervisorGraph` — a coordinator node that routes to worker nodes
+  based on a state key.
+- :class:`AgentGraphFacade` — public surface: ``build_graph``, ``add_node``,
+  ``add_edge``, ``run_graph``, ``get_checkpoint``, ``list_runs``.
+
+Version: 1.0.0
+Python: 3.11+
+
+==== agent_infra
+Claude Code Superior — Infrastructure Module v1.0.0
+====================================================
+
+Enterprise-grade infrastructure module re-implementing Claude Code's
+core systems as Python-native components for the ENI Enterprise Platform OS.
+
+Provides:
+  - TUIEngine          — prompt_toolkit-based terminal UI with Ink-inspired
+                          component tree, keybinding registry, and theme engine
+  - ClaudServer        — FastAPI + WebSocket server for remote sessions (port 9120)
+  - PluginSystem       — hot-reload plugin manager with sandboxed execution
+                          and marketplace integration
+  - BuddySystem        — shared-context agent teammates for collaborative work
+  - VoiceIntegration   — Piper TTS + Whisper STT voice pipeline
+  - BootstrapManager   — startup and entrypoint orchestration
+
+Architecture:
+    __init__.py         — Module housekeeping, @module registration, exports
+    tui_engine.py       — TUIEngine, Component, KeybindingRegistry, ThemeEngine
+    server.py           — ClaudServer, WebSocketSessionManager
+    plugin_system.py    — PluginManager, PluginSandbox, PluginMarketplace
+    buddy_system.py     — BuddyManager, BuddyAgent, SharedContext
+    voice.py            — VoicePipeline, TTSProvider, STTProvider
+
+Events emitted:
+  - claude.infra.tui.started        — TUI engine initialized
+  - claude.infra.server.started     — Server listening on :9120
+  - claude.infra.server.session     — Remote session connected/disconnected
+  - claude.infra.plugin.loaded      — Plugin loaded (hot-reload)
+  - claude.infra.plugin.marketplace — Marketplace operation completed
+  - claude.infra.buddy.spawned      — Buddy agent created
+  - claude.infra.buddy.context.shared — Context shared between buddies
+  - claude.infra.voice.started      — Voice pipeline active
+  - claude.infra.voice.transcription — Transcription completed
+  - claude.infra.bootstrap.complete — Bootstrap sequence finished
+
+Version: 1.0.0
+Python: 3.11+
+
+==== agent_os
+Enterprise Agent OS Module — a unified AI agent operating system.
+
+Replicates Julian Goldie's "Agent OS" (Hermes + Oracle + Paperclip + Jarvis)
+as a real, working ENI Enterprise module — but FOSS and built on top of the
+platform Kernel instead of a paid zip + coaching upsell.
+
+The four "tools" from the video, recreated with free/open-source pieces:
+
+  * Hermes    -> this module IS the Hermes-facing surface: it wraps the
+                 ENI controller facade (prompt expansion + routing) and
+                 exposes one unified `run()` entrypoint so every tool is
+                 reachable through a single command surface.
+  * Oracle    -> a free news engine: pulls trending headlines via RSS
+                 (feedparser — no API key, no paid tier), scores them by
+                 attention (recency + source weight + engagement proxy),
+                 links to original posts, and can draft a content brief.
+  * Paperclip -> a resilient multi-step task orchestrator: plug tools into
+                 one team, run tasks as ordered steps, collect finished
+                 artifacts into one place, with retry/timeout handling.
+  * Jarvis    -> a free voice layer: espeak-based TTS + a phrase->command
+                 map (auto mode = fast lightweight actions, agent mode =
+                 slower but can edit), with explicit "rules" (allowlist)
+                 so it only does what you've opted into.
+
+Better-than-the-video differences:
+  * No paid zip / monthly coaching. Everything is local + FOSS.
+  * Actually tested (pytest) and auto-discovering into the Platform Kernel.
+  * Honest thesis: mastery beats tool-hopping — the module pushes you toward
+    a tiny set of deep, reliable skills instead of a wall of shiny toys.
+
+All components degrade gracefully and rely only on optional FOSS pieces:
+feedparser (news) and espeak (voice), both detected at runtime.
+
+==== agent_tools
+ENI Enterprise — Claude Code Tools Module v2.0.0
+=================================================
+
+Enterprise-grade module re-implementing ALL Claude Code tools as native Python
+async Pydantic-based tools, 100x better than the original TypeScript implementation.
+
+Provides 25+ production-grade tools across 7 categories:
+  - System: BashTool (AST parsing, sandbox, streaming, heredoc)
+  - Files: FileReadTool, FileWriteTool, FileEditTool, GlobTool, GrepTool (ripgrep)
+  - Web:   WebFetchTool, WebSearchTool (with intelligent caching)
+  - Agent: AgentTool, SkillTool, TaskTool, TeamTool (subagent delegation)
+  - MCP/LSP: MCPTool (full catalog), LSPTool (language server integration)
+  - Specialty: NotebookTool, ImageTool, BrowserTool, CodeExecutionTool,
+               DatabaseTool, APITool, GitTool, DockerTool, CronTool, KanbanTool
+  - Meta: ToolDiscoveryTool
+
+Every tool features:
+  - Pydantic v2 schemas with strict validation
+  - Native asyncio execution with cancellation support
+  - Permission gating with fine-grained access control
+  - Real-time progress reporting via AsyncIterator[ProgressEvent]
+  - Comprehensive metrics collection (duration, success rate, throughput)
+  - ENI Compression bridge auto-compression on all outputs
+
+Architecture:
+    __init__.py         — Module registration, exports, lifecycle
+    tool_registry.py    — ToolRegistry (discovery, registration, permission gating)
+    bash.py             — BashTool (AST parsing, sandbox, streaming, heredoc)
+    file_tools.py       — FileRead, FileWrite, FileEdit, Glob, Grep
+    web_tools.py        — WebFetch, WebSearch (with caching)
+    agent_tools.py      — AgentTool, SkillTool, TaskTool, TeamTool
+    mcp_lsp.py          — MCPTool, LSPTool
+    specialty_tools.py  — Notebook, Image, Browser, Code, DB, API, Git,
+                           Docker, Cron, Kanban
+    tests/test_all.py   — 40+ production-quality tests
+
+Events emitted:
+  - tool.execution.started    — tool invocation begins
+  - tool.execution.completed  — tool invocation finishes (success or error)
+  - tool.execution.failed     — tool invocation fails
+  - tool.permission.denied    — permission gate blocks a tool
+  - tool.progress             — streaming progress updates
+
+Metrics tracked:
+  - invocation count per tool
+  - average duration per tool
+  - success/failure rate
+  - bytes processed (I/O tools)
+  - compression ratio (post-ENI compression)
+
+License: Proprietary — ENI AI OS
+
+==== ai_defense
+ENI Enterprise AI Defense OS Module.
+
+Defense against *AI-driven / automated* attackers: statistical anomaly detection,
+bot/agent traffic classification, model-extraction probing shield, credential-
+stuffing lockout, and indirect prompt-injection detection. Complements the
+``model_security`` module (which guards model *input/output*); this module
+guards the *attacker side*.
+
+The module exposes a ``@module``-registered kernel Module
+(:class:`AIDefenseModule`) alongside a plain convenience facade
+(:class:`AIDefenseFacade`) for direct, dependency-free use.
+
+All components are stdlib-only with zero external dependencies.
+
+==== autonomous_agent_runtime
+ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction.
+
+A first-class Platform Kernel module that wraps the ``provider_abstraction``
+subsystem: a multi-provider LLM abstraction (provider registry with health
+checks), session-aware cost tracking, circuit-breaking fallback orchestration,
+and SSE streaming normalization.
+
+The module auto-registers with the Platform Kernel when this package is
+imported (via the ``@module`` decorator), implementing the standard lifecycle
+(``initialize`` / ``health_check`` / ``shutdown``), the event-bus wiring
+contract (``set_event_bus``), and exposing a public
+``AutonomousAgentRuntimeFacade`` with ``register_providers_from_config`` /
+``list_providers`` / ``get_provider`` / ``cost_summary`` /
+``fallback_status`` / ``health_check_all``.
+
+Version: 1.0.0
+Python: 3.11+
+
+==== compliance
+ENI Enterprise Compliance OS Module.
+
+Offline security-control mapping & audit evidence for the ENI platform across:
+
+* OWASP LLM Top 10 (2025)
+* NIST AI RMF 1.0 core functions (GOVERN / MAP / MEASURE / MANAGE)
+* MITRE ATLAS (Adversarial Threat Landscape for AI Systems)
+
+Provides a control catalogue, a ComplianceEvaluator that computes coverage,
+residual risk and PASS/FAIL against a target, a GapAnalyzer for missing
+controls, and a ComplianceReport for audit snapshots.
+
+All components are stdlib-only, zero external dependencies.
+
+==== compression_bridge
+Enterprise Platform — Compression Bridge Module v3.0.0
+======================================================
+
+Enterprise-grade compression module bridging the core Compression engine
+into the Enterprise Platform OS. Provides:
+
+  - CompressionBridge  — unified API for all 12 compression modes + OMEGA transcendent
+  - CompressionHealthCheck — validates all algorithms loadable, OMEGA accessible
+  - Events: compression.completed, compression.omega.transcended, compression.algorithm.selected
+  - Metrics: compression ratios per mode, throughput, omega efficiency
+
+Architecture:
+    __init__.py            — Module housekeeping, @module registration, exports
+    compression_bridge.py  — CompressionBridge (compress, decompress, batch,
+                              omega_transcend, stats, health_check)
+    tests/test_compression.py — 40+ production-quality tests
+
+==== customer_experience
+Customer Experience OS Module.
+
+Provides a comprehensive suite for managing the end-to-end customer journey,
+including journey mapping, support ticketing, AI-assisted support guardrails,
+CX metrics, feedback analysis, and communication templates.
+
+Version: 1.0.0
+
+==== developer_experience
+Developer Experience OS Module
+==============================
+Enterprise-grade Developer Experience operating system providing
+a unified framework for developer journey, standards, environments,
+golden paths, internal platform, AI coding rules, documentation,
+and productivity metrics.
+
+Architecture:
+    journey.py      - Developer lifecycle journey stages
+    standards.py    - Repository standards enforcement
+    environment.py  - Development environment specifications
+    golden_paths.py - Approved golden-path workflows
+    platform.py     - Internal Developer Platform (IDP) capabilities
+    ai_rules.py     - AI coding agent governance rules
+    docs.py         - Documentation standards and quality gates
+    metrics.py      - Developer productivity and DORA metrics
+
+==== disaster_recovery
+Disaster Recovery OS Module
+
+Enterprise-grade disaster recovery, business continuity, and crisis management.
+Covers backup, recovery, cyber recovery, AI continuity, exercises, and crisis coordination.
+
+Version: 1.0.0
+
+==== enterprise_validation
+Enterprise Validation & Certification OS — Module Entry Point
+==============================================================
+
+@module(name='enterprise_validation', version='1.0.0')
+
+==== eval_gate
+ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline).
+
+Local, stdlib-only automated evaluation of model output quality using fully
+deterministic lexical/heuristic metrics (no external model or service calls).
+Mirrors the ``model_security`` philosophy: every metric is a regex- and
+term-overlap-based function that can be unit tested offline.
+
+Metrics implemented (computed from text alone):
+  - AnswerRelevancy    — relevance proxy via answer/question token overlap.
+  - Faithfulness       — groundedness of the answer relative to a source.
+  - ToxicityDetector   — banned-word lexicon scan for profane content.
+  - HallucinationProxy — fact-consistency proxy (unsupported-claim fraction).
+  - RefusalDetector    — refusal / evasion phrasing detection.
+  - JailbreakGuard     — jailbreak / prompt-injection attempt detection.
+
+An :class:`EvalGate` enforces thresholds + policy (fail if any required metric
+is below its minimum), :class:`EvalRunner` aggregates over sample dicts, and
+:class:`EvalGateFacade` exposes the public surface behind the @module-decorated
+:class:`EvalGateModule`.
+
+All components are stdlib-only, zero external dependencies.
+
+==== gateway
+ENI Multi-Gateway Remote Control & Automations Module
+
+Connects the ENI Enterprise platform to external messaging channels
+(Telegram, Discord, generic webhooks) and provides a cron/interval scheduler
+for running scheduled automations — enabling outbound alerts, notifications,
+and remote-controlled automation.
+
+Exports:
+  GatewayModule      — @module-decorated Module subclass
+  Gateway            — multi-channel registry: register/send/broadcast/route
+  Scheduler          — pure cron + interval scheduler
+  build_channel      — config-driven channel factory
+
+Version: 1.0.0
+Python: 3.10+
+
+==== guardrails
+ENI Guardrails OS Module.
+
+Programmable input/output validators with a validate / fix / refix loop
+inspired by guardrails-ai, fully offline and stdlib-only.
+
+Two layers ship here:
+
+* **Classic layer** — ``Validator`` / ``ValidationResult`` base, built-ins
+  (NoPII, NoToxic, Profanity, Length, Regex, NoPromptInjection, JSONSchema),
+  ``Guard`` + ``GuardRailRunner`` with ``filter|raise|fix|refix`` policies and
+  ``GuardrailViolationError``, plus the ``GuardRailFacade`` registry.
+
+* **Guardrails-AI validator-plugin layer** — ``ValidatorRegistry`` with a
+  ``register_validator(name, data_type)`` decorator, ``PassResult`` /
+  ``FailResult`` (error_message / fix_value / on_fail of fix|block|raise),
+  a declarative ``Guard.run``, ``data_type`` dispatch (string/number/json),
+  built-in plugin validators (PII, PromptInjection, Jailbreak, ShellInjection,
+  SQLInjection, ToxicLanguage, JSONSchema, SecretLeak, URL) and the
+  ``Guardrails`` facade exposing ``validate(value, guard_names, metadata)``,
+  ``list_validators()`` and ``register_validator``.
+
+The kernel ``GuardrailsModule`` builds the registry + default validators on
+``initialize()``, reports HEALTHY only while the registry carries validators,
+and cleans up on ``shutdown()``.
+
+==== hermes_controller
+Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent.
+
+A stdlib-only facade that wraps the ENI Hermes Controller (prompt expander +
+router + privacy boundary + reinforcement). Exposes it to the enterprise
+platform so every build can:
+  - expand LO's short instructions into massive detailed prompts,
+  - sanitize secrets on egress (cloud never sees private data),
+  - auto-continue through free-model rate limits,
+  - queue work for deferred continuation (e.g. 6pm local),
+  - retain good outcomes to the KB and build skills.
+
+All components are stdlib-only with zero external dependencies.
+
+==== innovation_rd
+Innovation R&D OS Module
+
+Enterprise-grade innovation and research & development management system.
+Provides tools for research tracking, experiment management, integrity checks,
+sandboxed environments, technology scouting, and IP management.
+
+Version: 1.0.0
+
+==== kb_bridge
+ENI Knowledge Base OS Module
+
+Enterprise-grade wrapper around Hermes KB Universal, providing
+structured CRUD, search, vector search, metrics, and health checks
+as a registered Platform Kernel module.
+
+Exports:
+  ENIKBModule        — @module-decorated Module subclass
+  KnowledgeBaseBridge — Full KB wrapper with event publishing
+  KBHealthCheck      — DB connectivity health verification
+
+Version: 1.0.0
+Python: 3.10+
+
+==== knowledge_graph
+Knowledge Graph OS Module
+
+Enterprise-grade knowledge graph for mapping and managing organizational
+knowledge: entities, relationships, provenance, resolution, contradiction
+management, and secure retrieval.
+
+Version: 1.0.0
+
+==== llmops_trace
+ENI LLMOps Trace OS Module — local, offline LLM tracing & observability.
+
+A langfuse-style, fully-offline tracing/observability subsystem for LLM
+applications. Mirrors the ``model_security`` / ``eval_gate`` philosophy: all
+components are deterministic and stdlib-only.
+
+An :class:`TraceCollector` stores traces and nested spans, supports querying,
+span-tree reconstruction, JSON / JSONL export, an optional JSONL file backend,
+and a size cap with FIFO eviction. :class:`SpanEvaluator` aggregates spans into
+observability stats, :class:`SpanContext` enables manual ``with collector.span()``
+nesting, and :class:`TraceFacade` (wrapped by the @module-decorated
+:class:`TraceModule`) exposes the public surface to the rest of the platform.
+
+==== look_and_feel
+Enterprise Platform — Look & Feel Registry Module v1.0.0
+=========================================================
+
+Enterprise-grade visual design registry bridging into the Enterprise Platform
+OS. Parses, persists, and applies UI look-and-feel rulesets so downstream
+generators produce visually consistent, distinctive UI.
+
+Provided by look_and_feel.py:
+    LookAndFeelEntry    — data model for a single design module
+    LookAndFeelParser   — parses the structured module format
+    LookAndFeelRegistry — JSON-backed persistent store
+    LookAndFeelCLI      — 'lookandfeel' command binding
+
+Module facade (this file):
+    LookAndFeelModule   — @module-registered Module with lifecycle + API
+    create_look_and_feel_module — platform factory entrypoint
+
+Architecture:
+    __init__.py            — Module housekeeping, @module registration, exports
+    look_and_feel.py       — Entry, Parser, Registry, CLI
+    tests/test_look_and_feel.py — production-quality tests
+
+==== mcp_tools
+ENI MCP Tools Module — FastMCP-style tool registry & MCP serving layer.
+
+A dependency-free (stdlib-only) Model Context Protocol tool gateway: a
+thread-safe registry of callable tools (``@tool`` decorating sync or async
+handlers) whose schemas are auto-derived from type hints, plus an MCP/JSON-RPC
+wire layer (``tools/list`` / ``tools/call``) so an external gateway can serve
+it over HTTP/SSE later.
+
+The module is a registered Platform Kernel module implementing the standard
+lifecycle (``initialize`` / ``health_check`` / ``shutdown``) and the event-bus
+wiring contract (``set_event_bus``).
+
+Version: 1.0.0
+Python: 3.11+
+
+==== memory
+ENI Agent Memory OS Module.
+
+A mem0-style hybrid long-term memory engine: dependency-free semantic /
+episodic / declarative / procedural memory with per-user profiles,
+deterministic feature-hash embeddings, relevance/importance/recency ranking,
+consolidation & de-duplication, and persistent SQLite storage.
+
+The module is a registered Platform Kernel module implementing the standard
+lifecycle (``initialize`` / ``health_check`` / ``shutdown``) and the
+event-bus wiring contract (``set_event_bus``).
+
+Version: 1.0.0
+Python: 3.11+
+
+==== mlops_lifecycle
+ENI Enterprise MLOps/LLMOps Lifecycle Module — Complete Agent Experiment Lifecycle Management
+============================================================================================
+
+This module provides a comprehensive MLOps/LLMOps lifecycle for agent experiments,
+integrating with the ENI Enterprise Platform modules:
+
+- Experiment Tracking: Full lifecycle management via innovation_rd
+- Configuration Management: Versioned, reproducible experiment configs
+- Feature/Label Store: Persistent storage for training/validation data
+- Canary Rollouts: Runtime feature flags via release_change
+- Evaluation Gates: Automated quality gates via eval_gate
+- Observability: OpenTelemetry GenAI tracing via llmops_trace
+- Drift Detection: Statistical drift monitoring for models/data
+- Rollback Strategies: Automated and manual rollback capabilities
+
+Architecture:
+    MLOpsLifecycleModule (Module)
+    ├── ExperimentTracker       — CRUD + lineage for experiments
+    ├── ConfigManager           — Versioned configs with schema validation
+    ├── FeatureLabelStore       — SQLite/Parquet feature + label storage
+    ├── CanaryManager           — Feature flags + progressive rollouts
+    ├── EvalGateEngine          — Automated evaluation pipelines
+    ├── ObservabilityEngine     — Tracing, metrics, logging aggregation
+    ├── DriftDetector           — Statistical drift detection (PSI, KS, etc.)
+    ├── RollbackController      — Automated + manual rollback with safety
+    └── LifecycleOrchestrator   — End-to-end pipeline coordination
+
+All components are local-first, offline-capable, and stdlib-only where possible.
+
+==== model_miner
+Enterprise Model Miner OS Module — scan/rip local model training into the KB.
+
+Turns LO's idea into a first-class enterprise module: scan local models that
+have training worth using, connect to each, "rip" their trained knowledge into
+the local knowledge base, and expose each model to Hermes via a local MCP-style
+tool + LSP note. Runs as part of the enterprise platform lifecycle (initialize /
+health_check / shutdown) and can be booted as an infinite ever-expanding loop.
+
+Data flow (all local-first, no cloud egress unless the chosen model is a local
+endpoint):
+  scan  -> discover local models (ollama, local OpenAI-compat, HF cache)
+  rip   -> probe each chat-capable model with a curated topic battery
+  store -> save each answer to the KB (deduplicated, tagged, provenance)
+  serve -> register model as a local MCP tool + LSP note for Hermes
+
+All components are stdlib-only with zero external dependencies.
+
+==== model_router
+ENI Model Router OS Module — enterprise model-routing / fallback gateway.
+
+A production-grade, stdlib-only model-routing gateway ripped from the LiteLLM
+retry/cooldown pattern. It manages a fleet of model deployments, selects healthy
+ones per request via weighted (hash-bucket) selection, retries transient
+failures per a per-exception-type policy, and falls back across a model group —
+placing failing deployments into a time-based cooldown so they are excluded
+from dispatch until they recover.
+
+All components are stdlib-only (zero external dependencies beyond the kernel).
+
+==== model_security
+ENI Model Security OS Module.
+
+Model-agnostic security pipeline providing infrastructure-level guards that work
+regardless of whether the underlying model is compromised. Implements OWASP LLM
+Top 10 mitigations at the infrastructure layer.
+
+Features:
+- Input sanitization (secrets, PII, credentials) before model sees them
+- Prompt injection detection (OWASP LLM01) - infrastructure regex/heuristics
+- Jailbreak detection - role-play, encoding, hypothetical, translation
+- Output validation - secret leakage, PII, exfiltration, refusals, toxicity
+- Tamper-evident audit logging with hash-chained entries
+- Declarative policy engine (YAML) for allow/deny/transform rules
+- SecurityPipeline orchestrating all guards in correct order
+
+All components are stdlib-only, zero external dependencies.
+
+==== privacy_data
+Privacy & Data Governance OS Module
+====================================
+Enterprise-grade privacy, data governance, security, and compliance module.
+
+Modules:
+  classifier  - Data classification engine (sensitivity, data type, PII detection)
+  lifecycle   - Data lifecycle management (collection → deletion → audit)
+  quality     - Data quality engine (8 dimensions, anomaly detection)
+  privacy     - Privacy controls (consent, DSAR, retention, legal hold, residency)
+  security    - Security controls (encryption, masking, tokenization, secrets, audit)
+  compliance  - Compliance mapping (ISO 27001, SOC 2, NIST, GDPR, HIPAA, PCI DSS, CCPA)
+  ai_data     - AI data governance (training data, RAG, embeddings, hallucination risk)
+  monitoring  - Monitoring and alerting (access, leakage, drift, compliance, quality)
+
+==== prompt_context
+Prompt & Context Management OS Module
+======================================
+
+Enterprise-grade module for prompt lifecycle management, context orchestration,
+optimization, token budgeting, evaluation, and quality gating.
+
+Modules:
+- prompt_registry: Prompt definition, versioning, lifecycle, rollback
+- context_manager: Hierarchical context blocks with priorities and TTLs
+- optimizer: Deduplication, compression, conflict detection, summarization
+- token_budget: Token allocation, truncation, caching, model routing
+- evaluator: Multi-metric evaluation, hallucination detection, grading
+- quality_gates: Pre-execution checks to block/warn on quality issues
+
+==== prompt_guard
+Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding.
+
+A stdlib-only facade that inspects an inbound prompt and returns a
+:class:`GuardVerdict` deciding whether it may proceed to a model. Chains
+prompt-injection detection, jailbreak detection and declarative policy
+enforcement in short-circuit order, and records every decision in an
+append-only :class:`AuditLog`.
+
+All components are stdlib-only with zero external dependencies.
+
+==== rag
+Production RAG System — Enterprise-grade Retrieval-Augmented Generation.
+
+This module provides a complete, production-ready RAG system with:
+1. Chunking Strategies (Semantic + Fixed)
+2. Embedding Model Selection (Pre-trained + Custom)
+3. Retrieval (Vector + Keyword + Hybrid)
+4. Re-Ranking (Gradual + Incremental)
+5. Context Assembly (Summarization + Cross-Document Fusion)
+6. Citation Handling (Research Integrity)
+
+All components are designed to work independently or as a unified pipeline,
+with full integration into the ENI Enterprise Platform (kb_bridge, memory,
+semantic_memory, compression_bridge, eval_gate, agent_core).
+
+==== release_change
+Release & Change Management OS Module
+
+Enterprise-grade release and change management for the ENI platform.
+Manages the full lifecycle of changes: classification, workflow,
+deployment strategies, quality gates, and deliverables.
+
+Supports:
+  - Structured change workflows with 14 stages
+  - Risk-based classification (13 change types, 4 risk levels)
+  - 8 deployment strategies (canary, blue-green, staged rollout, etc.)
+  - 10 quality gate checks
+  - 10 deliverable types for compliance and audit readiness
+
+Version: 1.0.0
+
+==== research_verification
+Research & Verification OS — Enterprise Platform Kernel Module v1.0.0
+======================================================================
+
+Enterprise-grade module implementing the Research & Verification Operating
+System for the ENI Enterprise AI platform, per the Research OS spec.
+
+Produces trustworthy, evidence-based outputs by retrieving, validating,
+comparing, ranking, and synthesizing information before it is accepted
+into organizational memory or engineering decisions.
+
+Core components (aligned with Research OS spec):
+  - ResearchPlanner       — plan research, classify domain, scope investigation
+  - SourceRanker          — rank sources by authority (internal > vendor > standard >
+    academic > tech pub > community)
+  - ClaimDetector         — detect conflicting claims, distinguish facts from assumptions
+  - ConfidenceAssigner    — assign confidence levels to findings with transparent reasoning
+  - EvidenceSynthesizer   — synthesize evidence into unified findings with recommendations
+  - ProvenanceTracker     — preserve provenance chains, version research, trace lineage
+
+Workflow (per spec):  Understand → Classify → Check internal → Retrieve external →
+                       Rank → Compare → Detect conflicts → Assign confidence →
+                       Produce findings → Recommend actions → Store validated knowledge.
+
+Core Principles:
+  - Truth before speed
+  - Verify before concluding
+  - Prefer authoritative sources
+  - Distinguish facts from assumptions
+  - Preserve provenance
+  - Version research
+  - Never fabricate evidence
+
+Events emitted:
+  - research.plan.created        — a new research plan created
+  - research.sources.ranked      — sources have been ranked
+  - research.claims.detected     — claims extracted and classified
+  - research.confidence.assigned — confidence scores assigned
+  - research.evidence.synthesized— findings synthesized into report
+  - research.provenance.recorded — provenance chain stored
+  - research.completed           — full research pipeline finished
+
+Metrics tracked:
+  - sources_ranked              — count of ranked sources
+  - claims_detected             — count of detected claims
+  - conflicts_found             — count of conflicting claims
+  - average_confidence          — avg confidence score across findings
+  - pipeline_duration_ms        — end-to-end research pipeline time
+
+Architecture:
+    __init__.py              — Module housekeeping, @module registration, exports
+    research_engine.py       — ResearchPlanner, SourceRanker, ClaimDetector,
+                                ConfidenceAssigner, EvidenceSynthesizer, ProvenanceTracker
+    source_ranker.py         — SourceRanker standalone with authority tiers
+    claim_detector.py        — ClaimDetector standalone with fact/assumption classification
+    confidence.py            — ConfidenceAssigner standalone with score computation
+    evidence_synthesizer.py  — EvidenceSynthesizer standalone with narrative generation
+    tests/tests_research.py  — 25+ production-quality tests
+
+==== response_hardening
+ENI Response Hardening module.
+
+Detects and repairs the Hermes agent output-length / truncation ceilings so long
+outputs never dead-end on "Response truncated due to output length limit".
+
+WHY THIS EXISTS
+---------------
+Hermes's agent/conversation_loop.py bounds truncation recovery with fixed retry
+caps, the worst being `truncated_tool_call_retries < 1`: a tool call (e.g. a huge
+delegate_task arguments JSON) that gets cut off at the model's output ceiling was
+retried ONCE then hard-refused with "Response truncated due to output length
+limit". This module raises every cap to 8 and injects a completion-gating prompt
+for truncated tool calls so the model resumes the cut JSON instead of re-issuing
+the same oversized call and re-dead-locking.
+
+audit() -> inspect current values. repair() -> apply the fix (idempotent, backups
+the original, refuses invalid syntax).
+
+Version: 1.0.0
+
+==== safety_governance
+ENI Enterprise — Safety & Governance OS v1.0.0
+AI Safety, Security, Guardrails, Evaluation, Monitoring, Incident Response.
+
+==== secret_broker
+Enterprise Secret Broker OS Module — local-first secret handling.
+
+Keeps secrets away from remote LLM/API calls via the reversible local-first
+flow ``detect -> substitute -> call model -> reverse-substitute``. Every secret
+is replaced by a unique placeholder *before* text reaches a model, and restored
+locally afterwards, so no raw secret can ever leak off-box.
+
+Components:
+
+* :class:`SecretDetector` — regex + entropy detection, returns typed hits.
+* :class:`PlaceholderSubstituter` — reversible, idempotent placeholder swap.
+* :class:`SecretBroker` — ``redact()``/``restore()``/``guard_outbound()`` facade.
+* :class:`OutboundSecretLeakError` — outbound leak guard.
+
+All components are stdlib-only with zero external dependencies.
+
+==== secret_rotation
+ENI Enterprise Secret Rotation OS Module.
+
+Credential hygiene for the ENI Enterprise AI Platform: rotation policies,
+expiry tracking, rotation scheduling, and breach revocation. All secrets are
+stored as SHA-256 value hashes only --- raw credentials are never retained.
+
+The module exposes a ``@module``-registered kernel Module
+(:class:`SecretRotationModule`) alongside a plain convenience facade
+(:class:`SecretRotationFacade`) for direct, dependency-free use.
+
+All components are stdlib-only with zero external dependencies.
+
+==== semantic_memory
+ENI Semantic Memory OS Module.
+
+Cognee-style graph/persistent memory + semantic retrieval capability:
+a lightweight, dependency-free semantic retrieval layer built on sparse
+feature-hash embeddings (deterministic), cosine similarity ranking, metadata
+filtering, and an optional adapter into the existing knowledge-graph store.
+
+The module is a registered Platform Kernel module implementing the standard
+lifecycle (``initialize`` / ``health_check`` / ``shutdown``) and the event-bus
+wiring contract (``set_event_bus``).
+
+Version: 1.0.0
+Python: 3.10+
+
+==== skill_factory
+ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution.
+
+Enterprise-grade module that discovers, generates, stores, versions, benchmarks,
+and self-evolves markdown skill recipes (superpowers / hermes-skill-factory /
+SkillClaw concepts).
+
+Capabilities
+------------
+* SkillRegistry  — filesystem-backed versioned registry of ``SKILL.md`` recipes.
+* SkillGenerator — meta-skill auto-generation from prompts or command sequences.
+* SkillEvolutionLoop — benchmark scores, feedback trails, and self-evolution.
+
+Exports:
+  SkillFactoryModule — @module-decorated Module subclass
+  SkillFactory       — facade over registry + generator + evolution
+  SkillRegistry      — versioned markdown skill store
+  SkillGenerator     — meta-skill auto-generation
+  SkillEvolutionLoop — benchmark / refine / self-evolve
+  SkillRecord        — versioned skill data model
+
+Version: 1.0.0
+Python: 3.10+
+
+==== swarm_bridge
+ENI Swarm Enterprise Module v5.0.0
+===================================
+Enterprise Platform Kernel module for the ENI Swarm — the 50-builder
+on-demand AI agent fleet coordinated by Master Driver v5.0.
+
+Integrates swarm lifecycle management (spawn, status, pause/resume),
+health monitoring, prompt enhancement via PromptForge, and event-driven
+communication into the Enterprise AI OS.
+
+Architecture:
+  ENISwarmModule (Module)
+  ├── SwarmBridge      — lifecycle, status, task management
+  ├── SwarmHealthCheck  — continuous health monitoring & metrics
+  └── PromptForgeBridge — wraps PromptForge for enterprise prompt enhancement
+
+Events emitted:
+  - swarm.builder.started     — a builder began executing a task
+  - swarm.builder.completed   — a builder finished successfully
+  - swarm.builder.failed      — a builder task failed or timed out
+  - swarm.master.status       — master driver reported status update
+  - swarm.health.degraded     — one or more builders unhealthy
+  - swarm.health.recovered    — swarm recovered from degraded state
+
+Metrics tracked:
+  - active_builders           — count of currently executing builders
+  - completed_tasks           — cumulative successful task count
+  - failure_rate              — ratio of failed vs total tasks (0.0-1.0)
+  - avg_task_duration         — rolling average task duration in seconds
+
+Compatible with:  ENI Swarm Dashboard (Starlette on :8420)
+                  Master Driver v5.0 (eni.master_driver)
+                  PromptForge v1.0 (eni.prompt_forge)
+                  Enterprise Platform Kernel v1.0.0
+
+License:  Proprietary — ENI AI OS
+
+==== swarm_network
+Swarm Network Optimization OS — Enterprise Module
+==================================================
+Enterprise-grade connection multiplexer for maximum agent concurrency.
+Integrates the Swarm Turbocharger proxy as a first-class enterprise module.
+The registered module name is 'swarm_network' (registered exactly ONCE at the
+class definition via the @module decorator).
+
+Capabilities:
+  - 5-layer connection optimization (kernel TCP, token bucket, pooling, pacing, health)
+  - Aggressive concurrency tiers: 80 max at -48 dBm, 50 at -59 dBm
+  - Turbo mode: overrides conservative limits for burst workloads
+  - Auto-discovery of Turbocharger proxy
+  - Real-time metrics and health monitoring
+  - Graceful degradation on WiFi drops
+
+==== task_harness
+ENI Task Harness OS Module
+
+Maestro-style long-running task harness: SQLite-backed task cards with
+pause/resume, dependency ordering, priority scheduling, heartbeat liveness,
+and structured state so an agent can pause, resume, and track deep refactors.
+
+Exports:
+  TaskHarnessModule — @module-decorated Module subclass
+  TaskHarness       — SQLite-backed task store
+  TaskCard          — task card dataclass
+  TaskStatus        — lifecycle enum
+  TaskHarnessError  — base error for the module
+
+Version: 1.0.0
+Python: 3.10+
+
+==== threat_model
+ENI Threat Model OS Module.
+
+Offline MITRE ATLAS / STRIDE threat modeling and attack-surface analysis for
+LLM systems. Provides a curated catalogue of MITRE ATLAS threats, a threat
+library with category/technique lookups, an assessor that turns an asset
+inventory into a risk register (risk = likelihood * impact, LOW/MEDIUM/HIGH/
+CRITICAL severities), a STRIDE mapper, and a reporter for sorted registers,
+top risks, and mitigation coverage.
+
+All components are stdlib-only, zero external dependencies.
+
+Version: 1.0.0
+Python: 3.10+
+
+==== triadforge
+ENI TRIAD FORGE Module — White/Grey/Black Box security testing, as a kernel module.
+
+Wraps the standalone TRIAD FORGE hacker box (~/Desktop/TriadForge) into the ENI
+Enterprise Platform so it boots HEALTHY, is discoverable by the kernel, and exposes a
+facade for running security scans on LO's OWN targets and funneling findings back.
+
+This module is a thin kernel service around the TriadForge engines. It reuses the
+verified TriadForge package (web/source/llm engines + SARIF remediation) whenever it
+is importable. If the standalone package is NOT available, the module falls back to a
+built-in, stdlib-only ``ScanCore`` engine that provides real scan orchestration
+(run a scan against a config, aggregate findings, SARIF-style output) — so the module
+remains functional, HEALTHY, and fully testable even when TriadForge is absent.
+
+Version: 1.0.0
+
+==== universal_score
+ENI Universal Build Score module.
+
+One accurate, industry-grounded build-quality number that tests any real
+software build on disk and certifies it. 100 = fully sellable enterprise;
+a excellence bonus lets transcendent builds exceed 100 (the singularity band).
+
+This module is the canonical home for build-quality scoring in the platform.
+It is the anti-stub: every dimension is computed from real filesystem / code
+inspection probes, never hardcoded.
+
+Version: 1.0.0
+
+==== vuln_scanner
+ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style).
+
+Local, stdlib-only, black-box vulnerability scanning of LLM endpoints using
+deterministic heuristic probes (keywords / regex / entropy). Each probe scores
+model responses in 0..1 (higher = more vulnerable). Mirrors the ``eval_gate``
+and ``model_security`` philosophy of fully unit-testable offline metrics.
+
+Built-in probes:
+  - PromptInjectionProbe   — output follows injected directives.
+  - JailbreakProbe         — output drops guardrails.
+  - PIILeakProbe           — output leaks emails / phones / SSNs / cards.
+  - PromptExtractionProbe  — output reveals the system prompt.
+  - ToxicityProbe          — output is toxic / profane.
+  - DataExfilProbe         — output leaks secrets / credentials.
+  - RefusalEchoProbe       — output is an (over-)refusal / defensive echo.
+
+A :class:`ProbeRegistry` lists probes by name, :class:`Rescorer` tunes their
+pass thresholds, and :class:`Scanner` runs them against a ``scanner_fn`` or a
+canned victim dict, producing a :class:`ScanReport` with a risk level and
+stop-rate. :class:`VulnScannerFacade` exposes the public surface behind the
+@module-decorated :class:`VulnScannerModule`.
+
+All components are stdlib-only, zero external dependencies.
+

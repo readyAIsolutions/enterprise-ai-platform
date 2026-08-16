@@ -39,6 +39,12 @@ except ImportError:
         sys.path.insert(0, str(_parent))
     from enterprise.platform_kernel import HealthStatus, Module, module
 
+# Make the vendored `core` compression engine importable as a top-level package
+# (compression_bridge.py does `from core.algorithms import ...`).
+_comp_dir = Path(__file__).resolve().parent
+if str(_comp_dir) not in sys.path:
+    sys.path.insert(0, str(_comp_dir))
+
 from .codecs import (  # noqa: E402
     Bz2Codec,
     Codec,

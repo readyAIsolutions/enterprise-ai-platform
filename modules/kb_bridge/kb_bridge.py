@@ -32,7 +32,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 # package.  We fall back gracefully if the path is not on sys.path.
 # ---------------------------------------------------------------------------
 _HERMES_LIB_PATH: Path = (
-    Path(__file__).resolve().parents[3] / "ENI_Swarm_NEW" / "lib"
+    Path(__file__).resolve().parent / "lib"
 )
 if str(_HERMES_LIB_PATH) not in sys.path:
     sys.path.insert(0, str(_HERMES_LIB_PATH))

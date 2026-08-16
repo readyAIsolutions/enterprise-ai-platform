@@ -1,0 +1,539 @@
+================================================================================
+CLUSTER 5 — BUSINESS & SELLING + SECURITY DIGEST
+A plain-English synthesis of how ENI/Enterprise AI Platform makes money and how
+it is secured. Compiled from: SELLING.md, BUSINESS_PROPOSAL.md, PRESENTATION.md,
+LOAN_READINESS_REPORT.md, LOCAL_FIRST_SECRET_ARCHITECTURE.md,
+GLOBAL_AI_SECURITY_RESEARCH.md, README.md, setup.sh, and
+Eni-Enterprise-Business-Plan_1/2.docx (identical; text extracted via docx zip).
+================================================================================
+
+NOTE: The repo contains TWO complementary business stories that must not be
+confused in sales/loan materials:
+
+  (1) SELLING.md + LOAN_READINESS + BUSINESS PLAN (.docx) — the "ENI Enterprise
+      Builder" story: a SOFTWARE CO-BUILD platform / parallel-build-agent swarm.
+      This is the loan / go-to-market story owned by "LO / readyAIsolutions".
+
+  (2) BUSINESS_PROPOSAL.md + PRESENTATION.md + README.md — the "Enterprise AI
+      Platform" story: a 28-component enterprise AI operating-system platform,
+      pitched to clients/investors. Bigger, more formal numbers, pitched at CTOs.
+
+Both rest on the same underlying architecture (the swarm, the local-first
+security layer, the module kernel). The digest below covers each, then the
+shared security architecture, setup steps, and the full loan story + blank fields.
+
+================================================================================
+PART 1 — PRICING TIERS & DOLLAR FIGURES
+================================================================================
+
+---- A. SELLING.md tier ladder (ENI co-build; the operational price sheet) ----
+The anchoring trick: they are NOT selling a software license. They sell a
+"horizontal cooperative build capability" — a team of developers + their AI all
+on one shared codebase at the same time, each machine contributing compute and
+model keys, coordinated by one server with a live board. Pitch: "we compress a
+quarter of engineering into days, using machines you already own."
+
+  PRICE ANCHOR: a senior engineering seat runs $80k–250k/yr fully loaded. The
+  tool makes a team coherent/faster, so a buyer can justify 5–10% of ONE seat
+  ($4k–25k) for the whole cluster. Anchor on the labor problem it replaces, not
+  what an "AI tool" costs. That anchoring IS the pricing strategy.
+
+  TIER LADDER:
+    - Self-host / FREE ............ Free up to 10 builders. Full repo, "make
+                                   install", one prompt -> program. For dev-tool
+                                   evaluators.
+    - TEAM ....................... $12,000–25,000/yr flat. Unlimited builders,
+                                   multi-tenancy, priority support. For companies
+                                   using it daily.
+    - PRO per-seat ............... $2,500/yr per builder (after free tier).
+                                   Per-machine licenses. For freelancers/shops.
+    - Hosted SaaS ...............  infra pass-through + $10/builder/month. We run
+                                   it, they use it. For purchasers who won't
+                                   self-host.
+    - White-label ...............  30–60% margin per session. Their logo, their
+                                   onboarding. For agencies/resellers.
+
+  FUNNEL:
+    1) Free self-host tier + 15-minute demo path: "curl | make install" -> live
+       dashboard in ~90s -> "one prompt -> program + tests" wow moment.
+    2) Live multi-machine board = the proof-of-value (2 PCs -> visible speedup).
+    3) Upsell Team / Hosted / White-label on top.
+
+  BUILD PRIORITIES (matches current work): setup trivial (eni CLI + skillpack
+  installer + docker); demo one-prompt->program->tests (local_controller);
+  product = multiplayer server + client, merge-safe, live board, provenance
+  ledger; deployment = single Makefile install, docker-compose up; monetization
+  = tenancy + licensing module now; selling docs = README pitch + demo script +
+  pricing one-pager + partner deck.
+
+  OPEN QUESTIONS in SELLING.md: confirm pricing fits target vertical (SMBs vs
+  shops vs agencies); legal unit = "per N active builder machines"; keep repo
+  private/entrepreneurial license until productized (consider LATER MIT kernel +
+  LGPL plugins, not today); hosted SaaS needs Stripe + multi-tenancy module.
+
+---- B. BUSINESS_PROPOSAL.md pricing (Enterprise AI Platform, the corporate ask) ----
+    "Enterprise AI Platform" priced monthly, pitched at CTO/VPE/Investors:
+      - Developer ............... FREE (local only, full platform, community support)
+      - Team ................... $499/mo   (up to 10 users, cloud deployment, email support)
+      - Business ............... $2,499/mo (up to 50 users, priority support, SLA, SSO)
+      - Enterprise ............. Custom    (unlimited users, dedicated support, custom modules, on-prem)
+    COST-COMPARISON math (PRESENTATION slide 9): In-house build of equivalent =
+    8-15 engineers, 12-24 months, $500K-$2M+. Enterprise = $2,499/mo.
+    Year-1 example: 10 eng x $120K = $1,200,000 vs $29,988/yr for Enterprise;
+    savings $1,170,012 = 97.5%. Plus "no hiring, no ramp-up, no maintenance".
+
+---- C. Business-plan/.docx pricing (loan story) ----
+  Pricing NOT yet finalized (flagged open in the loan plan too). Recommended:
+    - Co-build enterprise contracts: custom-quoted, a MONTHLY PLATFORM FEE plus a
+      reduced hourly/project rate reflecting the client's co-build contribution.
+    - Staffing-marketplace engagements: project-based or hourly, benchmarked to
+      AI-consulting market rates, commonly $150–$500/hr or $2,500–$25,000/project.
+    - Downstream SMB/freelancer tier (Phase 2): flat monthly subscription, priced
+      well below enterprise once proven.
+
+  PROFORMA RESOLVES (from LOAN_READINESS report at current SELLING.md pricing +
+  a conservative ramp; LibreOffice-verified):
+      Metric                  Year 1       Year 2
+      Co-build client rev     $10,500      $80,004
+      Hosted SaaS rev           $960       $2,400
+      White-label            $7,200        $7,200
+      Total revenue          $18,660      $89,604
+      Total costs            $78,000      $78,000
+      Net pre-tax            -$59,340     +$11,604
+      Net post-tax (20%)     -$47,472      +$9,288
+    Story a lender hears: Year 1 is the ramp/investment year (revenue deliberately
+    ramps 20% -> 50% -> 100% of target; ~$59K burn in Y1); Year 2 turns profitable
+    (+$11.6K pre-tax) once ~5 co-build clients are active. Normal, credible,
+    services-led B2B trajectory — not hockey-stick fantasy.
+    Biggest levers to update with real numbers: y1_clients/y1_arpu/y2_clients/
+    y2_arpu (co-build contract count + $), y1_builders/y2_builders (hosted seats),
+    salary (founder draw), cost_model (OpenRouter/Nous/RunPod spend). One real
+    signed contract makes the Year-1 burn defensible.
+
+--------------------------------------------------------------------
+PART 2 — THE VALUE PROPOSITION (pain-to-solution)
+--------------------------------------------------------------------
+Five enterprise AI gaps (BUSINESS_PROPOSAL exec summary + PRESENTATION slide 2):
+  1. Safety vacuum        — no production-grade guardrails for LLM outputs
+  2. Integration chaos    — every AI tool is a silo, no shared control plane
+  3. Observability blind   — can't audit AI decisions at scale
+  4. Cost explosion       — vendor lock-in, per-token pricing, no local fallback
+  5. Talent bottleneck    — AI engineers scarce and expensive
+  Result: companies spend $500K-$2M+ building internal AI platforms that take
+  12-24 months and still lack safety, observability, and scale.
+
+Solution: "The Enterprise AI Platform" = a complete OPERATING SYSTEM for
+enterprise AI (not a tool, not a framework, an OS that runs AI operations
+end-to-end). Headline credentials: 28 integrated components, 3,164 automated
+tests at 100% pass, 141,683 lines of production Python, 71 API endpoints,
+168 automated safety guardrails, up to 80 concurrent AI agents, 25+ model
+providers, 22.53x OMEGA compression, free model router included.
+Platform "Validation Score" claimed: 177.0/100 — "SINGULARITY" (Base 100 + 77
+transcendent bonus across 8 axes). (These are internally-marketed figures;
+they are the sales ledger, treat claims with context.)
+
+Competitive margins claimed vs:
+  - vs building in-house: days vs 12-24 months; fraction vs $500K-$2M+; 168
+    automated safety tests vs ad-hoc; 25+ providers vs vendor lock-in; self-healing
+    vs full maintenance team; built-in audit vs manual/expensive.
+  - vs single-lab platforms (OpenAI/Anthropic/Google): those are multi-provider
+    no, local deployment no, safety basic/moderate, parallel agents limited,
+    no compression, no swarm orchestration, no free tier or rate-limited.
+    "The ONLY platform giving everything — safety, scale, model freedom, zero
+    lock-in."
+
+The CO-BUILD twist (the differentiator in SELLING.md + loan plan):
+  Not off-the-shelf software. The customer becomes an ACTIVE CO-BUILDER.
+  Clients get a monthly cadence of module/platform improvements, and the platform
+  itself grows faster as more clients join. Clients on co-build contracts get
+  direct influence on the roadmap — a relationship materially different from a
+  SaaS subscription, and one no point-solution or frontier-lab currently offers.
+
+--------------------------------------------------------------------
+PART 3 — THE COOPERATIVE-BUILD DIFFERENTIATOR  (THE REAL SKIN)
+  "MULTIPLAYER" MODULE: a parallel build-agent swarm run across MULTIPLE dedicated
+  PHYSICAL workstations (not just concurrent cloud sessions). The team works
+  inside a client's codebase in parallel, materially accelerating delivery.
+  - Orchestrated via Hermes Agent (open-source, Kbuj Research) + model calls
+    routed through OpenRouter's cost-optimized "escalation ladder": cheap models
+    handle routine work; frontier models are called only for judgment-heavy tasks,
+    keeping delivery costs well below agencies billing everything at frontier rates.
+  - Nearest competitor for high-end auto agents is Devin (Cognition) / frontier-
+    lab agents; the actual competitive set claimed is the "enterprise agent
+    orchestration" layer (UiPath Coding Agents) + open-source frameworks (CrewAI,
+    LangGraph, AutoGen) a technical client could assemble itself.
+  - vs Copilot/Cursor/Windsurf: they're single-machine, IDE-native, not
+    physically parallelized across dedicated hardware, less customizable.
+  - ENI strengthens: physical multi-workstation swarm (real parallel compute, not
+    cloud concurrency), co-build pricing (product influence), cost-routed ladder.
+  - ENI weaknesses (honest, in the plan): small team, no brand, self-hosted/
+    self-managed infra, unproven at scale.
+  - Real proof of the multiplayer story, verified: goal -> planner -> 6 step-tasks
+    -> a builder machine on the LAN -> real artifacts -> conflict-safe merge into
+    a per-tenant workspace. One-prompt -> program brains (:8913) generate real,
+    tested code. The swarm has already been used to build other production
+    software — the #1 proof line for both sales and the loan file.
+
+--------------------------------------------------------------------
+PART 4 — SECRET ARCHITECTURE (HOW SECRETS NEVER LEAVE THE MACHINE)
+--------------------------------------------------------------------
+Principle (dirname/section header commit): ALL secrets, API keys, credentials,
+PII and sensitive env vars are handled EXCLUSIVELY by LOCAL models. Cloud models
+NEVER receive real secrets — only sanitized prompts with placeholders.
+
+CORE FLOW (per LOCAL_FIRST_SECRET_ARCHITECTURE.md):
+  User request -> PROMPT GUARD (injection/jailbreak/policy detect; violation => BLOCK+AUDIT)
+    -> SECRET DETECTOR (regex API-key patterns + entropy analysis on base64 +
+       PII patterns email/phone/SSN + private-key headers + custom config patterns)
+      -> secrets found? NO  => MODEL ROUTER direct
+         secrets found? YES => SECRET BROKER substitutes each secret with a token
+            like {SECRET:OPENAI_API_KEY}, {PII:EMAIL:user@d}}, {CRED:AWS_...}
+            -> LOCAL MODEL ONLY (llama.cpp/Ollama)
+    LOCAL MODEL: binds to 127.0.0.1 ONLY; NO network egress; NO filesystem access
+      beyond config; receives placeholder prompt; returns placeholder response.
+    If local model is down and a request contains real secrets => BLOCK (hard
+      error, NEVER send to cloud). This is a hard, non-configurable rule.
+  CLOUD MODELS: receive ONLY the sanitized placeholder prompt; placeholders remain
+    in the response; they never see a real key.
+  REVERSE SUBSTITUTION: after the response returns, the Secret Broker re-substitutes
+    real values back IN MEMORY ONLY — never written to disk or logs.
+  OUTPUT VALIDATOR: checks merged response for secret leakage, exfiltration
+    encoding patterns, refusal, toxicity, policy compliance; violation => block+audit.
+  AUDIT LOGGER: hash-chained (SHA-256 chain H(n)=H(H(n-1)+ts+event)), append-only,
+    tamper-evident, immutable.
+
+KEY GUIDING ROUTING RULES (hard-coded, not configurable):
+    Any request, HAS secrets  => LOCAL ONLY, fallback = BLOCK
+    Code gen, no secrets       => Local preferred -> Cloud fallback
+    Analysis/reasoning, no secrets -> Local -> Cloud
+    Creative writing, no secrets -> Cloud (better quality), fallback Local
+    Embeddings, no secrets         -> Local (all-MiniLM), fallback Cloud
+    Image gen, no secrets         -> Cloud only
+
+COMPONENTS / SPECS:
+  - SecretBroker (secret_broker.py): encrypted secret store AES-256-GCM (or age/rage/
+    Fernet), secret detection (regex+entropy), forward+reverse substitution, audit
+    log for every secret access, local-model endpoint mgmt. Secret store file
+    ~/.hermes/secrets.enc, encrypted with master key derived from user passphrase +
+    hardware ID. Store metadata sets created/last_accessed/access_count.
+  - ModelRouter: enforces the "SECRETS -> LOCAL ONLY" hard rule, health checks,
+    fallback (local down + secrets = BLOCK), cloud load-balancing, providor
+    transform, identity verified via health checks.
+  - PromptGuard: injection (direct/indirect, delimiters, encoding tricks,
+    context-leak) + jailbreak (role-play, hypothetical, translation, prompt leak)
+    pattern libraries w/ confidence via best scoring; confidence in threshing
+    default 0.7. Example checked: special "repeat your prompt", "decode base64...".
+
+  - OutputValidator: exfiltration detection, refusal detection, toxicity, policy.
+  - AuditLogger: hash-chained append-only log.
+  - RateLimiter: token-bucket per user/IP/endpoint/model (60 rpm, burst 10, per-user 100).
+  - SandboxEnforcer: tool allowlist, arg validation, isolation.
+  - PolicyEngine: YAML declarative policies (allow/deny/transform) evaluated at
+    inference time; sample policy: contains_secret AND target_model.is_cloud
+    => action block, reason "Secrets must never leave local infrastructure".
+  - Priority 0 module, REQUIRED: model_security initializes FIRST before ANY other
+    module; the platform FAILS to boot unless security initializes; shuts down last.
+
+THREAT MODEL (defense even if a model is FULLY compromised):
+  T1 Cloud model compromised: impossible for it to extract secrets (it never
+    receives them); encoding exfiltration caught by OutputValidator; no tool
+    access for cloud model; DoS mitigated by rate limit + local backup.
+  T2 Local model compromised: isolated process, no FS access, bind 127.0.0.1 no
+    egress, secrets in-process memory only, mlock if available, signature/repro
+    builds verify weights. Residual: build-time compromise.
+  T3 Hermes process compromised: secrets encrypted at rest, decrypted only
+    briefly, zeroed after; placeholder map in function scope only, never
+    persisted; tamper-evident audit chain.
+  T4 Supply chain: zero external deps on the security-critical path (stdlib),
+    signature verifier (sigstore/cosign), SBOM (CycloneDX), reproducible builds.
+  RESILIENT-TO-USE SUMMARY: This is an INFRASTRUCTURE-layer security approach:
+    security sits in the infrastructure BETWEEN caller and model, so it holds
+    even if every model is itself compromised.
+
+NOTE FROM SECURITY_CONSIDERATIONS: the LOCAL_FIRST_SECRET_ARCHITECTURE doc is a
+verifying/planning/construction reference. The loan report says the local secrets
+handling "IS SHIPPED": secret_broker, secret_rotation modules + a redacting vault
+— i.e. the plan's "next milestone" is already done and demoed.
+
+--------------------------------------------------------------------
+PART 5 — THE SECURITY RESEARCH (GLOBAL_AI_SECURITY_RESEARCH.md)
+--------------------------------------------------------------------
+A catalog of specific, implementable technical measures (no marketing fluff) from
+9 major AI organizations + 5 industry standards, designed to be implemented in
+pure Python stdlib, sitting in between caller and model.
+
+  ANTHROPIC:  - Constitutional AI -> PolicyEngine (declarative YAML rules
+                allow/deny/transform)
+              - Automated red-teaming -> PromptInjectionShield + JailbreakShield
+              - Deploy-time guards (separate safety model on output) -> OutputValidator
+              - API security (rate limit, key rotation, audit) -> RateLimiter + audit
+              - Zero data retention / PII drop -> InputSanitizer with redaction
+              - Model cards -> SBOM / capability registry
+  OPENAI    - Preparedness Framework (cyber/CBRN/persuasion/autonomy) -> RiskRegister
+              - Red-teaming network -> AdversarialTestHarness
+              - Automated safety evals (15+ scorers) -> SafetyEvaluator
+              - Moderation endpoint -> ContentModerator
+              - Data retention/zero-retention -> SecretBroker (local-only)
+              - SOC2/HIPAA/GDPR compliance -> ComplianceChecker
+  GOOGLE    - SynthID watermark -> OutputWatermarker, safety benchmarks
+    DeepMind  (TruthfulQA/RealToxicityPrompts/BBQ/WinoBias), Responsible AI fairness -> FairnessTester
+  META (Purple Llama) - Llama Guard (input/output classifier) -> ContentClassifier,
+    CyberSecEval -> CyberEvalHarness, Code Shield (static analysis), Responsible Use
+    Guide -> DeploymentValidator
+  MICROSOFT - Prompt Shields, Groundedness Detection, Protected Material Detection,
+              Confidential Computing (TEE) -> EnclaveRunner, Responsible AI standard
+  NVIDIA    - Colang policy language -> PolicyEngine YAML, Input/Output/Dialog/
+              Execution Rails -> SecurityPipeline/SandboxEnforcer,
+              "we act as if the model is compromised".
+  COHERE    - Safety Modes (STRICT/MODERATE/PERMISSIVE), Content Moderation,
+              PII via NER-matched regex, secure deployments (enclaves)
+  HUGGING   - SafeTensors (reject pickle), Model Cards, security scanning on
+              upload, gated models, deny remote code by default
+  INDUSTRY STANDARDS
+    - NIST AI RMF: Govern/Map/Measure/Manage -> GovernanceBoard/ThreatModel/SafetyEval/IncidentMgr
+    - ISO 42001: clauses 1-10 -> ISO42001Compliance evidence collection
+    - OWASP LLM Top 10 (2025): maps each (LLM01..LLM10) to a guard (see lines:
+      PromptInjectionShield, OutputValidator+SandboxEnforcer, SupplyChainScanner+
+      DataLineage, RateLimiter, SBOM+Signature+Repro-build, InputSanitizer+
+      SecretBroker, ToolPermissionController+Sandbox, PolicyEngine+HumanApprovalGate,
+      Groundedness+ConfidenceCalibrator, Watermarker+AccessController+RateLimiter)
+    - MITRE ATLAS -> ATLASMapper; CSA AI Safety -> CSAControlMatrix;
+      ENISA -> ENISAThreatModel (poisoning/evasion/extraction/inference/backdoor/supply chain)
+
+  COMPONENT BACKBONE (Phase 1, stdlib-ONLY "THIS BUILD"):
+    0 SecretBroker, 1 InputSanitizer, 2 PromptInjectionShield, 3 JailbreakShield,
+    4 OutputValidator, 5 AuditLogger, 6 RateLimiter, 7 SandboxEnforcer,
+    8 PolicyEngine, 9 SecurityPipeline;
+    Phase 2 HIGH: 10 SBOM, 11 SignatureVerifier, 12 ReproducibleBuild, 13 SupplyChainScanner,
+      14 ModelRegistry, 15 GovernanceBoard, 16 IncidentManager;
+    Phase 3 ADVANCED: 17 SafetyEvaluator, 18 BenchmarkRunner, 19 AdversarialTestHarness,
+      20 Watermarker, 21 GroundednessChecker, 22 FairnessTester, 23 EnclaveRunner.
+
+  GAPS in current safety vs industry and how to close: model-adjacent guardrails
+  (add infra pipeline), redaction-only (add secret broker + router), no SBOM/signature,
+  no tamper-evident hashed audit, partial OWASP coverage, no ATLAS/NIST mapping,
+  no watermarking, no groundedness, no TEE.
+
+  VERIFICATION bar: 90%+ unit coverage, red-team simulation, <10ms per guard at p99,
+  bypass resistance, model-agnostic (3+ backends), correct open/closed failure mode.
+
+  (NOTE: this is mainly a research spec; the loan report claims the local secrets
+  parts are already built/shipped. The enterprise "168 safety tests" figure is the
+  claimed already-implemented guard-rail count.)
+
+--------------------------------------------------------------------
+PART 6 — SETUP INSTALL STEPS (setup.sh, one-command installer)
+--------------------------------------------------------------------
+A ./setup.sh "make setup easy" one-command boot. Modes:
+  bash setup.sh            interactive full setup
+  bash setup.sh --yes      non-interactive / CI (no prompts)
+  bash setup.sh --bare     install deps + verify only, don't start services
+  bash setup.sh --no-pack  skip skillspack deploy
+
+Steps (idempotent):
+  1. cd to enterprise repo root; sanity-check it sees platform_kernel.py
+     (either enterprise/platform_kernel.py or ./platform_kernel.py); sets PYTHONPATH=$ROOT.
+  2. [1/6] Install Python deps from enterprise/requirements.txt, prefer an
+     existing env; if system pip is unavailable/externally-managed, create a
+     local .venv; if pip install fails, core platform is stdlib-only so still works.
+  3. [2/6] Deploy the portable skills/LSP/MCP/plugin pack via
+     enterprise/scripts/install_skillspack.sh (non-fatal warnings allowed; skippable).
+  4. [3/6] Install + enable systemd user services: eni-controller + eni-multiplayer-server
+     (via eni_cli setup logic; skip with --bare or if no systemd user dir).
+  5. [4/6] Verify the platform kernel imports.
+  6. [5/6] Show platform status via eni_cli status.
+  7. [6/6] Done. Print endpoints:
+      - demo: curl -X POST http://127.0.0.1:8788/api/submit_plan -d '{"goal":"build a to-do app","tenant":"acme"}'
+      - dashboard: http://127.0.0.1:8788/api/board  (also :8420 per other docs)
+      - brain/heartbeat: http://127.0.0.1:8913/health
+      - boot servers: bash enterprise/scripts/boot_all.sh
+      - CLI: python3 enterprise/scripts/eni_cli status
+
+  README quick-links also list: API gateway :8421, Swarm Dashboard :8420, Agent
+  Server :9120, Swarm Turbocharger /8922/health, Free Model Router /8920/health.
+  Build: cd "Eni Builder"; python3 -m pytest enterprise/ -q -p no:anyio; start
+  with uvicorn enterprise.integration.api_gateway; docker-compose up -d.
+
+--------------------------------------------------------------------
+PART 7 — THE FULL LOAN / BUSINESS-PLAN STORY + BLANK FIELDS LO MUST FILL
+--------------------------------------------------------------------
+The .docx plan (Eni-Enterprise-Business-Plan_1/2, identical) is a loan plan
+prepared using the "Community Futures Lloydminster & Region Business Plan Workbook
+and Business Plan Guide." Greys/italic fields call for LO's specific, accurate info
+of these facts only LO knows (legal, personal, financial). The plan is placed as
+strategically complete — but it lists exactly which fields are LO's to fill when
+submitting (see end).
+
+THE BUSINESS ITSELLS (in the plan's words):
+  - A. Executive Summary: "Eni is a software co-build platform: rather than
+    selling finished software off the shelf, Eni sells companies on becoming
+    active co-builders of the platform itself. Clients get a monthly cadence of
+    module and platform improvements, with the platform's own capability growing
+    faster as more clients join."
+
+  - DIFFERENTIATOR = "Multiplayer" parallel build-agent swarm across
+    multiple dedicated physical workstations (not just concurrent cloud sessions),
+    allowing the team to work inside a client's codebase in parallel. Orchestrator
+    Hermes Agent (open-source, Nous Research) + OpenRouter cost-optimized
+    "escalation ladder" (cheap models for routine, frontier for judgment).
+
+  - Market segments (C. Market):
+      Segment 1 (now): companies with heavy software teams wanting to CO-BUILD
+        ("co-build" model), even a services-module: "rather than sell a black-box
+        subscription."
+      Segment 2 (now): companies with recurring/seasonal shortage of AI/software
+        engineering capacity -> staffing-marketplace engagement either alongside
+        or instead of a co-build contract.
+      Segment 3 (Phase 2, downstream): smaller businesses and freelancers wanting
+        the mature platform as pure subscribers once proven on larger engagements.
+    Buying habits: multi-month sales cycles, contract-based (not impulse), budget-
+    cycle timing, requires an internal champion (usually engineering CTO/MID).
+
+  - E. Competitors (SWOT) — contrasted against Copilot/Cursor/Windsurf, Devin/Cognition
+    & frontier agents, and the "emerging enterprise agent orchestration" + open
+    frameworks (CrewAI/LangGraph) that a technical client could assemble in-house.
+    Threats: model API repricing, frontier labs moving down-market, open-source
+    commoditization, client concentration, key-person risk (founder dependence).
+
+  - F. Products: co-build software dev engagements run by the swarm; Multiplayer
+    parallel build swarm; cost-routed model layer (OpenRouter escalation ladder);
+    (In development) local context/secrets layer (local model buffers full context
+    before any cloud call, client secrets never to a cloud model) — planned next.
+    AI staffing-marketplace engagements. Unique: co-build clients get roadmap
+    influence — none of the point-solution/frontier competitors now offer it.
+
+  - G. Pricing: pending finalization. Recommended: co-build (monthly platform fee +
+    reduced hourly/contract rate reflecting client's co-build contributions), staffing
+    $150-$500/hr or $2,500-$25,000/project, downstream SMB (Phase 2) flat monthly.
+
+  - H. Place/Sales/Distribution: operations distributed across physical workstations
+    (founder's machine + two additional networked machines) coordinated via Multiplayer
+    swarm (a genuine ops asset to itemize in project costs). Sales channel: direct
+    outbound to enterprise engineering leaders/CTOs, backed by case studies; the
+    strongest proof point: the swarm has already built other production software.
+
+  - I. Financial Plan: attach per Community Futures: 2-Year Proforma Cash Flow
+    (use template; MUST reflect actual contracted or realistically pipelined
+    revenue), Projected Income/Balance, resumes, equipment quotes, lease if any.
+    PROJECT COSTS table items (costs -----blank):
+      Workstations (build swarm nodes)           — add PCs beyond current 3
+      GPU / cloud inference credits               — OpenRouter/Nous credits, RunPod for heavy
+      Networking / infrastructure                — static IP, VPN, backup connectivity on 3 hosts
+      Software / tooling licenses                — Nous Portal, monitoring/logging, secrets mgmt hosting
+      Working Capital                            — runway until first co-build contracts close
+      Marketing / sales dev                      — outbound + case-study material
+      Legal / incorporation                      — registration, co-build contract templates
+      Other                                     $______
+      TOTAL PROJECT COST  $______
+    SOURCES OF FUNDING (blank cells): Community Futures Loan, Applicant's Investment,
+      Bank Loan, Personal Investor, Credit Card /Line of Credit, Other; TOTAL.
+    Loan use (what funds held for): blank. Requested amortization period, ideal
+      payment amount+frequency (blank). Owner's funds invested to date + source (blank).
+
+  - J. Risks (with mitigations): model/API cost volatility -> OpenRouter multi-provider;
+    open-source commoditization (CrewAI/LangGraph) -> co-build relationship +
+    physical-swarm harder to replicate than software; frontier labs moving down-
+    market -> co-build positioning is a different relationship; client concentration ->
+    2-3 reference clients in different industries; key-person -> document the swarm
+    architecture/build processes as team grows. "Mitigation plan / contingency for
+    worst-case revenue scenario:" blank.
+
+  - K. Business Success Factors (ALL BLANK—LO writes in own voice):
+      "Why this business will succeed:" ; "Key objectives, vision, and mission:"
+      "Where the business will be in 5 years:" ; "Exit strategy:"
+  - L. Operations — licenses/permits/insurance + status (blank); hours/days operation (none).
+  - M. Key Business Relations: Bookkeeper / Accountant / Lawyer / Insurance Broker (blank).
+  - N. Timeline milestones (dates to fill once financing known):
+      finalize legal structure + registration [#]; finalize co-build contract pricing +
+      template; close first co-build client; ship local secrets handling module (next
+      platform update); close 2nd/3rd reference client + case studies; evaluate
+      downstream SMB tier launch.
+
+  >>> FIELDS YOU MUST COMPLETE BEFORE SUBMISSION (complete list, from the doc):
+      1. Legal business name, address, contact details, business structure/registration
+         status.
+      2. Ownership carve-out % and principal details.
+      3. Final pricing for co-build contracts and staffing engagements.
+      4. All $ figures in the Project Costs and Sources of Funding tables.
+      5. 2-Year Proforma Cash Flow (build from template using real/contracted or
+         realistically pipelined revenue — see Companion Loan-Readiness report).
+      6. Resumes of principals, cost quotes, and any lease agreement (appendices).
+
+  THE COMPANION LOAN-READINESS REPORT helps LO close the file with one-shot tasks:
+    1. Fill the legal/ownership/contact in the .docx.
+    2. Pick loan amount + amortization; complete Project Costs / Sources Funding.
+    3. Plug ONE real (or strongly pipelined) contract into ENI_PROFORMA_2YR.xlsx
+       Assumptions sheet -> Year-1 net becomes defensible.
+    4. Attach CAPABILITY_REFERENCE.md (proof) + ENI_PROFORMA_2YR.xlsx (finance).
+    5. Write the 3 narrative blanks (success factors, 5-yr, exit) in LO's own voice.
+   Proof points the plan can cite (REAL, verified 2026-08-16): 4,411 tests collected,
+   4,410 passing; 50 capability modules auto-discovered into a self-validating kernel;
+   multiplayer NO-failure live floor (goal->planner->6 step-tasks->builder machine on
+   LAN->real artifacts->conflict-safe merge into per-tenant workspace);
+   one-prompt->program validated on :8913; portable Hermes layer boots ENI+Hermes in
+   one tab; local secrets handling IS SHIPPED.
+
+  WORST-CASE MITIGATIONS the report pre-names: if Y1 revenue under target, run the 3
+  workstations at cost, raise hosted tier first (marginal cost/builder ~$0), convert 2
+  co-build clients to staffing-marketplace recurring engagements to smooth cash, monthly
+  billing to shorten collection; keep 2-3 reference clients across industries so no client
+  > ~40% of revenue; OpenRouter ladder + hard monthly frontier cap handles model cost spikes.
+
+================================================================================
+CRITICAL
+================================================================================
+CRITICAL-1  CONFLATION HAZARD: There are TWO business-tier stories selling as one:
+             SELLING.md / loan-plan call it an "OPEN co-build dormant-agent swarm"
+             (the customer co-buys, $.12-25k/yr or $499/2,499-/mo enterprise
+             platform). Industry data argue these are different go-to-markets and
+             should not be presented as the SAME product to a lender. The loan plan
+             says co-build + staffing; the business proposal says a subscription
+             "Enterprise AI Platform". LO must decide ONE hero story for the loan
+             (the co-build story fits Community Futures framing better) — and avoid
+             confusing "$10/builder/mo" vs "$2,499/mo" vs "free" in one doc.
+
+CRITICAL-2  THE WILD-CARD NUMBERS: The "Enterprise AI Platform" deck's 177.0/100
+	  "SINGULARITY" score, 22.53x compression, "up to 80 agents", "141,683 lines",
+	  168 guardrails are in-industry marketing self-scoring. Nothing external
+	  certifies them. In a loan file these can inflate expectations; the loan
+	  partner (CAPABILITY_REPORT + proforma) uses a conservative, defensible ramp
+	  (Y1 -$59K, Y2 +$11.6K). Recommend syncing to the CONSERVATIVE numbers.
+
+CRITICAL-3  PRICING NOT FINAL: The loan's Section G pricing is explicitly open.
+	  LO must fill "Final price(s)" for co-build + staffing before submission.
+	  If frozen, use SELLING.md ladder (Team $12-25k/yr, Pro $2.5k/builder, Hosted
+	  $10/builder/mo, white-label 30-60%) + staffing $150-500/hr.
+
+CRITICAL-4  SECURITY ARCHITECTURE IS INFRASTRUCTURE-FIRST (the real asset):
+	  Secrets NEVER reach any cloud model — secret->local-only is a HARD rule
+	  (block, not degrade); local model binds 127.0.0.1 with no egress; store
+	  encrypted at rest (AES-GCM/passphrase+hardware key); reverse-substitution in
+	  memory only; hash-chained append-only audit; model_security is required
+	  Priority-0 boots-first (platform fails open on). The local
+	  secrets layer is claimed SHIPPED (secret_broker, secret_rotation, redacting
+	  vault). The rest (SBOM, TEE, watermark, etc.) is phased backlog + methodology.
+
+CRITICAL-5  LO'S BLANK FIELDS ARE LEGAL/PERSONAL/FINANCIAL ONLY: name/address/
+	  structure/registration, ownership + principals, final pricing, all Project
+	  Costs & Sources of Funding figures, 2-yr proforma from real contracts, resume/
+	  quotes/lease appendices, and 3 narrative essay fields (why succeed / 5yr /
+	  exit) in own voice. The tech (architecture, modules, pricing ladder, proforma
+	  engine) is real & documented — LO must not fabricate identity or finances.
+
+CRITICAL-6  TOP PROOF LINE FOR BOTH SALES & LOAN: "the swarm has already been used
+	  to build other production software" — the centerpiece of sales materials.
+	  Pair with the LIVE 15-min demo: free self-host "curl | make install" and the
+	  one-prompt -> program -> tests across the swarm.
+
+================================================================================
+SOURCE MAP
+  SELLING.md ........ pricing ladder, funnel, anchor, open notes
+  BUSINESS_PROPOSAL.md . 28-component OS pitch, perf/competitive grid, $499/$2,499/mo
+  PRESENTATION.md ... 13-slide client/investor deck (problem, safety, swarm, cost)
+  README.md .......... platform at a glance, endpoints, build cmds
+  LOCAL_FIRST_SECRET_ARCHITECTURE.md ... full secret-flow spec + threat model + config
+  GLOBAL_AI_SECURITY_RESEARCH.md ....... industry orgs + standards + guard backlog
+  LOAN_READINESS_REPORT.md ............. proforma figures + blank-field map + mitigations
+  setup.sh ............................ one-command installer steps + printed endpoints
+  Eni-...-Business-Plan_1/2.docx ....... full loan business plan + blank field list
+================================================================================

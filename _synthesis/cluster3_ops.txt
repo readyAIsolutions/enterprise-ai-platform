@@ -1,0 +1,1344 @@
+================================================================================
+CLUSTER 3 DIGEST — COOPERATIVE-MULTIPLAYER + LOCAL-BRAINS + OPERATOR LAYER
+================================================================================
+Scope: multiplayer/ (SLICE A), local_controller/ (SLICE B), scripts/ + systemd/
++ install/setup/boot + side-by-side browser view (OPERATOR / SLICE C wrapping).
+Audience: beginner-grade. English only. Every mechanism is explained from the
+code (not hypotheses). Target file: this digest.
+
+This is one of five parallel swarm digests; the master doc is assembled from all
+of them. This file is the authoritative long-form write-up for the layer.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+0. The one-paragraph mental model ("the goal-to-program story")
+1. Directory map (what lives where)
+2. The wire protocol (multiplayer/protocol.py) — the language of the fleet
+3. The server (multiplayer/server/*)
+   3.1 state.py — the Board (the shared memory)
+   3.2 broker.py — the scheduler (who does what, when)
+   3.3 workspace_merge.py — the merge engine (how code comes home)
+   3.4 server.py — the boss process (sockets, HTTP, auth, tenants, TLS)
+4. The client (multiplayer/client/*)
+   4.1 client.py — the per-machine worker
+   4.2 runner.py — the workers (shell, python, llm) + redaction
+5. Multiplayer tests (what is proven)
+6. Local brains (local_controller/*)
+   6.1 planner.py — goal -> task-DAG
+   6.2 vault.py — local-only secrets
+   6.3 build_provider.py — the executor with self-test loop
+   6.4 controller.py — the local HTTP server
+7. Local-controller tests (what is proven)
+8. Operator layer (scripts/, systemd/)
+   8.1 eni_cli — subcommand by subcommand
+   8.2 install_skillspack.sh
+   8.3 setup.sh
+   8.4 boot_all.sh / boot_all.bat
+   8.5 hermes-local
+   8.6 sidebyside.html
+   8.7 systemd unit files
+9. End-to-end goal flow (a user's goal -> a finished program, across machines)
+10. Ports & environment-variable reference (the one-stop cheat sheet)
+11. Auth / TLS / tenancy deep-dive
+12. Message-flow sequence diagrams (lifecycle, assignment, requeue, heartbeats)
+13. Merge logic deep-dive
+14. Status files (what is validated vs unvalidated; the roadmap)
+15. Gaps, risks, and observations (reader-level critique)
+16. CRITICAL block (non-negotiable security + operational facts)
+
+================================================================================
+0. THE ONE-PARAGRAPH MENTAL MODEL
+================================================================================
+The whole system is a "cooperative build floor." One coordinating server sits in
+the middle. Many machines ("builders") each run a client that connects to the
+server over a WebSocket and advertises "I have this much RAM, this many CPUs,
+these models, these tags, and I can run N tasks at once." A human (or Hermes)
+types ONE natural-language GOAL into the server's HTTP API. The server optionally
+hands that goal to a local planner which fans it out into 6 ordered step-tasks
+(spec, data model, core logic, interface, tests, packaging). The server's broker
+hands each task to the least-loaded client that is capable of running it. That
+client runs a worker (shell, python, or an LLM worker that POSTs to a model
+router), produces a file ("artifact"), and streams it back. The server merges
+each artifact into a per-tenant shared workspace with conflict-safety (it never
+clobbers an existing file), records a .MERGE ledger, and exposes a live board +
+health API. The final deliverable is the set of merged files in the canonical
+workspace, plus a manifest showing every step's pass/fail. Secrets NEVER leave a
+machine's local vault — a redactor strips real values and keeps only placeholder
+names when anything goes toward a cloud/LLM.
+
+If you only remember three things:
+  * GOAL -> PLANNER -> 6 STEP-TASKS -> BROKER ASSIGNS -> CAPABLE CLIENT RUNS ->
+    ARTIFACT STREAMED BACK -> MERGED (no-clobber) into per-tenant workspace.
+  * The client NEVER sends API keys; the server NEVER receives them. Secrets are
+    local-only, and redaction guarantees they never appear in outbound prompts.
+  * Auth is an optional shared MP_AUTH_TOKEN; even with auth off, tenants still
+    isolate workspaces on disk so one team's files never bleed into another's.
+
+================================================================================
+1. DIRECTORY MAP
+================================================================================
+Repo root: /home/hunter/Desktop/Enterprise Builder/enterprise
+  enterprise/                       <- the `enterprise` python package root
+    multiplayer/
+      protocol.py                   wire message schemas + validate/encode/decode
+      server/
+        server.py                   the coordination server (WS + HTTP + auth)
+        broker.py                   queue/assign/heartbeat/retry/persist
+        state.py                    Board in-memory store (clients/tasks/ledger)
+        workspace_merge.py          artifact apply + conflict detection
+      client/
+        client.py                   per-machine builder client (WS loop)
+        runner.py                   pluggable workers (shell/python/llm) + redaction
+      tests/
+        test_multiplayer.py         protocol + broker + merge + board
+        test_llm_worker.py          llm worker fallback + redaction + length
+        test_hardening.py           auth + tenancy + snapshot
+        test_submit_plan.py         goal fan-out into step tasks
+    local_controller/
+      planner.py                    deterministic goal -> task-DAG planner
+      vault.py                      local-only secret vault + redact()
+      build_provider.py             run_plan executor with self-test retry loop
+      controller.py                 stdlib-only HTTP server (:8913, fallback :8914)
+      tests/test_local_controller.py
+    scripts/
+      eni_cli                       the operator CLI (doctor/install/status/up/setup/fleet/local/agent-os)
+      install_skillspack.sh         portable Hermes pack installer
+      setup.sh                      one-command setup (deps + pack + systemd)
+      boot_all.sh / boot_all.bat    boot all servers (Linux/Windows)
+      hermes-local                  thin launcher => eni_cli local
+      sidebyside.html               the browser hub (4 tabs)
+      README.md                     ops docs (deploy/health/backup/etc.)
+      + operational helpers (deploy.sh, health_check.sh, run_tests.sh,
+        backup.sh, restore.sh, start_all.sh, stop_all.sh, status.sh, etc.)
+    systemd/
+      eni-controller.service        systemd user unit for :8913
+      eni-multiplayer-server.service systemd user unit for :8787/:8788
+    skills_pack/                    versioned mirror of the portable Hermes layer
+    data/                           runtime data (vault.json, queues, workspaces,
+                                    build_sessions) created at runtime
+  STATUS_MULTIPLAYER.md             SLICE A status
+  STATUS_LOCAL_CONTROLLER.md        SLICE B status
+  STATUS_SKILLSPACK.md              SLICE C status
+
+Port map (authoritative, from code):
+  8787  multiplayer WS  (server.py default port; run() binds 0.0.0.0)
+  8788  multiplayer HTTP API (ALWAYS port+1; stdlib ThreadingHTTPServer)
+  8913  local controller HTTP (fallback 8914 if 8913 busy)
+  8920  Free Model Router (optional, from ~/.hermes/scripts/free_router.py)
+  8890  side-by-side hub page (served by eni_cli local from scripts/)
+  9119  Hermes dashboard (optional; if installed)
+  8765  Hermes "local-agent" (fallback when the dashboard package is missing)
+  8421  an ENI dashboard (referenced by the hub page / local cmd prints)
+
+================================================================================
+2. THE WIRE PROTOCOL (multiplayer/protocol.py)
+================================================================================
+Purpose: define every JSON message that travels between clients and the server,
+plus factories/validators. It is ASCII-safe JSON only; there are NO binary
+channels, and clients are REQUIRED not to transmit secrets/API keys over these
+messages (the schema itself enforces it, see anti-secret guard below).
+
+Constants and state machine
+  * PROTOCOL_VERSION = 1.
+  * TaskState enum: QUEUED, ASSIGNED, RUNNING, COMPLETED, FAILED.
+  * TERMINAL_STATES = (COMPLETED, FAILED).
+  * _ALLOWED_TRANSITIONS (legal state changes):
+      QUEUED   -> {ASSIGNED, FAILED}
+      ASSIGNED -> {RUNNING, QUEUED, FAILED}
+      RUNNING  -> {COMPLETED, FAILED, QUEUED}
+      COMPLETED-> {}
+      FAILED   -> {QUEUED}   # exactly one retry is allowed
+
+Message types (each is a dict whose first key is "type"):
+  (client->server unless noted)
+  hello      client->server  machine profile + capabilities + tenant + token
+  welcome    server->client  server identity + version (+ assigned client id)
+  task       server->client  a unit of work to execute (goal, prompt, feature...)
+  work_start client->server  "I picked the task up"
+  work_log   client->server  incremental log/line (also supports "chunk")
+  artifact   client->server  a file the worker produced (path + content)
+  work_result client->server final outcome (completed | failed) + artifacts
+  heartbeat  client->server  liveness + running-task load snapshot
+  ack        server->client  acknowledgement of a submitted message
+  requeue    server->client  "task put back in the queue (state change)"
+  error      both            structured error notification
+
+Schema maps (SCHEMAS): each entry has "required" (key->type) and "optional"
+(set OR dict of key->type). Important required fields:
+  hello:        type, client_id, capabilities(dict), machine(dict)
+  welcome:      type, server_id, server_version(int)
+  task:         type, task_id, goal
+  work_start:   type, task_id
+  work_log/work_log: type, task_id, message   (server also accepts a "chunk")
+  artifact:     type, task_id, path, content   (+ optional merge_mode)
+  work_result:  type, task_id, status(completed|failed)
+  heartbeat:    type, client_id, ts
+  ack:          type, task_id, ok(bool)
+  requeue:      type, task_id, reason
+  error:        type, message
+
+Factory / validation helpers
+  * _type_ok(value, expected): type-checks a value (handles tuples of types,
+    list/dict as "any list/dict").
+  * validate(message) -> (ok, reason): checks it is a dict, type is known, all
+    REQUIRED keys present with right types, optional keys typed if present, then
+    cross-field rules:
+      - hello.capabilities.max_concurrent_tasks must be a positive int.
+      - work_result.status must be "completed" or "failed".
+      - artifact.path must be a relative safe path (rejects "", "..", leading "/").
+      - task.artifacts must be a list.
+    THEN the ANTI-SECRET GUARD: for the guarded fields (prompt, content, summary,
+    stdout, message) it lowercases the value and rejects if it contains any of:
+    api_key, apikey, secret, authorization, bearer , password, token=. This is a
+    hard refusal — such a message is invalid and will be dropped. (Note: it looks
+    for these substrings anywhere in those fields, so even a passing reference
+    like "the token= is here" would be refused — deliberately conservative.)
+  * check(message): like validate but raises ValueError on failure.
+  * make_message(type, **fields): builds a dict, auto-sets "type", and check()s it.
+    (The tests treat make_message as always producing a valid message.)
+  * now(): wall-clock time.time() for timestamps.
+  * encode(message)->bytes: check() then compact JSON bytes (utf-8, no spaces).
+  * decode(data)->dict: from bytes/str, json.loads, then check().
+
+Why it matters: protocol.py is the single contract that both client and server
+import, so a malformed frame is rejected at the boundary instead of corrupting
+the broker/board. The anti-secret guard is the project's "no-leak" core guarantee.
+
+================================================================================
+3. THE SERVER (multiplayer/server/*)
+================================================================================
+
+--------------------------------------------------------------------------------
+3.1 state.py — the Board (the shared in-memory memory)
+--------------------------------------------------------------------------------
+Purpose: the canonical in-memory view of everything the server knows. It is
+guarded by an asyncio.Lock so the async server threads can mutate it safely, and
+it is the source feeding /api/board and the board snapshot.
+
+Data types
+  * new_id(prefix): "prefix-" + 12 hex chars of uuid4 (e.g. "t-4be417eb2a2").
+  * TaskRecord (dataclass): task_id, goal, status(TaskState), created_at, plus
+    prompt, repo, feature, step(int, default 1), test_hint, artifacts(list of
+    {path,content} dicts), model_hint, provider, tags, priority(default 5),
+    attempt(default 1), requeue_of, assigned_client, assigned_at, started_at,
+    completed_at, result_status, summary, stdout, error, merged_paths(list),
+    conflicts(list). as_dict() serializes with status.value.
+  * ClientRecord (dataclass): client_id, connected_at, last_seen, hostname,
+    max_concurrent_tasks(default 1), models(list), providers(list), tags(list),
+    gpu(bool), transport (the WS protocol object; NOT serialized — this is how
+    the broker knows a client is really connected), running(list of task_ids),
+    disconnected(bool).
+      - load() -> len(running)  (how many tasks running now).
+      - can_run(task) -> bool. Returns False if load() >= max_concurrent_tasks;
+        if task has model_hint and client lists models (and "*" not in them) then
+        task.model_hint MUST be in client.models; same for provider; if task has
+        tags then one must intersect client.tags (unless client has "*").
+      - as_dict() gives the JSON view (includes load, disconnected).
+  * LedgerEntry (dataclass): ts, kind, task_id, client_id, message, detail.
+
+Board (the store) — every method is async and takes the lock:
+  - clients: add_client, touch_client, remove_client, get_client, clients()
+  - tasks:   add_task, get_task, tasks(), queued_ids(), queue_remove(),
+             queue_append(), set_status(), update_task(**kwargs)
+  - ledger:  log(kind, task_id, client_id, message, detail), ledger()
+  - board_snapshot(): returns {clients, queue(QUEUED), active(ASSIGNED|RUNNING),
+             done(COMPLETED|FAILED), ledger, stats{...counts...}}.
+  Note: add_task only appends to _queue_order if the task is QUEUED; set_status
+  appends a ledger "status" event when the status actually changes.
+
+--------------------------------------------------------------------------------
+3.2 broker.py — the scheduler
+--------------------------------------------------------------------------------
+Constants: HEARTBEAT_TIMEOUT = 60.0s, DEFAULT_MAX_CONCURRENT = 2, MAX_RETRIES = 1.
+
+Broker init: Broker(board, data_dir, on_send). on_send is the callback that
+actually delivers a message to a specific client (wired by server.py to
+self._broker_deliver). The broker persists the queue to
+data/multiplayer_queue.jsonl (append-only JSONL).
+
+Task creation & submit
+  _make_task(goal, **fields): builds a TaskRecord with id new_id("t"), status
+  QUEUED, and copies prompt/repo/feature/step/test_hint/artifacts/model_hint/
+  provider/tags/priority/attempt/requeue_of from fields.
+  submit(goal, **fields): creates the record, board.add_task, appends to the
+  JSONL log, board.log("submit", ...), returns the record.
+
+Requeue (retry policy)
+  requeue(task_id, reason):
+    - increments rec.attempt.
+    - If attempt > MAX_RETRIES+1 (=2): mark result_status="failed", error text,
+      set status FAILED (terminal), _finish_task_on_client(final=True), and log.
+    - Else: release the client (remove task from client.running), queue_append,
+      set status QUEUED, log "requeued attempt=...", SEND a "requeue" message to
+      the old assigned client, and append to the JSONL log.
+  _finish_task_on_client(rec, final): removes rec.task_id from the assigned
+  client's running list if present (used whether the task is requeued or terminal).
+  _send(client_id, message): validates the outbound message; if invalid, logs a
+  "dropped invalid outbound message" error and returns; otherwise calls on_send.
+
+Assignment (the heart of scheduling)
+  assign():
+    1. queue_ids = board.queued_ids(); if empty, return.
+    2. candidates = connected clients (not disconnected AND transport is not None).
+       If none, return.
+    3. Sort clients by (load(), round_robin_count) — fewest RUNNING first, then
+       fewest historical assignments (fairness).
+    4. For each queued task, pick the FIRST capable client (c.can_run(rec)).
+       If none, leave it queued.
+    5. Atomic claim: re-check capacity (load < max_concurrent_tasks); release any
+       previously recorded client; queue_remove; set assigned_client + assigned_at;
+       set status ASSIGNED; push task_id into target.running; touch last_seen;
+       bump round_robin count; log "assign".
+    6. Build the TASK message (type, task_id, goal, status=ASSIGNED, prompt, repo,
+       feature, step, test_hint, artifacts, model_hint, attempt, priority) and
+       _send it to the target. Each client gets at most one new task per pass.
+
+Heartbeat / staleness
+  check_heartbeats(now_ts): for every connected client, if
+  now - client.last_seen > HEARTBEAT_TIMEOUT (60s): mark disconnected, log
+  "heartbeat timeout", and requeue every task in client.running that is still
+  ASSIGNED or RUNNING (reason "client heartbeat timeout"). This is how a machine
+  that silently dies loses its work so another machine can take it.
+
+Persistence
+  _append_log(rec): appends rec.as_dict() as one JSON line to the queue JSONL.
+  resume_from_disk(): on startup, reads the JSONL; for ASSIGNED/RUNNING tasks it
+  resets them to QUEUED (no client is connected mid-restart) and re-adds them;
+  for QUEUED tasks re-adds them. Returns the number restored.
+
+Background loop
+  run_assign_loop(broker, interval=1.0, stop): while not stop: assign(); then
+  check_heartbeats(); sleep interval (1s). CancelledError/Exception are trapped.
+  This loop runs on the server's MAIN event loop (a key bug fix, see §14).
+
+--------------------------------------------------------------------------------
+3.3 workspace_merge.py — how artifacts come home
+--------------------------------------------------------------------------------
+Purpose: given the canonical workspace dir + a client's returned artifacts
+(list of {path, content}), apply them with conflict-safety and write a .MERGE
+ledger. v1 accepts whole-file writes.
+
+Guards / helpers
+  * _safe_join(canonical_dir, rel_path): rejects absolute paths and any ".."
+    traversal component -> returns None (unsafe).
+  * git_status(dir): if dir/.git exists, runs `git status --porcelain` and
+    returns the lines; else []. Best-effort (returns [] on error/timeout).
+  * _hash(bytes): sha256 hex.
+
+apply_artifacts(canonical_dir, artifacts, ledger_path, task_id, client_id):
+  - mkdir canonical_dir; default ledger_path = <canonical_dir>/.MERGE; write the
+    MERGE_HEADER line "# multiplayer workspace merge ledger\n" if new.
+  - Record git_status BEFORE.
+  - For each artifact:
+      * resolve target via _safe_join; if unsafe -> record a conflict with reason
+        "unsafe path (traversal or absolute)" and a resolver event; skip.
+      * mkdir parent dirs.
+      * If the target already exists:
+          - identical content (same sha256) -> skipped list; continue.
+          - DIFFERENT content -> 3-WAY CONFLICT: DO NOT overwrite; record
+            {path, reason:"existing file differs from incoming content",
+            existing_hash, incoming_hash} + resolver event "NOT clobbered"; continue.
+      * Else: write content, add to applied list.
+  - Record git_status AFTER.
+  - Append to the .MERGE ledger: one CONFLICT line per conflict with ts, task,
+    client, path, reason; otherwise an APPLIED line with applied/skipped/conflict
+    counts.
+  - Return {applied, skipped, conflicts, events, git_before, git_after, workspace}.
+
+read_merge_ledger(ledger_path, limit=50): last `limit` non-empty lines.
+
+Key design point: this is a NON-CLOBBER merge. In a genuine multi-agent race the
+first writer wins; a second writer targeting the same file with different content
+is recorded as a conflict and NOT overwritten. This is "3-way emulated" (see §14
+UNVALIDATED — it does not yet parse real git merge conflicts; it only prevents
+silent clobbering and flags them for a human resolver).
+
+--------------------------------------------------------------------------------
+3.4 server.py — the boss process
+--------------------------------------------------------------------------------
+Transport summary (from the module docstring):
+  * WebSocket ws://host:PORT/ws  — the client channel (websockets library).
+  * HTTP http://host:PORT+1/api/... — operator/dashboard API (stdlib
+    ThreadingHTTPServer). So WS=8787 and HTTP=8788.
+
+Security stance (docstring): the server NEVER receives API keys; clients send
+only capabilities (model names, provider names, hardware). Task prompts may carry
+placeholder refs ({KEY:name}) resolved client-side; the server forwards opaque
+strings. All Board/Broker methods are async coroutines and must be awaited.
+
+MultiplayerServer(host, port, data_dir, auth_token, tenants)
+  - auth_token defaults from env MP_AUTH_TOKEN.
+  - tenants: {tenant_name: [allowed_client_ids]} — empty list = any client.
+  - data_dir defaults to <repo>/data/multiplayer (two dirs up from server/server.py).
+  - builds Board + Broker wired with on_send=self._broker_deliver.
+  - holds _ws_by_client: client_id -> websocket object.
+  - _client_tenant / _task_tenant: maps to remember which tenant a client/task
+    belongs to (task tenant is latched at submit time — the isolation boundary).
+
+Auth + tenancy
+  _check_auth(token): True if auth_token unset (auth disabled); else token must
+  equal auth_token (and be non-empty).
+  _client_allowed(client_id, tenant): allowlist for tenant; empty allow = admit
+  anyone; otherwise require the client_id in the list.
+  _tenant_for(client_id): first registered tenant else "default".
+  _tenant_workspace(tenant): sanitizes tenant name (only alnum, "-", "_"; else
+  "default") and returns <wspace>/<safe>/, creating it. One isolated workspace
+  per tenant — code from different teams never clobbers each other.
+
+Client events (_handle_message dispatch)
+  hello      -> _hello
+  work_start -> set task RUNNING + started_at; log "client picked up task"
+  work_log   -> append chunk to rec.stdout, TRUNCATED to FRAME_LOG_LIMIT=4000 chars
+  work_result-> _work_result
+  heartbeat  -> touch_client (last_seen = now)
+
+_hello(client_id, msg): reads capabilities + machine; computes tenant from
+  msg tenant or "default"; GATES on auth (token) AND allowlist. On failure sends
+  an "error" message code="unauthorized" and returns (client not registered).
+  On success: record _client_tenant, ensure the tenant workspace, build a
+  ClientRecord (max_concurrent_tasks from caps default 2; transport="ws"), add to
+  board, log "client registered", send "welcome" (server_id="mp-server",
+  server_version=PROTOCOL_VERSION, assigned_client_id=client_id, note="hello
+  accepted"), then run broker.assign() immediately (so a task is handed right away).
+
+_work_result(client_id, msg): ok = status=="completed". Updates the task record
+  (result_status, completed_at, summary, assigned_client). If ok, it imports
+  workspace_merge.apply_artifacts and merges into the TASK's tenant workspace
+  (NOT the client's tenant — the isolation boundary is the task's originating
+  tenant), with the ledger file data/work_merge.ledger. Then it stores
+  merged_paths / conflicts on the task and logs "integrated N artifacts, M
+  conflicts". Else it logs "task failed" with the error. Either way it sets the
+  task to COMPLETED or FAILED and calls broker.assign() again (free a slot).
+
+_send(client_id, msg): find ws by client_id; json.dumps and send; swallow errors.
+
+board_snapshot(): board snapshot + server_version, heartbeat_timeout, tenants,
+  auth_required(bool).
+
+submit(goal, **fields): pops tenant & token from fields; auth-gate on token;
+  broker.submit(), then latch _task_tenant[task_id]=tenant; returns
+  {task_id, status.value, goal}.
+
+submit_plan(goal, **fields): THE fan-out. Pops tenant/token; auth-gates. Tries to
+  import the planner from "local_controller.planner" or
+  "enterprise.local_controller.planner"; if found calls parse_goal(goal) and then
+  enriches each step's prompt with planner.enrich_prompt. If no planner, falls
+  back to a single opaque task via submit(). Otherwise, for each step task:
+  broker.submit(goal, prompt=enriched, repo, feature=t.feature, step=t.step,
+  test_hint=t.test_hint, model_hint, tags), latch its tenant, collect ids.
+  Returns {goal, task_ids, steps, tenant}. Distinct feature+step per task means
+  filenames won't collide when merged (step01_spec.py, step02_data.py, ...).
+
+HTTP API (a fresh stdlib handler class per request; built by
+  _request_handler_factory(server)):
+  GET /health             -> {status ok, uptime, clients, queue}
+  GET /api/board          -> full board snapshot (JSON)
+  GET /api/ledger         -> ledger entries
+  POST /api/submit_plan   -> body {goal, repo, tenant, token} -> submit_plan
+  POST /api/submit        -> body {goal, prompt, repo, artifacts, model_hint, tenant, token} -> submit
+  else 404. All async calls are bridged with _loop_run() (runs the coroutine in
+  a throwaway event loop because the HTTP server is on worker threads).
+
+WebSocket plumbing
+  _broker_deliver(client_id, message): Broker->client push. Looks up the ws,
+  and schedules server._send as a task on the running event loop. (Why: broker
+  assign may be awaited from a worker thread, and sends must happen on the loop.)
+  _ws_handler(server, websocket): gives the socket a temp id "tmp-XXXXXX", then
+  iterates incoming frames; each frame is decode()d (bad frame -> error reply);
+  when a "hello" carries client_id it ADOPTS that id as authoritative (re-keys
+  _ws_by_client). Each message is dispatched to _handle_message. On drop or EOF,
+  removes the socket and runs check_heartbeats() to requeue any stranded tasks.
+  websocket_handler(server): an adapter that tolerates both modern websockets
+  signature (ws) and legacy (ws, path).
+
+run(host="0.0.0.0", port=8787, ...): the blocking entry:
+  - creates the server, starts the HTTP API on port+1 in a daemon thread.
+  - Noise about TLS: run() accepts tls_cert/tls_key; if both present it builds an
+    ssl.SSLContext(PROTOCOL_TLS_SERVER) and passes ssl=ctx to websockets.serve,
+    so the WS scheme becomes "wss". (HTTP API itself gets no TLS here.)
+  - resume_from_disk() to restore the persisted queue.
+  - websockets.serve with ping_interval=25 (server-side keepalive).
+  - _reap(server): background task that every HEARTBEAT_TIMEOUT/2s calls
+    broker.check_heartbeats() — a second safety net.
+  - run_assign_loop on the MAIN event loop (the assignment driver).
+  - Prints a welcome banner with scheme://host:port, the HTTP port, tenants, and
+    auth state.
+  __main__: host from MP_HOST (default 0.0.0.0), port from argv[1] else 8787.
+
+--------------------------------------------------------------------------------
+4. THE CLIENT (multiplayer/client/*)
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+4.1 client.py — the per-machine builder
+--------------------------------------------------------------------------------
+HEARTBEAT_INTERVAL = 15.0s.
+
+default_machine_profile(): reports cpus (psutil or multiprocessing), ram_gb,
+  hostname (platform.node()), gpu_name (env GPU_NAME). gpu flag is True if
+  "gpu" in MP_TAGS or the box "looks like" a GPU box (has ~/.hermes, nvidia-smi,
+  or rocm-smi). psutil is optional/guarded.
+
+default_capabilities(): builds the capability dict from env:
+  - max_concurrent_tasks: MP_MAX_TASKS (default "2")
+  - models:  MP_MODELS  (default "free-router")
+  - providers: MP_PROVIDERS (default "openrouter,free-router")
+  - tags:    MP_TAGS (comma split; default ["cpu"])
+  - gpu:     "gpu" in tags
+
+BuilderClient(host, port, client_id, worker_name, workdir):
+  - client_id default = platform.node() + "-" + str(os.getpid()).
+  - picks a worker from WORKERS registry (default "shell").
+  - connect(): ws://host:port via websockets.connect (ping_interval=25); sends a
+    "hello" with client_id, capabilities, machine profile, tenant from env
+    MP_TENANT (default "default"), token from env MP_TOKEN (default "").
+  - run_forever(): starts a heartbeat task; loops over incoming frames; for a
+    "task" it spawns asyncio.create_task(self._execute(msg)); prints on "welcome".
+  - _heartbeat(): every 15s sends {"type":"heartbeat","client_id":...}; breaks on
+    send error.
+  - _execute(task): sends "work_start", runs self.worker.run(task), then sends a
+    "work_result" with status completed/failed, summary, error (claim = falsy
+    summary), and artifacts from the result.
+
+main() CLI:
+  --host  (default MP_SERVER or 127.0.0.1)
+  --port  (default 8787)
+  --id
+  --worker (choices from WORKERS; default "shell")
+  --workdir
+
+Env vars the CLIENT reads (MP_*):
+  MP_SERVER, MP_TENANT, MP_TOKEN, MP_TAGS, MP_MAX_TASKS, MP_MODELS, MP_PROVIDERS,
+  GPU_NAME (plus MP_LLM_URL / MP_LLM_KEY_ENV / MP_LLM_MODEL in runner.py, below).
+
+--------------------------------------------------------------------------------
+4.2 runner.py — the workers
+--------------------------------------------------------------------------------
+Worker contract: run(task_dict) -> {ok:bool, summary:str, artifacts:[{path,content}]}.
+Workers never receive API secrets.
+
+Built-in workers:
+  shell_worker: runs the prompt (or goal) as a SHELL COMMAND in a scratch dir
+    (subprocess shell=True, timeout 120s). Collects stdout(+stderr capped), then
+    reads every file produced in the scratch dir as artifacts (content capped at
+    40000 chars). ok = returncode==0. cmd capped at length 4000.
+  python_worker: writes the prompt to worker.py in the scratch dir and runs
+    `python3 worker.py` (timeout 120). Returns worker.py + stdout.txt as artifacts.
+  WORKERS registry = {"shell": shell_worker, "python": python_worker, "llm": llm_worker}.
+
+LLM worker (the "real one-prompt -> program" engine across the fleet):
+  Reads provider config from ENV ONLY (no hardcoded keys):
+    MP_LLM_URL       e.g. http://127.0.0.1:8920/v1/completions (free router)
+    MP_LLM_KEY_ENV   the NAME of an env var holding the API key (optional)
+    MP_LLM_MODEL     model id (default "default")
+  run():
+    1. REDACT the prompt via _redact_text (vault.redact + regex scrub).
+    2. Enrich the prompt via planner.enrich_prompt (if importable).
+    3. If MP_LLM_URL is set, call build_provider._call_external_llm(big, url,
+       key_env or "MP_LLM_KEY", model) to get real generated text ("external-llm").
+       On any error, fall through.
+    4. If no artifact came back, fall back to local deterministic scaffolds from
+       build_provider (_python_scaffold step/feature/goal/prompt, or _spec_scaffold):
+       mode "local-scaffold".
+    5. Write the artifact to a file named via _safe_filename(feature, step):
+       e.g. "step01_requirements_and_spec.py" (feature slugified, zero-padded).
+    6. SELF-TEST the artifact with task.test_hint via _eval_hint -> ok/note.
+    7. Return {ok, summary, artifacts:[{path,content}]}.
+  This makes the LLM worker the natural default configured by `eni fleet`.
+
+_redact_text(text): two layers — (1) call local_controller.vault.redact (or the
+  enterprise variant) to turn {NAME} tokens into names and scrub real known
+  values; (2) a regex that masks inline credential assignments
+  (api_key|secret|password|passwd|token|bearer ... [OPT]= value), keeping the
+  keyword and replacing the value with "[REDACTED]"; also masks 32-64 char hex
+  blobs as [REDACTED_HEX]. Belt-and-suspenders so a stray inline secret can never
+  leave the machine.
+
+_load(mod_a, attr, mod_b): import `attr` from the first importable module,
+  tolerating both `local_controller.*` and `enterprise.local_controller.*`
+  package layouts.
+
+_safe_filename(feature, step): slugifies the feature (non-alnum -> "_", lower,
+  strip "_") and returns "step%02d_<feature>.py".
+
+_eval_hint(hint, artifact): best-effort heuristic tester. Looks for tokens
+  ("assert ", "Test", "#", "__main__", "isinstance(", "dict", "def main") in the
+  hint and maps each to a textual check against the artifact source (e.g. "assert"
+  hint -> artifact must contain "assert" or "unittest" or "test_"; "class " hint
+  -> artifact must contain "unittest" or "class "; "#" hint -> artifact has '#' or
+  starts with '#'; "__main__" -> artifact contains it; etc.). Never raises;
+  returns False on any error. If the hint has no usable token, returns True with
+  "no-usable-hint". This is a heuristic, not a real test runner — it scores the
+  artifact's plausibility against the wanted feature.
+
+--------------------------------------------------------------------------------
+5. MULTIPLAYER TESTS (what is proven)
+--------------------------------------------------------------------------------
+test_multiplayer.py (end-to-end + unit):
+  - protocol roundtrip (validate known/latest types, unknown type refused,
+    encode/decode round-trip, anti-secret guard refuses api_key/bearer token).
+  - broker.submit creates QUEUED task t-...; assignment to a capable client;
+    heartbeat-timeout requeues a stale client's ASSIGNED task back to QUEUED.
+  - merge applies new files; merge detects conflict and does NOT clobber an
+    existing different file (original content stays; conflicts list non-empty).
+  - board snapshot shape (has clients / queue / active / done / ledger / stats).
+
+test_hardening.py (auth/tenancy):
+  _check_auth("sekret") True with token "sekret"; wrong/empty False; disabled
+  accepts anything. submit requires auth when enabled. Tenant workspaces are
+  isolated paths (acme vs globex differ; content written to one doesn't appear in
+  the other). Tenant allowlist gate: alice/bob allowed for acme, eve not; eve
+  allowed for "default" (empty allowlist admits anyone). Snapshot exposes
+  auth_required and tenants.
+
+test_llm_worker.py:
+  "llm" is in WORKERS. Offline (no MP_LLM_URL) -> local scaffold path, artifact
+  written, ok True. Redaction: with a prompt containing api_key SUPER_SECRET_123
+  the result summary+artifact never contain the secret. >4k prompts still yield a
+  result without crashing.
+
+test_submit_plan.py:
+  submit_plan fans "build a small to-do app" into >=4 steps; each task carries a
+  UNIQUE (feature, step) so filenames don't collide. Respects auth. Sets tenant.
+
+STATUS_MULTIPLAYER.md live smoke (real numbers in §14): two tasks via
+  POST /api/submit with shell prompts produced buildproof.txt and hello.txt in the
+  merge workspace, with the client on the board with load=2 (running two tasks),
+  all APPLIED lines in the merge ledger, health says clients=1. 9/9 unit tests.
+
+================================================================================
+6. LOCAL BRAINS (local_controller/*)
+================================================================================
+
+--------------------------------------------------------------------------------
+6.1 planner.py — deterministic goal -> task-DAG
+--------------------------------------------------------------------------------
+INTENT: turn one natural-language GOAL into an ordered list of BuildTasks that,
+executed together, build a small program. Deliberately DETERMINISTIC template
+pipeline (goalify -> epics -> tasks) — the same goal always yields the same plan.
+
+Data model:
+  BuildTask: step(int), feature(str), prompt(str), deps(list of step indices),
+    test_hint(str). to_dict().
+  Plan: goal + tasks(list). to_dict() -> {goal, steps:[...]}.
+
+_EPICS — the canonical 6-step skeleton (each becomes one task; chain DAG where
+  every step depends on all previous, kept a simple linear chain):
+    1. requirements_and_spec      test_hint: "assert 'requirements' in spec_text.lower()"
+    2. data_and_state_model       test_hint: "assert isinstance(your_model, dict)"
+    3. core_logic                 test_hint: "'def main' in source or 'class ' in source"
+    4. api_and_interface          test_hint: "'__main__' in source"
+    5. tests_and_validation       test_hint: "'assert ' in tests or 'Test' in tests"
+    6. packaging_and_readme       test_hint: "'# ' in readme"
+  Each has a prompt_tpl with .format(goal=...). (Feature names are the exact
+  strings the build scaffolds and the merge filenames rely on.)
+
+parse_goal(goal) -> Plan: _goalify normalizes/whitespace-collapses (default goal
+  "a small utility program"); iterates _EPICS building tasks with step=idx+1,
+  deps = linear chain (each depends only on idx-1), prompt from the template.
+
+enrich_prompt(prompt, goal) — the "make bigger prompts" feature: wraps a terse
+  prompt in structured sections: ## CORE ASK, (## ORIGINAL GOAL if given),
+  ## BUILDING GUIDANCE with a Context/Constraints/Acceptance criteria/Output
+  format list, then an instruction to expand fully. This is what turns a 14-char
+  ask into a ~600-char workable prompt (verified in STATUS; also used by
+  server.submit_plan and the LLM worker).
+
+plan_to_program(goal) = parse_goal alias. plan_dict(plan) -> JSON-friendly dict.
+
+--------------------------------------------------------------------------------
+6.2 vault.py — LOCALLY-ONLY secrets
+--------------------------------------------------------------------------------
+INTENT (docstring): "the ONLY place private secrets live inside the local
+controller." Secrets are stored ON DISK, never transmitted to any network/cloud
+model. The ONLY thing that may leave the machine is a REDACTED prompt in which
+every real secret value is replaced by its placeholder NAME (e.g. openai_key),
+never the value.
+
+Storage: data/vault.json with file mode 0600. If the optional `cryptography`
+  package is present, the payload is encrypted with AES-256-GCM (nonce + ciphertext
+  in the blob {"enc":"aes-256-gcm","nonce":...base64,"data":...}); the AES key is
+  a random 32-byte file at data/.vault_key (also 0600). If `cryptography` is NOT
+  present, it falls back to CLEAR mode ("clear::MODE::sandbox") — still local
+  only, still refuses to transmit, still supports get/set/redact. `redact()` never
+  reveals values in either mode.
+
+Public API:
+  set(name, value): name MUST be a valid Python identifier (else ValueError);
+    stores + persists.
+  get(name) -> Optional[str]: reloads from disk, returns the value or None.
+  placeholders() -> names only (never values).
+  redact(prompt) -> str: (1) replace every {token} with just its NAME;
+    (2) ALSO replace any literal occurrence of a known secret VALUE with the name
+    (defends against naive interpolation of the raw value into the prompt).
+Module-level redact(prompt, vault=None): the safe helper to call before ANY
+  prompt goes to a network model. With no vault, it just strips {NAME}->name.
+make_vault(path) factory. Defaults rooted two dirs up from the module (repo root
+  /data).
+
+Security contract (non-negotiable, in the docstring): get/set operate purely on
+  the local file; redact() guarantees no real value is ever present in its return.
+
+--------------------------------------------------------------------------------
+6.3 build_provider.py — the executor with a self-test loop
+--------------------------------------------------------------------------------
+INTENT: orchestrate a Plan into concrete artifacts on disk. run_plan writes every
+  artifact + a manifest.json under data/build_sessions/<session_id>/.
+  Two execution modes per task: (a) local deterministic python worker (default,
+  offline, always works), (b) external LLM over HTTP if caller passes url+key_env
+  (key read from env, NEVER logged/returned).
+  Self-validation: when a task has a test_hint, run it against the artifact; on
+  failure regenerate ONCE (max 2 attempts/task), appending the error to the prompt
+  for the retry. Secrets never transmitted: prompts pass through vault.redact.
+
+Scaffold generators (the deterministic local workers that also satisfy hints):
+  _python_scaffold(step, feature, goal, prompt): a valid python module defining
+    your_model = {...} (dict) + def main() -> str + __main__ block, so the
+    "isinstance(your_model, dict)" and "'def main' in source" hints pass.
+  _tests_scaffold(goal): a unittest.TestCase class; assigns `tests` (the source
+    text) so "'assert ' in tests or 'Test' in tests" passes.
+  _readme_scaffold(goal): assigns `readme` = markdown text so "'# ' in readme"
+    passes (the file stays a valid python module).
+  _spec_scaffold(goal): assigns `spec_text` = REQUIREMENTS text so "'requirements'
+    in spec_text.lower()" passes.
+
+_call_external_llm(prompt, url, key_env, model): POSTs a json {prompt, model,
+  max_tokens:1024} to url with Content-Type json and (if key present) an
+  Authorization: Bearer <key>. Reads key from env (key_env). Parses
+  choices[0].text, else text, else output; on JSON failure returns raw body.
+  30s timeout. The prompt passed in is already REDACTED by the caller — the key is
+  only used for the header and never logged/stored/returned.
+
+BuildProvider class:
+  __init__(sessions_dir): mkdir; also creates a Vault().
+  _gen_artifact(task): dispatch by feature name to the right scaffold; the
+    generic/core steps fall back to _python_scaffold(step, feature, prompt, prompt).
+  _run_test(hint, artifact, how) -> Optional[str]: sets up a clean scope
+    {__name__:"__test__", source=artifact}; COMPILES AND EXECS the artifact (to
+    catch import/syntax errors, returning the error); then EVALs the hint as a
+    boolean expression (None on True, "test_hint evaluated False" on False); on
+    SyntaxError it treats the hint as an assert STATEMENT and execs it
+    (AssertionError -> error). Nothing is raised in the caller.
+  _attempt_task(task, goal, session_dir, url, key_env): redacts the prompt up
+    front. Loop up to 2 attempts:
+      - attempt 2 when url+key_env are set: mode (b) external LLM, prompt =
+        redacted prompt + "\n\nPREVIOUS TEST ERROR (please fix):\n"+error; if the
+        LLM returns nothing or throws, fall back to _gen_artifact.
+      - otherwise always _gen_artifact (local).
+      - Record {attempt, how}; if no test_hint -> status "produced" and break.
+      - Else _run_test; status "test-passed"/"test-failed"; break on pass.
+    Returns {step, feature, artifact_how, artifact, attempts:[...], status:ok|failed}.
+  run_plan(plan=None, goal="", session_id="", url=None, key_env=None):
+    - default plan = parse_goal(goal or "a small utility program");
+      default session_id = f"session_{int(time.time())}".
+    - For each task: _attempt_task, write artifact to
+      step%02d_<slug(feature)>.py in the session dir, pop "artifact" (DO NOT keep
+      full source in the manifest), record; build a log line
+      "step 0X [feature] attempts=N final=<status>".
+    - Write manifest.json {session_id, goal, created_at, steps, logs, session_dir}.
+    - Return {session_id, session_dir, manifest_file, artifacts, logs, steps}.
+Module-level run_plan(goal, ...) convenience + production_report(summary) which
+  prints a SESSION/<manifest>/<files>/<logs> report.
+
+--------------------------------------------------------------------------------
+6.4 controller.py — the local HTTP server
+--------------------------------------------------------------------------------
+INTENT: a tiny stdlib-only HTTP server exposing the local brains as JSON
+endpoints. Port 8913 (fallback 8914 if busy). ONLY permitted outbound network
+call is the explicitly-injected external-LLM post in build_provider (whose body
+always passes vault.redact first).
+
+Endpoints:
+  POST /plan    {goal}             -> {goal, steps, plan:[...]}
+  POST /enrich  {prompt, [?goal]} -> {prompt:big, source_length, enriched_length}
+  POST /program {goal, [?llm_url, key_env]} -> {session_id, session_dir,
+              manifest_file, artifacts, logs, steps}
+  GET  /health                     -> {status ok, uptime_seconds, port, endpoints}
+
+Mechanics: choose_port() probes 127.0.0.1:<preferred> with a TCP bind; if the
+  preferred port is taken it prints the conflict and uses the fallback .
+  ControllerHandler: do_GET /health; do_POST routes to /plan,/enrich,/program,
+  else 404 with the endpoint list. It binds to 127.0.0.1 (LOCAL ONLY — listens on
+  loopback, NOT 0.0.0.0). ThreadingHTTPServer with daemon_threads + reuse address.
+  /program passes an optional llm_url + key_env straight into run_plan (the
+  external-LLM hook). log_message is overridden to keep request bodies/keys out.
+  main(): --port, choose_port, serve forever (clean shutdown on KeyboardInterrupt).
+
+================================================================================
+7. LOCAL-CONTROLLER TESTS (what is proven)
+================================================================================
+tests/test_local_controller.py covers the four mandated proofs:
+  1. Vault: set/get roundtrip; redact() strips real secrets leaving placeholder
+     names (value never present in redacted output).
+  2. Planner: a goal decomposes into >=4 cohesive steps, each with deps + test_hint.
+  3. build_provider.run_plan writes artifact files + manifest.json (with
+     stepXX_* files on disk).
+  4. controller endpoints /health, /plan, /enrich, /program all respond 200 over
+     HTTP (spins up a server against a temp session dir and posts to it).
+STATUS_LOCAL_CONTROLLER.md reports: 11 passed, 0 failed, 0.54s; /health OK;
+  /plan 6 steps for "build a to-do web app with auth"; /enrich 14->597 chars;
+  /program generated 6 artifacts all "attempts=1 final=test-passed" + manifest.
+
+================================================================================
+8. OPERATOR LAYER (scripts/, systemd/)
+================================================================================
+
+--------------------------------------------------------------------------------
+8.1 scripts/eni_cli (the operator CLI)
+--------------------------------------------------------------------------------
+Self-contained CLI for operating the platform + the portable Hermes pack. Adds
+REPO_ROOT to sys.path and computes ENI_PARENT = repo root's parent (so
+`-m enterprise.*` subprocesses resolve). ENI_CONFIG env points at config
+(default repo/config). Keys:
+  _load_kernel(): prefers `platform_kernel`, falls back to `kernel`.
+  _parse_config(): YAML or JSON config.
+  _module_count(): dirs under modules/. _test_count(): test files under modules/
+  + foundation/ + kernel/ + integration/. _pack_info(): skills/lsp/mcp/plugins
+  object counts under skills_pack/.
+  Colors: green/red/yellow helpers.
+
+Subcommands:
+  doctor    -> deep health: kernel import (PASS/FAIL), skills_pack mirror checks.
+  install   -> runs scripts/install_skillspack.sh, pass-through
+              (--dry-run, --force, --target=DIR).
+  status    -> prints kernel version, modules present/healthy, test file count,
+              skills_pack presence.
+  up        -> prints docker compose / make run|status|logs|down instructions and
+              "eni install".
+  setup     -> ONE-COMMAND SETUP. [1/3] deploy skillspack via
+              install_skillspack.sh; [2/3] copy each systemd unit (SERVICES list:
+              eni-multiplayer-server.service :8787/:8788, eni-controller.service
+              :8913) into the systemd user dir (default ~/.config/systemd/user,
+              override ENI_USER_DIR) and daemon-reload; [3/3] systemctl --user
+              enable --now each service and print is-active.
+  fleet     -> start a builder client. host = argv[1] or "127.0.0.1"; --port
+              (default 8787); --worker (default "llm"). Runs
+              `python3 -m enterprise.multiplayer.client.client --host H --port P
+              --worker W` with PYTHONPATH=REPO_ROOT and cwd=ENI_PARENT.
+  local     -> BOOT THE SIDE-BY-SIDE LOCAL STACK (see §8.6 details on the hub):
+              1) ENI-multiplayer  python3 -m enterprise.multiplayer.server.server 8787
+              2) ENI-controller   python3 -m enterprise.local_controller.controller --port 8913
+              (1 is skipped with --no-server)
+              3) Hermes: if `hermes` + hermes_cli.dashboard_auth importable ->
+                 `hermes dashboard --port 9119 --host 127.0.0.1 --no-open
+                 --skip-build`; ELSE -> `hermes local-agent --no-browser --port
+                 8765`.
+              4) Serve scripts/sidebyside.html on 127.0.0.1:8890 (bulletproof:
+                 string-concatenated read of bytes; only "/" and
+                 "/sidebyside.html" are served, else 404).
+              Opens the browser to the hub (unless --no-open). Ctrl-C/SIGINT
+              terminates all spawned processes and shuts the hub down.
+              Prints the map: Hermes (9119 or 8765), ENI dashboard 8421,
+              Multiplayer board 8788/api/board, One-prompt API 8913/health.
+  agent-os  -> reports modules/agent_os presence as JSON (ok if the dir exists).
+  -h/--help -> usage.
+Usage text documents all commands; an ENI_CONFIG env is honored for status.
+
+-------------------------------------------------------------------------------
+8.2 scripts/install_skillspack.sh
+-------------------------------------------------------------------------------
+Portable Skills/LSP/MCP/Plugin pack installer. Copies the versioned skills_pack/
+from the repo into a target Hermes home (default ~/.hermes, override HERMES_HOME
+env or --target=DIR):
+  skills_pack/skills/  -> $HOME/skills/
+  skills_pack/lsp/     -> $HOME/lsp_servers/
+  skills_pack/mcp/     -> $HOME/mcp_servers/
+  skills_pack/plugins/ -> $HOME/plugins/
+Idempotent: on each run, pre-existing destination categories are first backed up
+to $HOME/.skillspack_backup_<TIMESTAMP>; then merged with `cp -rn .../.` which
+CONTENT-merges (the "/." source is the fix that prevents skills/skills nesting on
+re-runs). Python cache bytes (__pycache__/, *.pyc) are stripped from the source
+before copy and from the target after. Options: --dry-run (report planned map +
+backup), --force, --target=DIR. VERIFIED: dry-run shows 20 categories, 957 skill
+files, 1 lsp, 2 mcp, 3 plugin, 963 total; 3 consecutive runs produce identical
+counts (no nesting, no leftover pycache).
+
+--------------------------------------------------------------------------------
+8.3 scripts/setup.sh (one-command setup)
+-------------------------------------------------------------------------------
+Usage: bash setup.sh (interactive) | --yes (non-interactive) | --bare (deps+verify
+only, no services). Idempotent, 6 steps:
+  [1/6] python deps: pip install -r enterprise/requirements.txt; if pip is blocked
+        build a .venv, else note "stdlib-only platform still works".
+  [2/6] deploy skillspack via install_skillspack.sh (skip if SKIP_PACK=1).
+  [3/6] systemd user services: if RUN_SERVICES=1 AND the systemd user dir exists,
+        call `eni_cli setup` (which copies + enables units). In --bare this is
+        skipped (tells you to use scripts/boot_all.sh instead).
+  [4/6] verify platform import (platform_kernel).
+  [5/6] `eni_cli status`.
+  [6/6] done — prints the one-command demo curl:
+        curl -X POST http://127.0.0.1:8788/api/submit_plan -d '{"goal":"build a
+        to-do app","tenant":"acme"}', plus dashboard/brain URLs and boot/CLI tips.
+Sanity gate at start: repo must contain platform_kernel.py (at root or under
+enterprise/).
+
+--------------------------------------------------------------------------------
+8.4 boot_all.sh / boot_all.bat
+-------------------------------------------------------------------------------
+boot_all.sh (Linux/WSL): set -euo pipefail; cd to repo PARENT; PY=python3.
+  --headless / --no-builder flags. Exports PYTHONPATH=$ROOT. Logs to
+  $ROOT/logs/boot/{multiplayer,controller,free_router,builder}.log.
+  [1/3] multiplayer server :8787 (nohup background)
+  [2/3] local controller :8913 (nohup)
+  [3/3] free model router :8920 from ~/.hermes/scripts/free_router.py if present
+        (else skip).
+  Builder client: unless --no-builder, in headless mode start an llm worker
+  client :8787 in the background; interactively PROMPT "Start a local builder
+  client too (llm worker)? [y/N]".
+  Prints endpoint summary (health/board/brains), `eni status` tip, logs location.
+boot_all.bat (Windows): same three servers via `start /b` with python (prefers a
+  local venv\Scripts\python.exe). Free router from %USERPROFILE%\.hermes\scripts.
+  `choice` prompt to also start a builder client. Prints same endpoints; pause.
+
+--------------------------------------------------------------------------------
+8.5 scripts/hermes-local
+-------------------------------------------------------------------------------
+A thin python launcher that simply delegates to the enterprise repo's eni_cli:
+  `hermes-local [args]` -> `python3 <eni_cli> local [args]`.
+It locates eni_cli from a candidate list (absolute path to this repo's copy,
+relative, or $PARENT/enterprise/scripts/eni_cli), and passes everything through.
+Supports `hermes-local --no-server` (skip the multiplayer coordination server).
+
+--------------------------------------------------------------------------------
+8.6 scripts/sidebyside.html (the browser hub)
+-------------------------------------------------------------------------------
+A dark-themed single-page hub (GitHub-dark palette) served by `eni_cli local` at
+127.0.0.1:8890. Layout:
+  Header with four status pills: ENI, Multiplayer, Controller, Hermes — each
+  flashes "● up" (green) / "○ down" (red) by polling their health endpoints every
+  3s: 8421/api/health, 8788/health, 8913/health, 9119/health.
+  A "go" row of links: board (8788/api/board), ENI (8421), Hermes (9119).
+  Four TABS with iframes, one visible at a time:
+    Hermes Dashboard  -> http://127.0.0.1:9119
+    ENI Platform      -> http://127.0.0.1:8421
+    Multiplayer Board -> http://127.0.0.1:8788/api/board
+    One-Prompt (-Program) API -> http://127.0.0.1:8913/health
+  JS shows/hides the matching iframe, removes the "loading" veil on load, and the
+  polling flips the pills. So the operator sees the Hermes agent, the ENI
+  dashboard, the multiplayer board, and the controller API side by side in one
+  tab. (Note: if Hermes dashboard :9119 isn't running, that tab shows its fallback
+  local-agent :8765 only in the local cmd print — the html hardcodes 9119.)
+
+--------------------------------------------------------------------------------
+8.7 systemd unit files
+-------------------------------------------------------------------------------
+eni-controller.service (user unit):
+  [Unit] After/Wants network-online.target.
+  [Service] Type=simple; Environment=PYTHONUNBUFFERED=1;
+    ExecStart=/usr/bin/python3 -m enterprise.local_controller.controller --port 8913;
+    WorkingDirectory=/home/hunter/Desktop/Enterprise Builder; Restart=always;
+    RestartSec=5; StandardOutput/Error=journal.
+  [Install] WantedBy=default.target.
+eni-multiplayer-server.service:
+  [Service] ExecStart=/usr/bin/python3 -m enterprise.multiplayer.server.server 8787;
+    WorkingDirectory same; Restart=always; RestartSec=5; comments show how to set
+    MP_AUTH_TOKEN and MP_HOST via Environment= lines. WantedBy=default.target.
+(These are installed + enabled by `eni_cli setup` / setup.sh step 3. Because they
+are USER units, they run under the logged-in user, not root.)
+
+================================================================================
+9. END-TO-END GOAL FLOW (a user's goal -> a finished program, across machines)
+================================================================================
+Setup once (before any goal):
+  1. Machine A (the coordinator) runs the multiplayer server:
+       python3 -m enterprise.multiplayer.server.server 8787
+     (or `eni setup` which installs the systemd user services; or
+      scripts/boot_all.sh / eni_cli local). WS binds 0.0.0.0:8787; HTTP API on
+      0.0.0.0:8788. Optionally set MP_AUTH_TOKEN to require a shared token.
+  2. Each worker machine (B, C, ... and optionally A itself) runs a builder client
+     pointed at A's LAN IP:port:
+       eni fleet <A-IP>          # starts an llm worker client
+     (or python3 -m enterprise.multiplayer.client.client --host <A-IP> --port 8787
+      --worker llm). Each client reads MP_TENANT, MP_TOKEN, MP_TAGS, MP_MAX_TASKS,
+      MP_MODELS, MP_PROVIDERS, and (for the llm worker) MP_LLM_URL/KEY/MODEL.
+  3. Each machine that will generate real code configures an LLM endpoint via env
+     (MP_LLM_URL such as a free router at http://127.0.0.1:8920/v1/completions,
+     MP_LLM_KEY_ENV) OR relies on the offline deterministic scaffolds.
+
+The flow (goal -> finished program):
+  STEP 1 — SUBMIT. A user (or Hermes, or curl) POSTs to
+    http://<A-IP>:8788/api/submit_plan with JSON {"goal": "...", "tenant":
+    "acme", "token": "..."}. server.submit_plan auth-gates on token, imports the
+    local planner, and parse_goal() fans the goal into 6 step-tasks. Each task is
+    broker.submit()ted with a UNIQUE feature+step and an ENRICHED prompt
+    (enrich_prompt), and its tenant is latched. Response: {"task_ids": [...],
+    "steps": 6, "tenant": "acme"}.
+      (Alternatively POST /api/submit with a single goal+prompt for one task.)
+  STEP 2 — QUEUED. Each task enters the Board as TaskRecord status QUEUED and is
+    appended to data/multiplayer_queue.jsonl (survives restart).
+  STEP 3 — QUEUED -> ASSIGNED. The server's run_assign_loop (every 1s) calls
+    broker.assign(): it takes the least-loaded connected capable client
+    (ClientRecord.can_run checks model_hint/provider/tags + free concurrency slot),
+    sets the task ASSIGNED, pushes it into target.running, and sends a "task"
+    message over that client's WebSocket with the goal/prompt/feature/step/test_hint.
+  STEP 4 — ASSIGNED -> RUNNING. The client's run_forever sees "task" and spawns
+    _execute: sends "work_start" (server flips status RUNNING + started_at), then
+    runs its worker.
+  STEP 5 — WORKER EXECUTES. With the llm worker: it REDACTS the prompt
+    (vault.redact + regex), ENRICHES it, and if MP_LLM_URL is set POSTs it to the
+    model router for real generated code; on any failure it falls back to local
+    scaffolds. It writes the result to stepNN_<feature>.py in a scratch dir,
+    self-tests it against test_hint (_eval_hint), and returns ok/summary/artifacts.
+  STEP 6 — RESULT STREAMED BACK. The client sends "work_result" (status
+    completed|failed, summary, artifacts=[{path, content}]).
+  STEP 7 — MERGE. server._work_result validates ok; if completed it calls
+    apply_artifacts on the TASK's tenant workspace (data/multiplayer/wspace/acme).
+    New files are written; pre-existing identical files are skipped; pre-existing
+    DIFFERENT files are recorded as CONFLICTS and NOT overwritten. The .MERGE
+    ledger (data/work_merge.ledger) gets an APPLIED or CONFLICT line. Task status
+    -> COMPLETED (or FAILED). broker.assign() runs again to keep the pipe full.
+  STEP 8 — REPEAT ALL TASKS. Because every step-task flows through the same pipe,
+    all 6 stepNN_<feature>.py files accumulate in the tenant workspace, merged
+    conflict-safely.
+  STEP 9 — FINISH. A worker machine that dies mid-task is caught by heartbeats:
+    if a client misses >60s, broker.check_heartbeats requeues its RUNNING tasks so
+    another machine picks them up. A task that fails once is requeued (attempt 2);
+    a second failure is terminal (status FAILED, result_status="failed").
+  STEP 10 — OBSERVE. Anyone GETs http://<A-IP>:8788/api/board for the live board
+    (clients/queue/active/done/ledger/stats) or :8788/health. The merged workspace
+    (with manifest from the local controller if /program was used) is the finished
+    program. The side-by-side hub (eni_cli local -> 127.0.0.1:8890) shows the
+    Hermes agent, ENI dashboard, multiplayer board, and controller API at once.
+  Single-machine mode: if the same box runs server + controller + a builder
+  client (boot_all.sh / eni_cli local), the identical flow works entirely on
+  loopback — the "cross-machine" part is just pointing clients at the server's
+  IP instead of 127.0.0.1.
+
+================================================================================
+10. PORTS & ENVIRONMENT-VARIABLE REFERENCE (cheat sheet)     (authoritative)
+================================================================================
+PORTS
+  8787  Multiplayer WebSocket  (server run(); binds 0.0.0.0; MP_HOST, argv[1])
+  8788  Multiplayer HTTP API   (ALWAYS ws_port + 1; stdlib ThreadingHTTPServer)
+  8913  Local controller HTTP  (LOOPBACK 127.0.0.1; --port; fallback 8914)
+  8920  Free Model Router      (optional; ~/.hermes/scripts/free_router.py)
+  8890  Side-by-side hub page  (served by eni_cli local from scripts/)
+  9119  Hermes dashboard       (optional; if hermes_cli.dashboard_auth present)
+  8765  Hermes local-agent     (fallback when the dashboard package is missing)
+  8421  ENI dashboard          (referenced by hub + local command print; not served by these files)
+
+SERVER env:
+  MP_AUTH_TOKEN   optional shared secret; if set, hello + submit/submit_plan and
+                  _check_auth() require it. Empty/unset = auth disabled.
+  MP_HOST         host to bind (run() default 0.0.0.0).
+  (TLS is passed to run() as tls_cert/tls_key, not via env in this code.)
+
+CLIENT env:
+  MP_SERVER     default server host for --host.
+  MP_TENANT     tenant name sent in hello (default "default").
+  MP_TOKEN      token sent in hello (must match server MP_AUTH_TOKEN if enabled).
+  MP_TAGS       comma list; default ["cpu"]; "gpu" in tags flips gpu capability.
+  MP_MAX_TASKS  max_concurrent_tasks (default "2").
+  MP_MODELS     comma list of model names (default "free-router").
+  MP_PROVIDERS  comma list (default "openrouter,free-router").
+  GPU_NAME      reported in machine profile.
+  MP_LLM_URL    llm worker endpoint e.g. http://127.0.0.1:8920/v1/completions.
+  MP_LLM_KEY_ENV  NAME of an env var holding the API key (read at call time).
+  MP_LLM_MODEL  model id for the llm worker (default "default").
+
+LOCAL CONTROLLER (brains) env:
+  (none required) Controller binds 127.0.0.1:8913; /program accepts optional
+  body fields llm_url + key_env to inject an external LLM at runtime.
+  Vault      data/vault.json + data/.vault_key (mode 0600), AES-GCM when
+             `cryptography` is installed, else clear sandbox.
+
+OPERATOR env:
+  ENI_CONFIG   config path for `eni status` (default repo/config).
+  ENI_USER_DIR systemd user unit dir for `eni setup` (default
+               ~/.config/systemd/user).
+  HERMES_HOME / --target=DIR for install_skillspack.sh / skills_pack deploy
+               (default ~/.hermes).
+  SKIP_PACK=1  skip skillspack in setup.sh. RUN_SERVICES / AUTO drive setup.sh.
+
+================================================================================
+11. AUTH / TLS / TENANCY DEEP-DIVE
+================================================================================
+Auth (transport-level shared token):
+  * Enabled only if the server has auth_token (from MP_AUTH_TOKEN or constructor).
+  * Enforced at TWO points:
+      - `hello`: _hello checks _check_auth(msg["token"]) AND
+        _client_allowed(client_id, tenant). On failure it sends an "error" with
+        code="unauthorized" and does NOT register the client.
+      - `submit`/`submit_plan`: pops `token` from the JSON body and calls
+        _check_auth(token); a bad token returns {"error":"unauthorized","ok":False}.
+  * With auth disabled, _check_auth returns True for everything.
+  * The client's token travels in the hello message (field "token") and in the
+    HTTP body (field "token"). It is a SHARED secret (same for all clients), NOT
+    per-machine — so it authenticates "are you a member of the team" not "who".
+  * IMPORTANT LIMITATION: hello/token are within the JSON protocol message, which
+    is subject to the anti-secret guard ONLY for the fields prompt/content/summary/
+    stdout/message. The hello.token field is a required protocol field by design,
+    not a free-text payload field, so it is not rejected — but it also means the
+    token IS transmitted over the WS. For real secrecy over a network you should
+    enable TLS (wss) so the shared token isn't in plaintext.
+
+TLS:
+  * Only implemented for the WebSocket channel. run(tls_cert, tls_key): if both
+    PEM paths are given, builds an ssl.SSLContext(PROTOCOL_TLS_SERVER) and passes
+    ssl=ctx to websockets.serve, producing a "wss://" endpoint. The HTTP API
+    (port+1) is NOT TLS-wrapped in this code.
+
+Tenancy:
+  * tenants: {tenant: [allowed_client_ids]}; empty allowlist = any client allowed.
+  * A client asks for a tenant in its hello; the server latches client_id->tenant
+    (_client_tenant) after the auth/allowlist gate.
+  * ISOLATION BOUNDARY: each tenant gets its own workspace directory
+    <wspace>/<safe_tenant>/ (created lazily). When a work_result comes back, the
+    artifacts are merged into the TASK's tenant (latched at submit in
+    _task_tenant), NOT the client's current tenant. This is deliberate: the
+    client is just an execution resource; the owning team's workspace receives
+    the files. Different teams therefore never write into each other's tree and
+    never clobber each other.
+  * Even with auth disabled, tenancy isolation is still enforced on disk (the
+    hardening test proves tenant workspaces are distinct paths and content doesn't
+    cross). Only MERGE isolation is per-tenant in the server; the task QUEUE is
+    global in the Board (tenant is not a queue partition).
+
+--------------------------------------------------------------------------------
+12. MESSAGE-FLOW / LIFECYCLE SEQUENCES
+--------------------------------------------------------------------------------
+LIFECYCLE (state machine, per task):
+  QUEUED --assign--> ASSIGNED --work_start--> RUNNING --work_result(ok)--> COMPLETED
+                                  RUNNING --heartbeat-timeout/error--> ... requeue
+  FAILED attempt 1 -> requeued -> QUEUED (attempt 2)
+  FAILED attempt 2 -> TERMINAL FAILED
+
+CLIENT CONNECT (hello -> welcome):
+  client                          server
+     | connect(ws://A:8787)          |
+     |--hello{client_id,caps,machine,tenant,token}-->|
+     |   _hello: auth? allowlist? (reject -> error unauthorized)
+     |   board.add_client(transport="ws"); log; welcome{}
+     |<--welcome{server_id,assigned_client_id}-------|
+     |   broker.assign() (give it queued work right away)
+
+ASSIGN + EXECUTE:
+  server.run_assign_loop            client
+     | assign(): pick least-loaded capable client; set ASSIGNED; running+=id
+     |--task{task_id,goal,prompt,feature,step,test_hint,...}-->|
+     |                                 _execute():
+     |<--work_start{task_id}----------------|
+     |  set RUNNING; started_at; log
+     |<--work_log{task_id,chunk}-----------| (optional, appended to stdout, 4k cap)
+     |  worker.run(task) [redact->enrich->LLM or scaffold->self-test]
+     |<--work_result{status,summary,artifacts}-->|
+     |  if ok: apply_artifacts(tenant workspace); COMPLETED + merge ledger
+     |  else: FAILED; requeue policy may re-queue
+     |  broker.assign() again (keep pipe full)
+
+HEARTBEAT / STALE CLIENT RECOVERY:
+  client heartbeats every 15s -> server touch_client(last_seen).
+  _reap / check_heartbeats: if now - last_seen > 60s:
+     client.disconnected=True; requeue every RUNNING/ASSIGNED task (attempt++).
+  requeue: if attempt > 2 -> terminal FAILED; else back to QUEUED + "requeue" msg.
+
+PERSISTENCE/restart:
+  submit/requeue -> append to data/multiplayer_queue.jsonl.
+  server start -> broker.resume_from_disk() -> queued tasks re-added;
+  ASSIGNED/RUNNING reset to QUEUED (no clients connected during restart).
+
+HTTP OPERATOR API:
+  GET  /health          -> {status ok, uptime, clients, queue}
+  GET  /api/board       -> {clients, queue, active, done, ledger, stats, ...}
+  GET  /api/ledger      -> ledger entries
+  POST /api/submit      -> one task
+  POST /api/submit_plan -> goal -> N step-tasks (via planner)
+
+LOCAL BRAINS API (127.0.0.1:8913):
+  POST /plan     {goal}                -> {steps, plan[]}
+  POST /enrich   {prompt,[goal]}       -> {prompt, lengths}
+  POST /program  {goal,[llm_url,key_env]} -> session + artifacts + manifest + logs
+  GET  /health
+
+--------------------------------------------------------------------------------
+13. MERGE LOGIC DEEP-DIVE
+--------------------------------------------------------------------------------
+Where it runs: server._work_result on completed tasks, into the task-tenant
+workspace, ledger at data/work_merge.ledger (data_dir/work_merge.ledger).
+
+Per-artifact decision table (workspace_merge.apply_artifacts):
+  artifact.path unsafe (absolute or "..")  -> CONFLICT "unsafe path"; skip; event.
+  target does not exist                    -> WRITE; applied list.
+  target exists, byte-identical (sha256)   -> SKIPPED (no-op; no ledger noise).
+  target exists, DIFFERENT content         -> CONFLICT "existing file differs";
+                                              DO NOT clobber; hashes + event.
+Git gate: if the workspace is a git repo (.git present), git status --porcelain is
+  captured before and after in the result, so a coordinator can audit changes.
+Ledger: .MERGE file gets a header line the first time, then per batch a CONFLICT
+  line per conflict, or a single APPLIED line with counts. human-readable +
+  attributed to task_id/client_id.
+
+Subsequent operators can GET /api/ledger or read_merge_ledger() for the last 50
+lines.
+
+NOTE (honesty): this "3-way" is emulated — it protects a file that a previous
+writer already laid down, but it does not parse a real git 3-way merge. It does
+not merge two writers' DIFFERENT versions; it keeps the first and flags the
+second. A human/coordinator must resolve conflicts. This is a deliberate v1
+safety posture (documented in STATUS_MULTIPLAYER UNVALIDATED).
+
+--------------------------------------------------------------------------------
+14. STATUS FILES — VALIDATED vs UNVALIDATED + ROADMAP
+--------------------------------------------------------------------------------
+STATUS_MULTIPLAYER.md (SLICE A):
+  State: v1 working end-to-end (2026-08-16).
+  PASS: protocol (3 tests), anti-secret guard, broker submit->QUEUED,
+    capability-aware assign, heartbeat requeue, merge apply, merge conflict
+    no-clobber, board snapshot; unit suite 9 passed / 0 failed / 0.03s.
+  LIVE SMOKE (real output): server on :8793 + a shell client; two tasks via
+    /api/submit produced buildproof.txt (contents "VERIFIED_MP_BUILD\ncoop") and
+    hello.txt ("hello_world") in data/multiplayer/wspace; client on board with
+    load=2; APPLIED ledger lines; GET /health -> clients:1.
+  BUGS FOUND/FIXED (important history): (1) Broker constructed without on_send ->
+    tasks never delivered; wired on_send=self._broker_deliver. (2) Assignment ran
+    on a worker thread and couldn't reach the main-loop websocket; moved
+    run_assign_loop onto the main event loop. (3) protocol.validate called
+    .items() on optional which could be a set -> AttributeError; made it accept
+    dict or set. (4) _hello didn't set ClientRecord.transport="ws", so assign()'s
+    filter (transport is not None) excluded every client -> nothing assigned.
+  KEEP: async Board/Broker single-writer, conflict-safe merge, heartbeat requeue,
+    anti-secret guard, JSONL persistence, pluggable workers.
+  DROP/DEFER: HTTP API on port+1 (prefer one unified gateway); a WS/SSE dashboard
+    push is next; optional psutil.
+  UNVALIDATED: real cross-machine/cross-IP run (both sides ran on one box); a
+    genuine Hermes/LLM worker (shell/python stubs at the time); real agent git
+    merge (3-way emulated).
+
+STATUS_LOCAL_CONTROLLER.md (SLICE B):
+  State: v1 working, live on :8913. 11/11 tests, 0.54s.
+  PASS: /health, /plan (6 steps w/ deps+test_hint for "build a to-do web app with
+    auth"), /enrich (14->597 chars), /program (6 artifacts, each
+    "attempts=1 final=test-passed", manifest.json written), secret redaction,
+    session persistence under data/build_sessions/.
+  KEEP: redact-before-transmit, deterministic goal->DAG, fail-and-retry (<=2)
+    on test_hint, sessioned artifacts to disk, stdlib-only.
+  DROP/DEFER: external LLM not wired by default (pure-python workers + injected
+    hook). Real LLM per step = next step to make /program produce real code.
+  UNVALIDATED: real external-LLM generation (only stub workers ran); vault
+    encryption at rest (plaintext JSON w/ 0600 — safe locally, harden later);
+    cross-process secret sharing with the multiplayer floor (placeholders exist,
+    not yet shared).
+
+STATUS_SKILLSPACK.md (SLICE C):
+  Summary: live ~/.hermes mirrored into the repo as a versioned, ship-able
+    skills_pack + one-command installer + eni CLI + root docker-compose for the
+    Hermes layer + merged Makefile targets. Platform kernel NOT modified.
+  PASS: skills_pack/skills (20 cats, 957 files via dry-run), lsp (1), mcp (2),
+    plugins (3), into target; installer idempotent across 3 re-runs (no nesting,
+    no leftover pycache); eni status shows kernel v1.0.0, 51 modules present/
+    healthy, 147 test files, pack present; eni doctor PASS; docker compose config
+    valid.
+  VERDICT: vendoring the pack is the self-host pitch ("company gets platform AND
+    agents from a single eni install"); eni doctor/status doubles as health/upsell
+    screen; pack is scrubbed of auth/cache/config so customers DON'T get your live
+    secrets.
+  EXCLUDED from pack: ~/.hermes auth.json, *.key, config.yaml, secrets.enc, *.db,
+    channel_directory.json, pairing/, profile secrets; the giant ~/.hermes/lsp
+    node_modules dump (only lsp_servers/eni_compression vendored).
+  UNVALIDATED: a real foreign-machine install into a fresh ~/.hermes; whether
+    ~/.hermes/lsp binaries rebuild on another OS; live MCP/plugin behavior post-
+    install; docker --profile hermes up actually run; `eni install` against the
+    live ~/.hermes (avoided mutating the live home in-swarm; temp-target runs
+    prove the same path).
+
+--------------------------------------------------------------------------------
+15. GAPS, RISKS, AND OBSERVATIONS (reader-level critique)
+--------------------------------------------------------------------------------
+1. Shared-token auth is weak for peer-to-peer security. One MP_AUTH_TOKEN means
+   any client holding it can submit tasks AND read the board; there is no
+   per-client identity/least-privilege. For production, use per-machine tokens +
+   TLS (wss) so the token isn't in plaintext on the wire. The HTTP API (8788) is
+   NOT TLS-wrapped and token passes in the body.
+2. The default builder client binds to nowhere special and sends MP_TOKEN from
+   env — if MP_TOKEN isn't set and the server requires auth, the client is simply
+   sent an "unauthorized" error and not registered (safe failure, but easy to
+   misconfigure silently).
+3. The LLM worker's "self-test" (_eval_hint) is a heuristic plausibility score,
+   NOT a real test execution against the generated program. It can pass bad
+   artifacts. build_provider's _run_test is stricter (actually evals), but the
+   fleet-side llm worker relies on the heuristic.
+4. Merge is non-clobber "first writer wins + flags" — not a real 3-way/aggressive
+   merge. Multi-agent edits to the same file will collide and need human conflict
+   resolution. Documented.
+5. The queue is GLOBAL (Board has a single _queue_order); tenancy isolates only
+   the merges/workspaces. If you need per-team queues or quotas, that's future
+   work.
+6. All tests ran with server+client on ONE box; genuine cross-IP/LAN operation
+   was NOT yet validated. Same for TLS end-to-end and real external-LLM output.
+7. Vault encryption-at-rest is optional (only when `cryptography` is installed);
+   otherwise clear sandbox JSON on 0600. Acceptable locally; consider OS keyring
+   or AES-required for sensitive deployments.
+8. `eni setup` installs systemd unit files that hardcode
+   WorkingDirectory=/home/hunter/Desktop/Enterprise Builder and
+   /usr/bin/python3 — these are machine-specific; on another host you must edit
+   or regenerate the units (or use boot_all.sh which uses $PYTHON in env).
+9. The hub page hardcodes :9119 for the Hermes iframe even though `eni_cli local`
+   falls back to :8765 local-agent when the dashboard package is absent — the
+   fallback tab would show a connection failure. Cosmetic but worth flagging.
+10. sidebyside iframes load remote UIs; CORS/ETag not configured — fine for
+    loopback demo, not a hardened auth surface.
+
+================================================================================
+16. CRITICAL BLOCK
+================================================================================
+NON-NEGOTIABLE FACTS EVERY OPERATOR/BUILDER MUST KNOW:
+
+1. SECRETS NEVER LEAVE A MACHINE. The vault (local_controller/vault.py) is the
+   ONLY place real secrets live, on-disk only (data/vault.json, mode 0600,
+   AES-GCM when `cryptography` is present, else a clear-but-local sandbox).
+   ALL prompts going to network/LLM pass through vault.redact() AND a regex scrub
+   runner.py._redact_text. The multiplayer protocol's anti-secret guard REJECTS
+   any payload containing api_key/apikey/secret/authorization/bearer/password/
+   token= in prompt/content/summary/stdout/message. The server NEVER receives API
+   keys — clients advertise only capability tags; {KEY:name} placeholders are
+   resolved client-side.
+
+2. PORTS (hard facts): WS=8787, HTTP API=8788 (ws+1, ALWAYS), local brains=8913
+   (fallback 8914, LOOPBACK-only), optional free router=8920, hub page=8890,
+   Hermes dashboard=9119 / local-agent=8765. Server binds 0.0.0.0; controller
+   binds 127.0.0.1.
+
+3. KEY ENV VARS: MP_AUTH_TOKEN (server auth; empty=off), MP_HOST, MP_SERVER,
+   MP_TENANT, MP_TOKEN, MP_TAGS, MP_MAX_TASKS, MP_MODELS, MP_PROVIDERS,
+   MP_LLM_URL, MP_LLM_KEY_ENV, MP_LLM_MODEL; operator: ENI_CONFIG, ENI_USER_DIR,
+   HERMES_HOME.
+
+4. THE GOAL-TO-PROGRAM FLOW (memorize): goal -> submit_plan -> planner fans to 6
+   step-tasks (queue, JSONL-persisted) -> broker assigns to least-loaded capable
+   client -> client work_start -> worker redacts+enriches+(LLM or scaffold)+
+   self-tests -> work_result streamed back -> server merges conflict-safely into
+   the TASK's tenant workspace + .MERGE ledger -> COMPLETED/FAILED -> board/health
+   show it. Heartbeat (15s client / 60s server timeout) + retry-once (attempt>2
+   terminal) + restart-resume make it robust.
+
+5. AUTH/TENANCY: a shared MP_AUTH_TOKEN gates hello + submit; tenancy isolates
+   MERGE workspaces per tenant (task-tenant at submit), even with auth off.
+   TLS is only on the WS channel (tls_cert/tls_key -> wss); the 8788 HTTP API is
+   NOT TLS-wrapped. Auth is NOT en-route encrypted without wss — protect the token.
+
+6. MERGE IS NON-CLOBBER, NOT AGGRESSIVE 3-WAY. First writer wins; a second
+   different write is flagged as a CONFLICT in the .MERGE ledger and left intact;
+   unsafe/traversal paths are rejected. Real git 3-way merging is still UNVALIDATED.
+
+7. STATUS (honest, from the three STATUS files): multiplayer unit 9/9 + live
+   smoke on one box; local brains 11/11 live on :8913; skillspack installer
+   verified idempotent. UNVALIDATED in every slice: real cross-machine/cross-IP
+   operation, genuine LLM-generated (non-stub) code, real agent git merge, foreign-
+   machine fresh installs, vault encryption-at-rest enforcement.
+
+8. OPERATOR ONE-LINERS:
+   - boot all servers (Linux):  bash scripts/boot_all.sh
+   - boot all servers (Win):     boot_all.bat
+   - full setup:                 bash scripts/setup.sh         (or eni setup)
+   - install portable pack:      bash scripts/install_skillspack.sh --dry-run
+   - one dialog, all dashboards: python3 scripts/eni_cli local  (or hermes-local)
+                                 -> http://127.0.0.1:8890/sidebyside.html
+   - join a worker machine:      python3 scripts/eni_cli fleet <A-IP>
+   - submit a goal: curl -X POST http://127.0.0.1:8788/api/submit_plan -d
+     '{"goal":"build a to-do app","tenant":"acme","token":"<MP_AUTH_TOKEN if set>"}'
+   - observe: http://127.0.0.1:8788/api/board and /health (client-side stdout is
+     BUFFERED — trust the merge ledger/workspace/board, not console prints).
+================================================================================
+END OF CLUSTER 3 DIGEST
+================================================================================
