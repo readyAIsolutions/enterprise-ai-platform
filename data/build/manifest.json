@@ -16,7 +16,10 @@
     "engineering_tradeoff",
     "production_hardening",
     "codegen_audit",
-    "procurement_bid_automation"
+    "procurement_bid_automation",
+    "ai_memory_hierarchy",
+    "model_psychometrics",
+    "video_as_code"
   ],
   "transcripts": {
     "JEVanClief": {
@@ -177,6 +180,26 @@
         "status": "built",
         "module": "procurement_bid_automation",
         "title": "AI Agency and Consulting Models are DEAD"
+      },
+      "S3fXSc5z2n4": {
+        "status": "built",
+        "module": "ai_memory_hierarchy",
+        "title": "How a 1953 Word Game Explains AI Memory"
+      },
+      "UGyTimVObus": {
+        "status": "built",
+        "module": "model_psychometrics",
+        "title": "From Nazi Psychology to AI Auditing: Inside the System I Built"
+      },
+      "Wtf6E-fwuwI": {
+        "status": "built",
+        "module": "model_psychometrics",
+        "title": "Becoming an AI Psychologist: A data Pipeline for Researchers."
+      },
+      "yEa6dgh7wuc": {
+        "status": "built",
+        "module": "video_as_code",
+        "title": "Video as Code: My AI Animation Stack"
       }
     },
     "matthew_berman": {},
