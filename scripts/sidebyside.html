@@ -4,14 +4,13 @@
 <meta charset="utf-8">
 <title>ENI × Hermes — Side-by-Side</title>
 <style>
-  :root{
-    --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#e6edf3; --muted:#8b949e;
-    --green:#3fb950; --red:#f85149; --amber:#d29922; --blue:#58a6ff;
-  }
+  :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--fg:#e6edf3;--muted:#8b949e;
+        --green:#3fb950;--red:#f85149;--amber:#d29922;--blue:#58a6ff;}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,Segoe UI,Roboto,monospace;background:var(--bg);color:var(--fg)}
-  header{display:flex;align-items:center;gap:14px;padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
   header h1{font-size:16px;margin:0;letter-spacing:.5px}
+  .pills{display:flex;gap:8px;margin-left:8px}
   .pill{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
   .pill.up{color:var(--green);border-color:var(--green)}
   .pill.down{color:var(--red);border-color:var(--red)}
@@ -19,59 +18,69 @@
   .tab{cursor:pointer;padding:7px 16px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);font-size:13px}
   .tab:hover{color:var(--fg)}
   .tab.active{background:#1f2633;color:var(--fg);border-color:var(--line)}
-  .frame-wrap{position:relative;height:calc(100vh - 110px)}
-  iframe{width:100%;height:100%;border:0;background:#fff}
-  .frame-wrap.loading iframe{opacity:0}
-  .loadmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;gap:10px}
-  .hf{background:#fff}
-  .go{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
+  .frame-wrap{position:relative;height:calc(100vh - 112px)}
+  iframe{width:100%;height:100%;border:0}
+  .go{margin-left:auto;display:flex;gap:10px;font-size:12px;color:var(--muted)}
   a{color:var(--blue);text-decoration:none}
+  .note{font-size:11px;color:var(--amber);margin-left:6px}
 </style>
 </head>
 <body>
 <header>
   <h1>ENI <span style="color:var(--blue)">×</span> Hermes — Side-by-Side Build</h1>
-  <span class="pill" id="pill-eni">ENI …</span>
-  <span class="pill" id="pill-mp">Multiplayer …</span>
-  <span class="pill" id="pill-trl">Controller …</span>
-  <span class="pill" id="pill-hermes">Hermes …</span>
-  <div class="go"><a href="#" id="open-mp">board</a> · <a href="#" id="open-eni">ENI</a> · <a href="#" id="open-hermes">Hermes</a></div>
+  <div class="pills">
+    <span class="pill" id="pill-hermes">Hermes …</span>
+    <span class="pill" id="pill-eni">ENI …</span>
+    <span class="pill" id="pill-mp">Multiplayer …</span>
+    <span class="pill" id="pill-ctrl">Controller …</span>
+  </div>
+  <div class="go"><a href="#" id="open-eni">ENI</a> · <a href="#" id="open-hermes">Hermes</a> · <a href="#" id="open-mp">board</a></div>
 </header>
 
 <div class="tabs">
-  <button class="tab active" data-tab="hermes">Hermes Dashboard</button>
-  <button class="tab" data-tab="eni">ENI Platform</button>
+  <button class="tab active" data-tab="eni">ENI Platform</button>
+  <button class="tab" data-tab="hermes">Hermes</button>
   <button class="tab" data-tab="mp">Multiplayer Board</button>
-  <button class="tab" data-tab="ctrl">One-Prompt (-Program) API</button>
+  <button class="tab" data-tab="ctrl">One-Prompt API</button>
 </div>
 
-<div class="frame-wrap loading" id="wrap-hermes"><div class="loadmsg">loading Hermes…</div><iframe class="hf" src="http://127.0.0.1:9119"></iframe></div>
-<div class="frame-wrap loading" id="wrap-eni" style="display:none"><div class="loadmsg">loading ENI…</div><iframe src="http://127.0.0.1:8421"></iframe></div>
-<div class="frame-wrap loading" id="wrap-mp" style="display:none"><div class="loadmsg">loading Multiplayer board…</div><iframe src="http://127.0.0.1:8788/api/board"></iframe></div>
-<div class="frame-wrap loading" id="wrap-ctrl" style="display:none"><div class="loadmsg">loading Controller API…</div><iframe src="http://127.0.0.1:8913/health"></iframe></div>
+<div class="frame-wrap" id="wrap-eni"><iframe id="f-eni"></iframe></div>
+<div class="frame-wrap" id="wrap-hermes" style="display:none"><iframe id="f-hermes" class="hf"></iframe></div>
+<div class="frame-wrap" id="wrap-mp" style="display:none"><iframe id="f-mp" class="hf"></iframe></div>
+<div class="frame-wrap" id="wrap-ctrl" style="display:none"><iframe id="f-ctrl" class="hf"></iframe></div>
 
 <script>
-const TABS={name:["hermes","eni","mp","ctrl"],map:{hermes:'wrap-hermes',eni:'wrap-eni',mp:'wrap-mp',ctrl:'wrap-ctrl'}};
+const MAP={eni:'wrap-eni',hermes:'wrap-hermes',mp:'wrap-mp',ctrl:'wrap-ctrl'};
+const SRC={eni:'http://127.0.0.1:8421',hermes:'http://127.0.0.1:8765/docs',mp:'http://127.0.0.1:8788/api/board',ctrl:'http://127.0.0.1:8913/health'};
+// default hermes src depends on live mode
+function setSrcs(status){
+  const hp = status && status.hermes ? status.hermes.port : 8765;
+  if(hp===9119){SRC.hermes='http://127.0.0.1:9119';document.querySelector('#pill-hermes').textContent='Hermes (dash)';}
+  else {SRC.hermes='http://127.0.0.1:8765/docs';}
+  for(const k in SRC){document.getElementById('f-'+k).src=SRC[k];}
+}
+function setPill(id,up,label){const e=document.getElementById('pill-'+id);e.textContent=(up?'● ':'○ ')+label;e.className='pill '+(up?'up':'down');}
+async function poll(){
+  try{
+    const r=await fetch('/api/status',{cache:'no-store'});
+    const s=await r.json();
+    setPill('hermes',s.hermes.up,'Hermes');
+    setPill('eni',s.eni_dashboard.up,'ENI');
+    setPill('mp',s.multiplayer.up,'Multiplayer');
+    setPill('ctrl',s.controller.up,'Controller');
+    return s;
+  }catch(e){setPill('hermes',false,'Hermes');setPill('eni',false,'ENI');setPill('mp',false,'Multiplayer');setPill('ctrl',false,'Controller');}
+}
+// first load: get status so hermes src + pills are right
+(async()=>{const s=await poll();setSrcs(s);})();
+setInterval(poll,3000);
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-  for(const k in TABS.map){document.getElementById(TABS.map[k]).style.display=(k===b.dataset.tab)?'':'none';}
-  const w=document.getElementById(TABS.map[b.dataset.tab]);w.classList.remove('loading');
+  for(const k in MAP){document.getElementById(MAP[k]).style.display=(k===b.dataset.tab)?'':'none';}
 });
-function flash(pill,ok){const e=document.getElementById(pill);e.textContent=ok?'● up':'○ down';e.className='pill '+(ok?'up':'down');}
-setInterval(async()=>{
-  const h=async url=>{try{const r=await fetch(url,{cache:'no-store'});return r.ok;}catch(e){return false;}};
-  flash('pill-hermes',await h('http://127.0.0.1:9119/health'));
-  flash('pill-mp',await h('http://127.0.0.1:8788/health'));
-  flash('pill-trl',await h('http://127.0.0.1:8913/health'));
-  flash('pill-eni',await h('http://127.0.0.1:8421/api/health'));
-},3000);
-document.getElementById('open-mp').href='http://127.0.0.1:8788/api/board';
 document.getElementById('open-eni').href='http://127.0.0.1:8421';
-document.getElementById('open-hermes').href='http://127.0.0.1:9119';
-// mark each iframe loaded
-['wrap-hermes','wrap-eni','wrap-mp','wrap-ctrl'].forEach(id=>{
-  const w=document.getElementById(id);w.querySelector('iframe').addEventListener('load',()=>w.classList.remove('loading'));
-});
+document.getElementById('open-hermes').href='http://127.0.0.1:8765/docs';
+document.getElementById('open-mp').href='http://127.0.0.1:8788/api/board';
 </script>
 </body>
 </html>
