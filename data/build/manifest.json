@@ -13,7 +13,10 @@
     "ai_education_guardrails",
     "agentic_rag",
     "human_in_the_loop",
-    "engineering_tradeoff"
+    "engineering_tradeoff",
+    "production_hardening",
+    "codegen_audit",
+    "procurement_bid_automation"
   ],
   "transcripts": {
     "JEVanClief": {
@@ -144,6 +147,36 @@
       "-YursW-UIoY": {
         "status": "built",
         "module": "engineering_tradeoff"
+      },
+      "ezRtp6K6zwE": {
+        "status": "built",
+        "module": "production_hardening",
+        "title": "Two Engineers on Why Your Agent Demo Will Not Survive Production"
+      },
+      "_rtyhVD4v4A": {
+        "status": "built",
+        "module": "codegen_audit",
+        "title": "One of These AI Coding Tools Failed Completely"
+      },
+      "nWbM9Ye2sLw": {
+        "status": "built",
+        "module": "codegen_audit",
+        "title": "Open Claw Vibe Coded an App. Real Developers Read Every Line and Tell You What They Found."
+      },
+      "5B6W2OGfxq0": {
+        "status": "built",
+        "module": "codegen_audit",
+        "title": "How One Line of Python Triggers 12,000 Lines of Code"
+      },
+      "I-enT6szVQQ": {
+        "status": "built",
+        "module": "procurement_bid_automation",
+        "title": "I Used AI to Fix Government Contracting"
+      },
+      "AjzBaEkWkNA": {
+        "status": "built",
+        "module": "procurement_bid_automation",
+        "title": "AI Agency and Consulting Models are DEAD"
       }
     },
     "matthew_berman": {},
