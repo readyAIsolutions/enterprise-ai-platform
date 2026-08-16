@@ -506,6 +506,36 @@ modules:
       experiment_store: "data/mlops_experiments.sqlite"
       drift_threshold: 0.05
 
+  ai_coding_harness:
+    enabled: true
+    priority: 20
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      context_file: "CLAUDE.md"
+      default_scaffold: ["scripts", "src", "assets", "out"]
+
+  ai_systems_thinking:
+    enabled: true
+    priority: 21
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      eval_depth: "full"
+      default_overall_read: "sound"
+
+  ai_education_guardrails:
+    enabled: true
+    priority: 22
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      policy_mode: "assistive"
+      detection_sensitivity: "medium"
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL

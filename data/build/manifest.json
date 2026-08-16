@@ -1,22 +1,139 @@
 {
   "version": 1,
   "note": "Transcript -> module build ledger. Covers JEVanClief + matthew_berman (paper_feeds/context_routing/shared_workspace are research/rebuilt modules, tracked separately). Status: pulled / built / skipped(no-reusable-value).",
-  "built_modules": ["context_routing", "shared_workspace", "paper_feeds", "group_chat_orchestration", "second_brain", "automation_triage"],
+  "built_modules": [
+    "context_routing",
+    "shared_workspace",
+    "paper_feeds",
+    "group_chat_orchestration",
+    "second_brain",
+    "automation_triage",
+    "ai_coding_harness",
+    "ai_systems_thinking",
+    "ai_education_guardrails"
+  ],
   "transcripts": {
     "JEVanClief": {
-      "MkN-ss2Nl10": {"title": "Stop Building AI Agents. Use This Folder System Instead.", "status": "built", "module": "context_routing"},
-      "SjlCJIU9ODs": {"title": "The Ladder That Explains Every AI Failure (And How to Avoid Them)", "status": "built", "module": "automation_triage"},
-      "956DPSPX4wg": {"title": "You're Automating The Wrong Layer (How 30,000 People Build AI Without Frameworks)", "status": "built", "module": "automation_triage"},
-      "ZMDXs59Ntjc": {"title": "The Real Skill in AI: Knowing What Not to Automate", "status": "built", "module": "automation_triage"},
-      "AZ1l-oaD3tk": {"title": "Afternoon Tea #2: Stop Building Production-Ready AI. Solve for One Client First", "status": "built", "module": "automation_triage"},
-      "qzVXfVvXbXU": {"title": "We Built Multiplayer AI, No New Agents Needed", "status": "built", "module": "shared_workspace"},
-      "rWHHnIR30DE": {"title": "Group Chat AI is game changing (How you can get ahead of the AI curve)", "status": "built", "module": "group_chat_orchestration"},
-      "0fCQ-4J_jzk": {"title": "Why I Stopped Building AI Agents and Started Using Claude Cowork", "status": "built", "module": "group_chat_orchestration"},
-      "pdoSAWWCDO8": {"title": "Claude Design Full Breakdown: GitHub Imports, Skills, and Local Model Handoff", "status": "built", "module": "group_chat_orchestration"},
-      "RZ0AcCLVPFA": {"title": "AI is the New Compiler (Why 'Learning AI' is the Wrong Goal)", "status": "built", "module": "group_chat_orchestration"},
-      "-CUsfao6m7E": {"title": "Your Second Brain Is Not a Notes App", "status": "built", "module": "second_brain"},
-      "mme027WZhgo": {"title": "Van Squared: A Free Local AI Model Labeled a 26-Year Archive", "status": "built", "module": "second_brain"},
-      "lDXCkx3Nla8": {"title": "AI Since 2011: The Ideas That Outlive Every Model", "status": "built", "module": "second_brain"}
+      "MkN-ss2Nl10": {
+        "title": "Stop Building AI Agents. Use This Folder System Instead.",
+        "status": "built",
+        "module": "context_routing"
+      },
+      "SjlCJIU9ODs": {
+        "title": "The Ladder That Explains Every AI Failure (And How to Avoid Them)",
+        "status": "built",
+        "module": "automation_triage"
+      },
+      "956DPSPX4wg": {
+        "title": "You're Automating The Wrong Layer (How 30,000 People Build AI Without Frameworks)",
+        "status": "built",
+        "module": "automation_triage"
+      },
+      "ZMDXs59Ntjc": {
+        "title": "The Real Skill in AI: Knowing What Not to Automate",
+        "status": "built",
+        "module": "automation_triage"
+      },
+      "AZ1l-oaD3tk": {
+        "title": "Afternoon Tea #2: Stop Building Production-Ready AI. Solve for One Client First",
+        "status": "built",
+        "module": "automation_triage"
+      },
+      "qzVXfVvXbXU": {
+        "title": "We Built Multiplayer AI, No New Agents Needed",
+        "status": "built",
+        "module": "shared_workspace"
+      },
+      "rWHHnIR30DE": {
+        "title": "Group Chat AI is game changing (How you can get ahead of the AI curve)",
+        "status": "built",
+        "module": "group_chat_orchestration"
+      },
+      "0fCQ-4J_jzk": {
+        "title": "Why I Stopped Building AI Agents and Started Using Claude Cowork",
+        "status": "built",
+        "module": "group_chat_orchestration"
+      },
+      "pdoSAWWCDO8": {
+        "title": "Claude Design Full Breakdown: GitHub Imports, Skills, and Local Model Handoff",
+        "status": "built",
+        "module": "group_chat_orchestration"
+      },
+      "RZ0AcCLVPFA": {
+        "title": "AI is the New Compiler (Why 'Learning AI' is the Wrong Goal)",
+        "status": "built",
+        "module": "group_chat_orchestration"
+      },
+      "-CUsfao6m7E": {
+        "title": "Your Second Brain Is Not a Notes App",
+        "status": "built",
+        "module": "second_brain"
+      },
+      "mme027WZhgo": {
+        "title": "Van Squared: A Free Local AI Model Labeled a 26-Year Archive",
+        "status": "built",
+        "module": "second_brain"
+      },
+      "lDXCkx3Nla8": {
+        "title": "AI Since 2011: The Ideas That Outlive Every Model",
+        "status": "built",
+        "module": "second_brain"
+      },
+      "ozkx_eUfjY0": {
+        "title": "No Wix. No Squarespace. Just Claude Code and GitHub. (How I build and host websites from a prompt)",
+        "status": "built",
+        "module": "ai_coding_harness"
+      },
+      "rHDA0WMXzy4": {
+        "title": "Stop Copy-Pasting Into Claude. Install Claude Code and Actually Use It.",
+        "status": "built",
+        "module": "ai_coding_harness"
+      },
+      "izMBiWG3L24": {
+        "title": "SVG to React: Turning Illustrator Designs into Web Animations with Claude Code",
+        "status": "built",
+        "module": "ai_coding_harness"
+      },
+      "vyN7ITKcGXU": {
+        "title": "Claude Code + Remotion: Build Long-Form AI Animations from a Script",
+        "status": "built",
+        "module": "ai_coding_harness"
+      },
+      "NWyTsKTKka8": {
+        "title": "Systems Thinking for People Who Build With AI (HOUR AND A HALF LONG Webinar Recording)",
+        "status": "built",
+        "module": "ai_systems_thinking"
+      },
+      "jjV1ckgPzI0": {
+        "title": "I Charged $2000 For This AI Lecture (And I Underpriced It)",
+        "status": "built",
+        "module": "ai_systems_thinking"
+      },
+      "g3eWjeZPFiM": {
+        "title": "Life, Liberty and the pursuit of Artificial Intelligence",
+        "status": "built",
+        "module": "ai_systems_thinking"
+      },
+      "czIBNYeiAuw": {
+        "title": "AI in Academics: How NOT to Use It (Learning How Not to Use AI is The Most Important)",
+        "status": "built",
+        "module": "ai_education_guardrails"
+      },
+      "iY_j0VKimQI": {
+        "title": "AI Cheating in Class? Redefining What Challenging Means in Education",
+        "status": "built",
+        "module": "ai_education_guardrails"
+      },
+      "THQH6Uc6PNU": {
+        "title": "Perils of AI and Ed-Tech",
+        "status": "built",
+        "module": "ai_education_guardrails"
+      },
+      "wpM-c--FE04": {
+        "title": "Artificial Minds, Real Ideas Ep. 1: Who Controls EdTech?",
+        "status": "built",
+        "module": "ai_education_guardrails"
+      }
     },
     "matthew_berman": {}
   }
