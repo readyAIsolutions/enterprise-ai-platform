@@ -50,7 +50,7 @@ overall systems-health read (`excellent / sound / remediable / fragile`).
 | Kernel registration | **PASS — True** | `'ai_systems_thinking' in _MODULE_REGISTRY` → `True` |
 | Lifecycle (initialize / health_check / shutdown) | PASS | module tests |
 | No network / no heavy deps in core | PASS | stdlib only (`dataclasses`, `enum`, `typing`) |
-| `git rev-parse HEAD` | **`25701e3ff53698c948da7e19e3ed9212186bf3ef`** | verified below |
+| `git rev-parse HEAD` | **`4c7b59e2ff3e4ab68757e4b9a4e32372efa44eb6`** | verified below |
 
 ## Commit
 
@@ -59,7 +59,7 @@ git add modules/ai_systems_thinking docs/STATUS_DEMIURGE_AI_SYSTEMS_THINKING.md
 git commit -m 'feat(ai_systems_thinking): systems-thinking evaluation framework for AI designs from JE Van Clief transcripts'
 ```
 
-**Commit SHA:** `25701e3ff53698c948da7e19e3ed9212186bf3ef` on branch `upgrade/demiurge-enterprise-boost`.
+**Commit SHA:** `4c7b59e2ff3e4ab68757e4b9a4e32372efa44eb6` on branch `upgrade/demiurge-enterprise-boost`.
 
 ## UNVALIDATED (honest)
 
