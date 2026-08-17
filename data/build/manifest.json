@@ -7444,6 +7444,24 @@
         "status": "evaluated-skip",
         "module": null,
         "reason": "expository model/benchmark announcement recap (news/opinion), no reusable engineering technique"
+      },
+      "Gt1yNJ180Cs": {
+        "title": "NVIDIA's New AI: The King is Here!",
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "expository model/benchmark announcement recap (news/opinion), no reusable engineering technique"
+      },
+      "QDfE0HwDBo8": {
+        "title": "OpenAI\u2019s ChatGPT: 7 Incredible New Features!",
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "expository model/benchmark announcement recap (news/opinion), no reusable engineering technique"
+      },
+      "TixUHjIVovE": {
+        "title": "NVIDIA\u2019s Tech: Impossible Water Physics!",
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "expository model/benchmark announcement recap (news/opinion), no reusable engineering technique"
       }
     },
     "rayfernando": {},
