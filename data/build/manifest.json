@@ -7168,6 +7168,24 @@
         "status": "evaluated-skip",
         "module": null,
         "reason": "TwoMinutePapers research-paper recap/explainer (expository news content); no reusable, testable engineering technique"
+      },
+      "6DVng5JVuhI": {
+        "title": "Image Matting With Deep Neural Networks | Two Minute Papers #209",
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "TwoMinutePapers research-paper recap/explainer (expository news content); no reusable, testable engineering technique"
+      },
+      "NEscK5RCtlo": {
+        "title": "Terrain Generation With Deep Learning | Two Minute Papers #208",
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "TwoMinutePapers research-paper recap/explainer (expository news content); no reusable, testable engineering technique"
+      },
+      "VrgYtFhVGmg": {
+        "title": "NVIDIA's AI Dreams Up Imaginary Celebrities!",
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "TwoMinutePapers research-paper recap/explainer (expository news content); no reusable, testable engineering technique"
       }
     }
   }
