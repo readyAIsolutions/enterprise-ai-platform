@@ -7156,6 +7156,18 @@
         "status": "evaluated-skip",
         "module": null,
         "reason": "TwoMinutePapers research-paper recap/explainer (expository news content = \"This Neural Network Optimizes Itself | Two Minute Papers #212\"); no reusable, testable engineering technique"
+      },
+      "1zvohULpe_0": {
+        "title": "How Do Neural Networks See The World? Pt 2. | Two Minute Papers #211",
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "TwoMinutePapers research-paper recap/explainer (expository news content); no reusable, testable engineering technique"
+      },
+      "M_eaS7X-mIw": {
+        "title": "Meta Learning Shared Hierarchies | Two Minute Papers #210",
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "TwoMinutePapers research-paper recap/explainer (expository news content); no reusable, testable engineering technique"
       }
     }
   }
