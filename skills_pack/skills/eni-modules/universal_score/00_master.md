@@ -1,6 +1,6 @@
 # ICM module map: universal_score
 
-- Category: Legacy Core (priority 60)
+- Category: Legacy Core (priority 69)
 - Version: 1.0.0
 - Purpose: ENI Universal Build Score module.
 - API: ENI Universal Build Score module.

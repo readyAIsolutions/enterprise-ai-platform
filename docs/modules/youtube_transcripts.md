@@ -1,6 +1,6 @@
 # Module: `youtube_transcripts`
 
-- Category: Legacy Core · priority 62
+- Category: Legacy Core · priority 72
 - Version: 1.0.0
 - Purpose: YouTube transcript puller with PIA VPN IP rotation.
 - Skill: `eni-module-youtube_transcripts` (ICM stages) in skills_pack/skills/eni-modules/youtube_transcripts/

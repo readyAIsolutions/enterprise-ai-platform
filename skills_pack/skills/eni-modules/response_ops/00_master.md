@@ -1,6 +1,6 @@
 # ICM module map: response_ops
 
-- Category: Legacy Core (priority 47)
+- Category: Legacy Core (priority 55)
 - Version: 1.0.0
 - Purpose: ENI Response Ops Module — self-healing fleet supervisor + ICM routing hook.
 - API: ENI Response Ops Module — self-healing fleet supervisor + ICM routing hook.

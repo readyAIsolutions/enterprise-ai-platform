@@ -1,6 +1,6 @@
 # Module: `memory`
 
-- Category: Legacy Core · priority 34
+- Category: Legacy Core · priority 39
 - Version: 1.0.0
 - Purpose: ENI Agent Memory OS Module.
 - Skill: `eni-module-memory` (ICM stages) in skills_pack/skills/eni-modules/memory/

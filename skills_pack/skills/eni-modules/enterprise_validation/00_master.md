@@ -1,6 +1,6 @@
 # ICM module map: enterprise_validation
 
-- Category: Legacy Core (priority 22)
+- Category: Legacy Core (priority 25)
 - Version: 1.0.0
 - Purpose: Enterprise Validation & Certification OS — Module Entry Point
 - API: engine, health_check, initialize, shutdown, validate_all, validate_module

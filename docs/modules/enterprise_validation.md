@@ -1,6 +1,6 @@
 # Module: `enterprise_validation`
 
-- Category: Legacy Core · priority 22
+- Category: Legacy Core · priority 25
 - Version: 1.0.0
 - Purpose: Enterprise Validation & Certification OS — Module Entry Point
 - Skill: `eni-module-enterprise_validation` (ICM stages) in skills_pack/skills/eni-modules/enterprise_validation/

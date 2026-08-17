@@ -1,6 +1,6 @@
 # ICM module map: mlops_lifecycle
 
-- Category: Legacy Core (priority 35)
+- Category: Legacy Core (priority 40)
 - Version: 1.0.0
 - Purpose: ENI Enterprise MLOps/LLMOps Lifecycle Module — Complete Agent Experiment Lifecycle Management
 - API: ENI Enterprise MLOps/LLMOps Lifecycle Module — Complete Agent Experiment Lifecycle Management

@@ -1,6 +1,6 @@
 # ICM module map: look_and_feel
 
-- Category: Legacy Core (priority 32)
+- Category: Legacy Core (priority 37)
 - Version: 1.0.0
 - Purpose: Enterprise Platform — Look & Feel Registry Module v1.0.0
 - API: get_module, health_check, initialize, list_modules, run_cli, search_by_tag, shutdown

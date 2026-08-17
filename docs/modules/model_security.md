@@ -1,6 +1,6 @@
 # Module: `model_security`
 
-- Category: Legacy Core · priority 38
+- Category: Legacy Core · priority 43
 - Version: 1.0.0
 - Purpose: ENI Model Security OS Module.
 - Skill: `eni-module-model_security` (ICM stages) in skills_pack/skills/eni-modules/model_security/

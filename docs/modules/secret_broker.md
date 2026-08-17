@@ -1,6 +1,6 @@
 # Module: `secret_broker`
 
-- Category: Legacy Core · priority 49
+- Category: Legacy Core · priority 57
 - Version: 1.0.0
 - Purpose: Enterprise Secret Broker OS Module — local-first secret handling.
 - Skill: `eni-module-secret_broker` (ICM stages) in skills_pack/skills/eni-modules/secret_broker/

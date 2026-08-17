@@ -1,6 +1,6 @@
 # ICM module map: kb_bridge
 
-- Category: Legacy Core (priority 29)
+- Category: Legacy Core (priority 34)
 - Version: 1.0.0
 - Purpose: ENI Knowledge Base OS Module
 - API: bridge, health_check, health_checker, initialize, set_event_bus, shutdown

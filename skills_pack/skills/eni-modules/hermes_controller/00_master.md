@@ -1,6 +1,6 @@
 # ICM module map: hermes_controller
 
-- Category: Legacy Core (priority 26)
+- Category: Legacy Core (priority 31)
 - Version: 1.0.0
 - Purpose: Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent.
 - API: facade, health_check, initialize, shutdown

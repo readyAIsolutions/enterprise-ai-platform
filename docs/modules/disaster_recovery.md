@@ -1,6 +1,6 @@
 # Module: `disaster_recovery`
 
-- Category: Legacy Core · priority 21
+- Category: Legacy Core · priority 24
 - Version: 1.0.0
 - Purpose: Disaster Recovery OS Module
 - Skill: `eni-module-disaster_recovery` (ICM stages) in skills_pack/skills/eni-modules/disaster_recovery/

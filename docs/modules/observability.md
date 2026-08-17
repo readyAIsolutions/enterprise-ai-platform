@@ -1,6 +1,6 @@
 # Module: `observability`
 
-- Category: Legacy Core · priority 39
+- Category: Legacy Core · priority 45
 - Version: 1.0.0
 - Purpose: Observability — real, consolidated fleet health + Prometheus export.
 - Skill: `eni-module-observability` (ICM stages) in skills_pack/skills/eni-modules/observability/

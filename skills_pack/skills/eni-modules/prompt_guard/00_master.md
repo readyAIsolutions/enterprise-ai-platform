@@ -1,6 +1,6 @@
 # ICM module map: prompt_guard
 
-- Category: Legacy Core (priority 42)
+- Category: Legacy Core (priority 50)
 - Version: 1.0.0
 - Purpose: Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding.
 - API: Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding.

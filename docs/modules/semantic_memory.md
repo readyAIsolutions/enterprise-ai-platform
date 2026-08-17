@@ -1,6 +1,6 @@
 # Module: `semantic_memory`
 
-- Category: Legacy Core · priority 51
+- Category: Legacy Core · priority 59
 - Version: 2.0.0
 - Purpose: ENI Semantic Memory OS Module.
 - Skill: `eni-module-semantic_memory` (ICM stages) in skills_pack/skills/eni-modules/semantic_memory/

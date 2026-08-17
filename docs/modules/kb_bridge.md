@@ -1,6 +1,6 @@
 # Module: `kb_bridge`
 
-- Category: Legacy Core · priority 29
+- Category: Legacy Core · priority 34
 - Version: 1.0.0
 - Purpose: ENI Knowledge Base OS Module
 - Skill: `eni-module-kb_bridge` (ICM stages) in skills_pack/skills/eni-modules/kb_bridge/

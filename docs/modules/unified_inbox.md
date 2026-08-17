@@ -1,6 +1,6 @@
 # Module: `unified_inbox`
 
-- Category: Legacy Core · priority 58
+- Category: Legacy Core · priority 67
 - Version: 1.0.0
 - Purpose: Enterprise Platform Unified Inbox module package.
 - Skill: `eni-module-unified_inbox` (ICM stages) in skills_pack/skills/eni-modules/unified_inbox/

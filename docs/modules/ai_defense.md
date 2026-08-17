@@ -1,6 +1,6 @@
 # Module: `ai_defense`
 
-- Category: Legacy Core · priority 13
+- Category: Legacy Core · priority 14
 - Version: 1.0.0
 - Purpose: ENI Enterprise AI Defense OS Module.
 - Skill: `eni-module-ai_defense` (ICM stages) in skills_pack/skills/eni-modules/ai_defense/

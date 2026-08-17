@@ -1,6 +1,6 @@
 # Module: `vuln_scanner`
 
-- Category: Legacy Core · priority 61
+- Category: Legacy Core · priority 71
 - Version: 1.0.0
 - Purpose: ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style).
 - Skill: `eni-module-vuln_scanner` (ICM stages) in skills_pack/skills/eni-modules/vuln_scanner/

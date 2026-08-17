@@ -1,6 +1,6 @@
 # ICM module map: swarm_network
 
-- Category: Legacy Core (priority 54)
+- Category: Legacy Core (priority 63)
 - Version: 2.0.0
 - Purpose: Swarm Network Optimization OS — Enterprise Module
 - API: bridge, health_check, initialize, shutdown

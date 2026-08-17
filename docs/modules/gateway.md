@@ -1,6 +1,6 @@
 # Module: `gateway`
 
-- Category: Legacy Core · priority 24
+- Category: Legacy Core · priority 29
 - Version: 1.0.0
 - Purpose: ENI Multi-Gateway Remote Control & Automations Module
 - Skill: `eni-module-gateway` (ICM stages) in skills_pack/skills/eni-modules/gateway/

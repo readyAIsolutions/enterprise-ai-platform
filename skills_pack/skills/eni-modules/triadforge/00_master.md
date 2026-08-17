@@ -1,6 +1,6 @@
 # ICM module map: triadforge
 
-- Category: Legacy Core (priority 57)
+- Category: Legacy Core (priority 66)
 - Version: 1.0.0
 - Purpose: ENI TRIAD FORGE Module — White/Grey/Black Box security testing, as a kernel module.
 - API: add_adversary_target, add_source_target, add_web_target, export_sarif, fix_snippet, health_check, initialize, list_findings

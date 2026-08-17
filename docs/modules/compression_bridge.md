@@ -1,6 +1,6 @@
 # Module: `compression_bridge`
 
-- Category: Legacy Core · priority 17
+- Category: Legacy Core · priority 19
 - Version: 3.0.0
 - Purpose: Enterprise Platform — Compression Bridge Module v3.0.0
 - Skill: `eni-module-compression_bridge` (ICM stages) in skills_pack/skills/eni-modules/compression_bridge/

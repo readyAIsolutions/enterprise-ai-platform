@@ -1,6 +1,6 @@
 # ICM module map: artifact_pipeline
 
-- Category: Legacy Core (priority 14)
+- Category: Legacy Core (priority 15)
 - Version: 1.0.0
 - Purpose: Artifact Pipeline — navigate & organize all creative works (no LLM).
 - API: add, advance, all_renders, browse, derive, group_by, health, health_check

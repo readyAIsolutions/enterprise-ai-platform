@@ -1,6 +1,6 @@
 # Module: `privacy_data`
 
-- Category: Legacy Core · priority 40
+- Category: Legacy Core · priority 48
 - Version: 1.0.0
 - Purpose: Privacy & Data Governance OS Module
 - Skill: `eni-module-privacy_data` (ICM stages) in skills_pack/skills/eni-modules/privacy_data/

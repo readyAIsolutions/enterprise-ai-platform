@@ -1,6 +1,6 @@
 # Module: `customer_experience`
 
-- Category: Legacy Core · priority 19
+- Category: Legacy Core · priority 22
 - Version: 1.0.0
 - Purpose: Customer Experience OS Module.
 - Skill: `eni-module-customer_experience` (ICM stages) in skills_pack/skills/eni-modules/customer_experience/

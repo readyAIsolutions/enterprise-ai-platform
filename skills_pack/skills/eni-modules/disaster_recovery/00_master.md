@@ -1,6 +1,6 @@
 # ICM module map: disaster_recovery
 
-- Category: Legacy Core (priority 21)
+- Category: Legacy Core (priority 24)
 - Version: 1.0.0
 - Purpose: Disaster Recovery OS Module
 - API: health_check, initialize, shutdown

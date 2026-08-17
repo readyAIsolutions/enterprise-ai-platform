@@ -1,6 +1,6 @@
 # Module: `safety_governance`
 
-- Category: Legacy Core · priority 48
+- Category: Legacy Core · priority 56
 - Version: 1.0.0
 - Purpose: ENI Enterprise — Safety & Governance OS v1.0.0
 - Skill: `eni-module-safety_governance` (ICM stages) in skills_pack/skills/eni-modules/safety_governance/

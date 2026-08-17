@@ -1,6 +1,6 @@
 # ICM module map: cost_meter
 
-- Category: Legacy Core (priority 18)
+- Category: Legacy Core (priority 20)
 - Version: 1.0.0
 - Purpose: Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4).
 - API: add_usage, health_check, initialize, meter, policy, remaining, resolve, set_budget

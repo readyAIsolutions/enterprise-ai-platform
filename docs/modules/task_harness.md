@@ -1,6 +1,6 @@
 # Module: `task_harness`
 
-- Category: Legacy Core · priority 55
+- Category: Legacy Core · priority 64
 - Version: 1.0.0
 - Purpose: ENI Task Harness OS Module
 - Skill: `eni-module-task_harness` (ICM stages) in skills_pack/skills/eni-modules/task_harness/

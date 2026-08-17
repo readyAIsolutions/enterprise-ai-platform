@@ -1,6 +1,6 @@
 # Module: `model_router`
 
-- Category: Legacy Core · priority 37
+- Category: Legacy Core · priority 42
 - Version: 1.0.0
 - Purpose: ENI Model Router OS Module — enterprise model-routing / fallback gateway.
 - Skill: `eni-module-model_router` (ICM stages) in skills_pack/skills/eni-modules/model_router/

@@ -1,6 +1,6 @@
 # ICM module map: task_harness
 
-- Category: Legacy Core (priority 55)
+- Category: Legacy Core (priority 64)
 - Version: 1.0.0
 - Purpose: ENI Task Harness OS Module
 - API: harness, health_check, initialize, set_event_bus, shutdown

@@ -32,17 +32,22 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Claude Code Superior — Infrastructure Module v1.0.0 | agent_infra | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Agent OS Module — a unified AI agent operating sy | agent_os | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise — Claude Code Tools Module v2.0.0 | agent_tools | 01_intake, 03_drafting, 04_verification, 05_output |
+| agentic_workflow_builder — compose agentic workflows (Claude | agentic_workflow_builder | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise AI Defense OS Module. | ai_defense | 01_intake, 03_drafting, 04_verification, 05_output |
 | Artifact Pipeline — navigate & organize all creative works ( | artifact_pipeline | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Autonomous Agent Runtime Module -- Multi-provider LLM ab | autonomous_agent_runtime | 01_intake, 03_drafting, 04_verification, 05_output |
+| Claude Code UI Harness — Enterprise Module wrapper. | claude_code_ui_harness | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise Compliance OS Module. | compliance | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Platform — Compression Bridge Module v3.0.0 | compression_bridge | 01_intake, 03_drafting, 04_verification, 05_output |
 | Cost Meter — per-tenant cost metering + fractional-reasoning | cost_meter | 01_intake, 03_drafting, 04_verification, 05_output |
+| custom_agent_workflows — build your OWN AI coding workflows  | custom_agent_workflows | 01_intake, 03_drafting, 04_verification, 05_output |
 | Customer Experience OS Module. | customer_experience | 01_intake, 03_drafting, 04_verification, 05_output |
 | Developer Experience OS Module | developer_experience | 01_intake, 03_drafting, 04_verification, 05_output |
 | Disaster Recovery OS Module | disaster_recovery | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Validation & Certification OS — Module Entry Poin | enterprise_validation | 01_intake, 03_drafting, 04_verification, 05_output |
+| error_correction platform module. | error_correction | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Eval Gate OS Module — automated LLM evaluation gates (lo | eval_gate | 01_intake, 03_drafting, 04_verification, 05_output |
+| folder_agency_system — a folder/org-structure system that or | folder_agency_system | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Multi-Gateway Remote Control & Automations Module | gateway | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Guardrails OS Module. | guardrails | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Hermes Controller OS Module — autonomous controll | hermes_controller | 01_intake, 03_drafting, 04_verification, 05_output |
@@ -58,7 +63,10 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Enterprise Model Miner OS Module — scan/rip local model trai | model_miner | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Model Router OS Module — enterprise model-routing / fall | model_router | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Model Security OS Module. | model_security | 01_intake, 03_drafting, 04_verification, 05_output |
+| multiplayer_agent_triage — a Platform Kernel module for tria | multiplayer_agent_triage | 01_intake, 03_drafting, 04_verification, 05_output |
 | Observability — real, consolidated fleet health + Prometheus | observability | 01_intake, 03_drafting, 04_verification, 05_output |
+| Position-addressed memory — *folder-as-memory* for AI contex | position_addressed_memory | 01_intake, 03_drafting, 04_verification, 05_output |
+| prd_audit — PRD-gated build workflow: write the PRD, audit i | prd_audit | 01_intake, 03_drafting, 04_verification, 05_output |
 | Privacy & Data Governance OS Module | privacy_data | 01_intake, 03_drafting, 04_verification, 05_output |
 | Prompt & Context Management OS Module | prompt_context | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Prompt Guard OS Module — injection / jailbreak /  | prompt_guard | 01_intake, 03_drafting, 04_verification, 05_output |
@@ -72,6 +80,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | ENI Enterprise Secret Rotation OS Module. | secret_rotation | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Semantic Memory OS Module. | semantic_memory | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Skill Factory Module — Meta-Skill Generator / Registry / | skill_factory | 01_intake, 03_drafting, 04_verification, 05_output |
+| slash_workflow — Plan->Implement->Validate AI-coding workflo | slash_workflow | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Swarm Enterprise Module v5.0.0 | swarm_bridge | 01_intake, 03_drafting, 04_verification, 05_output |
 | Swarm Network Optimization OS — Enterprise Module | swarm_network | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Task Harness OS Module | task_harness | 01_intake, 03_drafting, 04_verification, 05_output |
@@ -80,6 +89,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Enterprise Platform Unified Inbox module package. | unified_inbox | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Unified Work System Module | unified_work_system | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Universal Build Score module. | universal_score | 01_intake, 03_drafting, 04_verification, 05_output |
+| voice_agent_hub — voice-driven orchestration of coding agent | voice_agent_hub | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Vuln Scanner OS Module — offline LLM vulnerability scann | vuln_scanner | 01_intake, 03_drafting, 04_verification, 05_output |
 | YouTube transcript puller with PIA VPN IP rotation. | youtube_transcripts | 01_intake, 03_drafting, 04_verification, 05_output |
 

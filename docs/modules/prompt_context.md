@@ -1,6 +1,6 @@
 # Module: `prompt_context`
 
-- Category: Legacy Core · priority 41
+- Category: Legacy Core · priority 49
 - Version: 1.0.0
 - Purpose: Prompt & Context Management OS Module
 - Skill: `eni-module-prompt_context` (ICM stages) in skills_pack/skills/eni-modules/prompt_context/

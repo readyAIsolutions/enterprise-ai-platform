@@ -1,6 +1,6 @@
 # Module: `secret_rotation`
 
-- Category: Legacy Core · priority 50
+- Category: Legacy Core · priority 58
 - Version: 1.1.0
 - Purpose: ENI Enterprise Secret Rotation OS Module.
 - Skill: `eni-module-secret_rotation` (ICM stages) in skills_pack/skills/eni-modules/secret_rotation/

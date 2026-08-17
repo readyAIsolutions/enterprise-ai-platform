@@ -1,6 +1,6 @@
 # Module: `threat_model`
 
-- Category: Legacy Core · priority 56
+- Category: Legacy Core · priority 65
 - Version: 1.0.0
 - Purpose: ENI Threat Model OS Module.
 - Skill: `eni-module-threat_model` (ICM stages) in skills_pack/skills/eni-modules/threat_model/

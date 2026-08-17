@@ -1,6 +1,6 @@
 # ICM module map: mcp_tools
 
-- Category: Legacy Core (priority 33)
+- Category: Legacy Core (priority 38)
 - Version: 1.0.0
 - Purpose: ENI MCP Tools Module — FastMCP-style tool registry & MCP serving layer.
 - API: call_tool, call_tool_async, get_tool, handle_request, health_check, initialize, list_tools, max_tools

@@ -1,6 +1,6 @@
 # ICM module map: unified_work_system
 
-- Category: Legacy Core (priority 59)
+- Category: Legacy Core (priority 68)
 - Version: 1.0.0
 - Purpose: ENI Unified Work System Module
 - API: check_consistency, health_check, initialize, render, set_event_bus, shutdown, store_memory, work_system

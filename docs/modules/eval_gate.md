@@ -1,6 +1,6 @@
 # Module: `eval_gate`
 
-- Category: Legacy Core · priority 23
+- Category: Legacy Core · priority 27
 - Version: 1.0.0
 - Purpose: ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline).
 - Skill: `eni-module-eval_gate` (ICM stages) in skills_pack/skills/eni-modules/eval_gate/

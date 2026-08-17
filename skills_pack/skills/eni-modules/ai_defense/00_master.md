@@ -1,6 +1,6 @@
 # ICM module map: ai_defense
 
-- Category: Legacy Core (priority 13)
+- Category: Legacy Core (priority 14)
 - Version: 1.0.0
 - Purpose: ENI Enterprise AI Defense OS Module.
 - API: ENI Enterprise AI Defense OS Module.

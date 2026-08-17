@@ -1,6 +1,6 @@
 # ICM module map: observability
 
-- Category: Legacy Core (priority 39)
+- Category: Legacy Core (priority 45)
 - Version: 1.0.0
 - Purpose: Observability — real, consolidated fleet health + Prometheus export.
 - API: bind_registry, health_check, initialize, metrics, shutdown, snapshot

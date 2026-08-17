@@ -1,6 +1,6 @@
 # Module: `unified_work_system`
 
-- Category: Legacy Core · priority 59
+- Category: Legacy Core · priority 68
 - Version: 1.0.0
 - Purpose: ENI Unified Work System Module
 - Skill: `eni-module-unified_work_system` (ICM stages) in skills_pack/skills/eni-modules/unified_work_system/

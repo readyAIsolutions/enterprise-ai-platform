@@ -1,6 +1,6 @@
 # Module: `cost_meter`
 
-- Category: Legacy Core · priority 18
+- Category: Legacy Core · priority 20
 - Version: 1.0.0
 - Purpose: Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4).
 - Skill: `eni-module-cost_meter` (ICM stages) in skills_pack/skills/eni-modules/cost_meter/

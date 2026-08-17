@@ -1,6 +1,6 @@
 # Module: `mcp_tools`
 
-- Category: Legacy Core · priority 33
+- Category: Legacy Core · priority 38
 - Version: 1.0.0
 - Purpose: ENI MCP Tools Module — FastMCP-style tool registry & MCP serving layer.
 - Skill: `eni-module-mcp_tools` (ICM stages) in skills_pack/skills/eni-modules/mcp_tools/

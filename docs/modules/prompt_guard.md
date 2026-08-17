@@ -1,6 +1,6 @@
 # Module: `prompt_guard`
 
-- Category: Legacy Core · priority 42
+- Category: Legacy Core · priority 50
 - Version: 1.0.0
 - Purpose: Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding.
 - Skill: `eni-module-prompt_guard` (ICM stages) in skills_pack/skills/eni-modules/prompt_guard/

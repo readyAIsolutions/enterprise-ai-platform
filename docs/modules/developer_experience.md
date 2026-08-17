@@ -1,6 +1,6 @@
 # Module: `developer_experience`
 
-- Category: Legacy Core · priority 20
+- Category: Legacy Core · priority 23
 - Version: 1.0.0
 - Purpose: Developer Experience OS Module
 - Skill: `eni-module-developer_experience` (ICM stages) in skills_pack/skills/eni-modules/developer_experience/

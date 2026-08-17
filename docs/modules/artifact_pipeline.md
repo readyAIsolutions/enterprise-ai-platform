@@ -1,6 +1,6 @@
 # Module: `artifact_pipeline`
 
-- Category: Legacy Core · priority 14
+- Category: Legacy Core · priority 15
 - Version: 1.0.0
 - Purpose: Artifact Pipeline — navigate & organize all creative works (no LLM).
 - Skill: `eni-module-artifact_pipeline` (ICM stages) in skills_pack/skills/eni-modules/artifact_pipeline/

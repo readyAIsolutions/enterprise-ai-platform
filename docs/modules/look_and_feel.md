@@ -1,6 +1,6 @@
 # Module: `look_and_feel`
 
-- Category: Legacy Core · priority 32
+- Category: Legacy Core · priority 37
 - Version: 1.0.0
 - Purpose: Enterprise Platform — Look & Feel Registry Module v1.0.0
 - Skill: `eni-module-look_and_feel` (ICM stages) in skills_pack/skills/eni-modules/look_and_feel/

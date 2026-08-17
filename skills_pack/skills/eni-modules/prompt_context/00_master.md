@@ -1,6 +1,6 @@
 # ICM module map: prompt_context
 
-- Category: Legacy Core (priority 41)
+- Category: Legacy Core (priority 49)
 - Version: 1.0.0
 - Purpose: Prompt & Context Management OS Module
 - API: health_check, initialize, shutdown
