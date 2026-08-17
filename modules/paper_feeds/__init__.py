@@ -1,8 +1,12 @@
 """Paper-feeds module — daily AI research digests (arXiv/HF/PwC/AlphaXiv).
 
-WiFi-safe daily paper puller. Each feed is a single lightweight page fetch; we
-persist clean markdown digests under data/papers/<date>/<feed>.md for use as
-citable research in client-facing docs.
+Rebuilt v2.0: structured ``Paper`` model, primary arXiv Atom API ingestion with
+HTML fallback, change detection (only *new* papers surface in daily digests),
+relevance tagging for the enterprise, and machine-readable JSON/CSV exports —
+WiFi-safe, retry/backoff, gentle pacing.
+
+Writes markdown + JSON + CSV under ``data/papers/<date>/<feed>.*`` plus a
+persistent ``data/papers/index.json`` for change detection.
 """
 from __future__ import annotations
 
@@ -12,44 +16,66 @@ from typing import Any, Dict, List, Optional
 
 from enterprise.platform_kernel import HealthStatus, Module, module
 
-from .papers import FEEDS, pull_all_feeds, pull_feed  # noqa: F401
+from .papers import (  # noqa: F401
+    FEEDS,
+    Paper,
+    load_index,
+    mark_new,
+    parse_arxiv_atom,
+    parse_arxiv_html,
+    pull_all_feeds,
+    pull_feed,
+    save_index,
+    tag_paper,
+)
 
 logger = logging.getLogger("eni.papers")
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 
 
 @module(
     name="paper_feeds",
-    version="1.0.0",
-    config_defaults={"out_dir": "data/papers"},
+    version="2.0.0",
+    config_defaults={"out_dir": "data/papers", "enable_dedup": True},
 )
 class PaperFeedsModule(Module):
     def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
         super().__init__(config)
         self.status = HealthStatus.UNKNOWN
+        self._out_dir: Optional[Path] = None
 
     async def initialize(self) -> None:
+        out = self.config.get("out_dir", "data/papers")
+        if isinstance(out, str) and not out.startswith("/"):
+            out = Path(__file__).resolve().parent.parent.parent / out
+        self._out_dir = Path(out)
+        self._out_dir.mkdir(parents=True, exist_ok=True)
         self.status = HealthStatus.HEALTHY
 
     async def health_check(self) -> HealthStatus:
-        return HealthStatus.HEALTHY
+        return HealthStatus.HEALTHY if self._out_dir is not None else HealthStatus.UNHEALTHY
 
     async def shutdown(self) -> None:
         self.status = HealthStatus.UNKNOWN
 
-    # facade
     def pull_today(self) -> Dict[str, Any]:
-        out = self.config.get("out_dir", "data/papers")
-        return pull_all_feeds(out)
+        return pull_all_feeds(self._out_dir or "data/papers",
+                              enable_dedup=bool(self.config.get("enable_dedup", True)))
 
     def pull_one(self, name: str) -> Dict[str, Any]:
-        out = self.config.get("out_dir", "data/papers")
-        return pull_feed(name, out)
+        return pull_feed(name, self._out_dir or "data/papers",
+                         enable_dedup=bool(self.config.get("enable_dedup", True)))
+
+    def seen_count(self) -> int:
+        index = Path(self._out_dir or "data/papers") / "index.json"
+        return len(load_index(index))
 
 
 def create_paper_feeds_module(config: Optional[dict[str, Any]] = None) -> PaperFeedsModule:
     return PaperFeedsModule(config=config or {})
 
 
-__all__ = ["PaperFeedsModule", "create_paper_feeds_module", "pull_feed",
-           "pull_all_feeds", "FEEDS", "__version__"]
+__all__ = ["PaperFeedsModule", "create_paper_feeds_module", "Paper",
+           "pull_feed", "pull_all_feeds", "parse_arxiv_atom", "parse_arxiv_html",
+           "tag_paper", "mark_new", "load_index", "save_index", "FEEDS",
+           "__version__"]
