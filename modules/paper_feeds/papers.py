@@ -40,11 +40,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 FEEDS: Dict[str, str] = {
-    "arxiv": "http://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG&sortBy=submittedDate&sortOrder=descending&start=0&max_results=40",
+    "arxiv": "http://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG+OR+cat:cs.MA+OR+cat:cs.CL+OR+cat:cs.CY+OR+cat:cs.RO+OR+cat:cs.CV+OR+cat:q-fin.TR&sortBy=submittedDate&sortOrder=descending&start=0&max_results=60",
     "hf": "https://huggingface.co/papers",
     "pwc": "https://paperswithcode.com/latest",
     "alphaxiv": "https://alphaxiv.org",
+    "deepmind": "https://deepmind.google/blog/rss.xml",
+    "openai": "https://openai.com/news/rss.xml",
+    "googleai": "https://blog.google/technology/ai/rss/",
 }
+# feeds parsed as RSS XML (title extraction)
+RSS_FEEDS = {"deepmind", "openai", "googleai"}
 # HTML fallback for arXiv in case the API is down
 ARXIV_HTML = "https://arxiv.org/list/cs.AI/recent"
 
@@ -223,6 +228,27 @@ def mark_new(papers: List[Paper], seen: set) -> List[Paper]:
     return papers
 
 
+# -------------------------------------------------------------- RSS feeds
+def parse_rss(xml_text: str, source: str) -> List[Paper]:
+    """Best-effort parse of an RSS feed into Papers (title + link)."""
+    papers: List[Paper] = []
+    if not xml_text:
+        return papers
+    for m in re.finditer(r"<item>.*?</item>", xml_text, re.S):
+        item = m.group(0)
+        tm = re.search(r"<title>(.*?)</title>", item, re.S)
+        title = tm.group(1) if tm else ""
+        title = _clean(re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", title))
+        link = ""
+        lm = re.search(r"<link>(.*?)</link>", item, re.S)
+        if lm:
+            link = lm.group(1).strip()
+        if not title:
+            continue
+        papers.append(Paper(id=link or title, title=title, source=source, url=link))
+    return papers[:60]
+
+
 # ------------------------------------------------------------------- digest
 def _digest_md(papers: List[Paper], source: str, ds: str, url: str) -> str:
     new_papers = [p for p in papers if p.is_new]
@@ -299,6 +325,9 @@ def pull_feed(name: str, out_dir: str | Path, date_str: Optional[str] = None,
         html_text = _fetch(url)
         domain = "huggingface.co" if name == "hf" else "alphaxiv.org"
         papers = parse_generic_links(html_text or "", [domain], name)
+    elif name in RSS_FEEDS:
+        xml_text = _fetch(url, headers={"Accept": "application/rss+xml, application/xml"})
+        papers = parse_rss(xml_text or "", name)
 
     for p in papers:
         tag_paper(p)
@@ -346,4 +375,4 @@ __version__ = "2.0.0"
 __all__ = ["Paper", "pull_feed", "pull_all_feeds", "parse_arxiv_atom",
            "parse_arxiv_html", "parse_generic_links", "tag_paper",
            "mark_new", "load_index", "save_index", "RELEVANCE_RULES",
-           "FEEDS", "__version__"]
+           "FEEDS", "__version__", "parse_rss", "RSS_FEEDS"]

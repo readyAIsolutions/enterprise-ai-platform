@@ -17,12 +17,14 @@ from typing import Any, Dict, List, Optional
 from enterprise.platform_kernel import HealthStatus, Module, module
 
 from .papers import (  # noqa: F401
+    RSS_FEEDS,
     FEEDS,
     Paper,
     load_index,
     mark_new,
     parse_arxiv_atom,
     parse_arxiv_html,
+    parse_rss,
     pull_all_feeds,
     pull_feed,
     save_index,

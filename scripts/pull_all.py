@@ -36,6 +36,20 @@ CHANNELS = {
     "david_shapiro": "https://www.youtube.com/@davethetrader/videos",
     "liam_ottley": "https://www.youtube.com/@liamottley/videos",
     "julian_goldie": "https://www.youtube.com/@JulianGoldieSEO/videos",
+    "mervin_praison": "https://www.youtube.com/@MervinPraison/videos",
+    "indy_devdan": "https://www.youtube.com/@IndyDevdan/videos",
+    "one_little_coder": "https://www.youtube.com/@1littlecoder/videos",
+    "dave_ebbelaar": "https://www.youtube.com/@daveebbelaar/videos",
+    "tyler_reed": "https://www.youtube.com/@tylerreed/videos",
+    "james_briggs": "https://www.youtube.com/@jamesbriggs/videos",
+    "shawhin_talebi": "https://www.youtube.com/@ShawhinTalebi/videos",
+    "arjan_codes": "https://www.youtube.com/@ArjanCodes/videos",
+    "bycloud_ai": "https://www.youtube.com/@bycloudai/videos",
+    "rob_mulla": "https://www.youtube.com/@robmulla/videos",
+    "nicholas_renotte": "https://www.youtube.com/@NicholasRenotte/videos",
+    "ml_street_talk": "https://www.youtube.com/@MachineLearningStreetTalk/videos",
+    "t3dotgg": "https://www.youtube.com/@t3dotgg/videos",
+    "fireship": "https://www.youtube.com/@Fireship/videos",
 }
 
 
