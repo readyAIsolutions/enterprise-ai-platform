@@ -22,7 +22,13 @@
     "video_as_code",
     "unified_inbox",
     "unified_work_system",
-    "artifact_pipeline"
+    "artifact_pipeline",
+    "voice_agent_hub",
+    "agentic_workflow_builder",
+    "claude_code_ui_harness",
+    "multiplayer_agent_triage",
+    "folder_agency_system",
+    "custom_agent_workflows"
   ],
   "transcripts": {
     "JEVanClief": {
@@ -338,6 +344,31 @@
         "status": "evaluated-skip",
         "module": null,
         "reason": "opinion/news about another zero-AI popular repo \u2014 not a reusable technique"
+      },
+      "McuxQvaWlNM": {
+        "status": "built",
+        "module": "voice_agent_hub",
+        "reason": null
+      },
+      "v2UnNFmkia0": {
+        "status": "built",
+        "module": "agentic_workflow_builder",
+        "reason": null
+      },
+      "J2GLzkaUrBc": {
+        "status": "built",
+        "module": "claude_code_ui_harness",
+        "reason": null
+      },
+      "e3RgzvuYTBY": {
+        "status": "built",
+        "module": "multiplayer_agent_triage",
+        "reason": null
+      },
+      "XIk-Ru85xmA": {
+        "status": "built",
+        "module": "folder_agency_system",
+        "reason": null
       }
     },
     "matthew_berman": {
@@ -2256,6 +2287,11 @@
       "p0FERNkpyHE": {
         "status": "built",
         "module": "agentic_rag"
+      },
+      "mHBk8Z7Exag": {
+        "status": "built",
+        "module": "custom_agent_workflows",
+        "reason": null
       }
     },
     "3blue1brown": {

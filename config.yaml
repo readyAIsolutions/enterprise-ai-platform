@@ -566,6 +566,63 @@ modules:
       catalog_store: "memory"
       scan_root: "data/artifacts"
 
+  voice_agent_hub:
+    enabled: true
+    priority: 26
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      publish_events: true
+
+  agentic_workflow_builder:
+    enabled: true
+    priority: 27
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      environment: "cli"
+      tools: ["claude", "cursor"]
+      hourly_rate: 5
+
+  claude_code_ui_harness:
+    enabled: true
+    priority: 28
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      default_view: "folders"
+      max_depth: 4
+
+  multiplayer_agent_triage:
+    enabled: true
+    priority: 29
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      alert_threshold: 1000.0
+
+  folder_agency_system:
+    enabled: true
+    priority: 30
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      root_dir: null
+
+  custom_agent_workflows:
+    enabled: true
+    priority: 31
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      publish_events: true
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL
