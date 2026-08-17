@@ -1,0 +1,16 @@
+[Unit]
+Description=ENI Transcript/Paper Pull Daemon (WiFi-safe, persistent 24/7)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/bash /home/hunter/.hermes/scripts/eni_pull_daemon_wrapper.sh
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

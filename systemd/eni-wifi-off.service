@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep WiFi off so all traffic (incl PIA tunnel) rides Ethernet only
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/bash /home/hunter/.hermes/scripts/eni_wifi_off.sh
+
+[Install]
+WantedBy=multi-user.target

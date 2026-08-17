@@ -1,0 +1,14 @@
+[Unit]
+Description=Prefer Ethernet (enp5s0) as default route; keep WiFi as fallback
+After=network.target NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Add ethernet default route with lower metric (50) => preferred.
+# WiFi default (metric 100) is left intact as automatic fallback.
+ExecStart=/usr/bin/bash -c 'ip route replace default via 192.168.1.254 dev enp5s0 metric 50 onlink || true'
+
+[Install]
+WantedBy=multi-user.target
