@@ -1,32 +1,9 @@
-# enterprise-ai-platform
-
-Enterprise AI operating system — a modular, self-validating platform powered by an
-agentic kernel, swarm orchestration, free-model routing, and independent OS modules.
-Built to run autonomously, validate itself, and cross domains (3D printing, trading,
-KB, compression, research).
-
-## Architecture
-
-- **Platform Kernel** (`platform_kernel.py`) — singleton `PlatformOS` orchestrator:
-  `ModuleRegistry` auto-discovery, `EventBus` pub/sub, `HealthChecker`, lifecycle
-  management, metrics collection, logging bridge.
-- **Modules** (`modules/<name>/`) — independent capability modules, each a
-  `@module(...)`-decorated `Module` subclass with `initialize` / `health_check` /
-  `shutdown` lifecycle, discovered automatically by scanning `modules/*/__init__.py`.
-- **Tooling** (`foundation`, `orchestration`, `tenancy`, `integration`) — prompt
-  registry, policy/evaluation engines, workflow composer, plugin framework, feature
-  flags, tenant manager, API gateway + event hub + service mesh.
-- **Dashboard** (`dashboard/`) — Starlette admin console on `:8421`.
-- **Infra** — Docker + multi-stage Dockerfile, CI/CD, Makefile, scripts.
-
-## Modules
-
-### Complete module reference (all modules)
+## Modules — complete reference (all modules)
 
 Every platform module (auto-discovered by the Platform Kernel):
 one page per module in [`docs/modules/`](docs/modules/) and the full grouped index in [`docs/MODULES_REFERENCE.md`](docs/MODULES_REFERENCE.md).
 
-#### Knowledge Intake
+### Knowledge Intake
 | Module | Purpose |
 |--------|---------|
 | `ai_memory_hierarchy` | Layered memory model for agents (working/short/long) from AI-memory transcripts. |
@@ -34,7 +11,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `paper_feeds` | Daily research feeds (arXiv/HF/PwC/AlphaXiv), dedup, tagging, JSON/CSV export. |
 | `second_brain` | Knowledge capture/resurfacing engine: nodes+links, spaced repetition, concept query, compounding. |
 
-#### Agent Workflow
+### Agent Workflow
 | Module | Purpose |
 |--------|---------|
 | `agentic_rag` | Agent-driven retrieval-augmented generation workflow. |
@@ -44,7 +21,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `human_in_the_loop` | Human review/approval gates inside agent runs. |
 | `shared_workspace` | Live multi-editor workspace: lock, merge-safe write, history, redact-before-share. |
 
-#### Build Quality
+### Build Quality
 | Module | Purpose |
 |--------|---------|
 | `automation_triage` | What-to-automate ladder, wrong-layer detection, one-client scoping guard. |
@@ -53,7 +30,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `production_agent_hardening` | Demo->production hardening linter across 8 scored dimensions + systems loops. |
 | `production_hardening` | Operational hardening checks for shipping an agent into production. |
 
-#### Domain
+### Domain
 | Module | Purpose |
 |--------|---------|
 | `ai_education_guardrails` | Guardrails for using AI in education (anti-cheating, learning-first). |
@@ -61,7 +38,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `procurement_bid_automation` | Automate procurement/RFP bid intake, scoring and responses. |
 | `video_as_code` | Represent/edit long-form video (animations) as code/scripts. |
 
-#### Legacy Core
+### Legacy Core
 | Module | Purpose |
 |--------|---------|
 | `a2a` | ENI A2A Module -- Agent-to-Agent protocol (Google A2A style). |
@@ -123,67 +100,3 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `vuln_scanner` | ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style). |
 | `youtube_transcripts` | YouTube transcript puller with PIA VPN IP rotation. |
 
-
-Core OS modules: `safety_governance`, `agent_coordination`, `privacy_data`,
-`knowledge_graph`, `prompt_context`, `developer_experience`, `customer_experience`,
-`release_change`, `innovation_rd`, `disaster_recovery`, plus agent stack
-(`agent_core`, `agent_infra`, `agent_tools`), swarm stack (`swarm_network`,
-`swarm_bridge`, `kb_bridge`), validation (`enterprise_validation`,
-`research_verification`, `compression_bridge`).
-
-### Upgrade: Autonomy & Tooling layer (2026-08-02)
-
-Four new modules added to extend autonomous operation:
-
-| Module | Capability | What it does |
-|--------|-----------|--------------|
-| `skill_factory` | Meta-skill generator | Auto-compiles command/terminal patterns into versioned markdown skill recipes; registry + self-evolution loop (score/refine). |
-| `task_harness` | Long-running task cards | Maestro-style SQLite task cards with status transitions, dependency gating, pause/resume, next-runnable scheduling for background builds. |
-| `gateway` | Multi-channel automation | stdlib-only Telegram / Discord / webhook connectors (injectable for tests) + 5-field cron + interval scheduler for pushing events and scheduled runs. |
-| `semantic_memory` | Semantic/vector memory | Dependency-free embedding (feature-hash) + cosine retrieval + metadata filtering + knowledge-graph ingestion adapter (cognee-style). |
-
-### Upgrade: Demiurge Enterprise Boost (2026-08-04)
-
-| Module | Capability | What it does |
-|--------|-----------|--------------|
-| `model_router` | Model routing / fallback gateway | LiteLLM-style retry/cooldown state machine — per-deployment cooldown, per-exception retry policy, weighted dispatch, cross-model failover with `max_fallbacks`. Offline EchoAdapter for deterministic tests + urllib HTTPAdapter for real providers. |
-| `universal_score` | One universal build-quality number | Industry-grounded (ISO 25010 + Sonar + DORA + CMMI + Snyk) build scorer that runs REAL code-inspection probes across 6 weighted dimensions + hard gates + excellence bonus. 100 = sellable enterprise; a genuine build can exceed 100. Forces any Hermes build to a sellable-enterprise bar. |
-
-**Kernel fixes in this wave:** `ModuleRegistry.discover()` now actually imports module
-packages so every `@module` class binds (all 38 modules boot HEALTHY — previously it
-silently initialized nothing); kernel `MetricsCollector` is now fed at startup; the
-defined-but-dead `PAUSE`/`RECOVERING` lifecycle paths are implemented via
-`PlatformOS.pause()/resume()` (resume re-inits failed modules); per-module startup
-timeouts are honored. The 10 unregistered OS modules are now kernel-registered with
-health probes.
-
-### Release v2.0.0 — Golden Boot (2026-08-11)
-
-All previously-scaffolded-but-non-booting modules are now complete, first-class,
-Kernel-registered modules. Platform gold-boots on **49 modules**.
-
-| Module | Capability | What it does |
-|--------|-----------|--------------|
-| `agent_catalog` | Unified specialist-agent registry | Fuses 172 Codex subagents + 263 Agency agents into 432 deduplicated specialists; SQLite faceted search, A2A AgentCard registration, offline canonical JSON + refresh ingest. Hermes skill: `agent-catalog`. |
-| `mlops_lifecycle` | Experiment / LLMOps lifecycle | Feature+label store (SQLite), experiment tracking, canary rollout state machine, eval gates, OpenTelemetry-style observability, statistical drift (KS + PSI), rollback controller, pipeline orchestrator — all `@module`-registered. |
-| `rag` | Production RAG pipeline | Chunking, embeddings, retrieval, reranking, context assembly, citation formatting, composable RAGPipeline (offline via deterministic HashEmbedder). |
-| `autonomous_agent_runtime` | Multi-provider LLM abstraction | Provider registry, cost tracking, fallback/circuit-breaker, streaming SSE normalization — now a bootable facade module. |
-| `agent_os` | Agent OS control surface | Dashboard (`:8421`) + `eni_cli.py` control Hermes/Oracle/Paperclip/Jarvis; browser-submittable commands. |
-
-**Hygiene:** removed root/child `conftest.py` namespace-package shims that were
-pre-registering `rag`/`mlops_lifecycle` to dodge missing-submodule imports — they
-now import cleanly and self-register. Replaced nondeterministic `hash()` in the RAG
-`HashEmbedder` with stable `hashlib`-derived hashing (killed a latent CI flake).
-
-## Quick start
-
-```bash
-python3 -m pytest -q -p no:cacheprovider          # full test suite
-python3 dashboard/server.py                        # admin dashboard :8421
-```
-
-## Configuration
-
-All modules are configured in `config.yaml` under `modules.<name>` (enabled,
-priority, required, timeouts, `config`). New upgrade modules are wired there and
-auto-discovered by the registry.
