@@ -285,8 +285,8 @@
       "module": "error_correction",
       "priority": 26,
       "category": "Legacy Core",
-      "version": "0.0.0",
-      "purpose": "error_correction platform module."
+      "version": "1.0.0",
+      "purpose": "error_correction — Hamming error-correcting code as an enterprise module."
     },
     {
       "module": "eval_gate",

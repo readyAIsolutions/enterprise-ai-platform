@@ -1,19 +1,30 @@
 ---
 name: eni-module-error_correction
-description: Operate the ENI Enterprise `error_correction` module (Legacy Core) — error_correction platform module. Use when working with error_correction in the Enterprise Platform.
+description: Operate the ENI Enterprise `error_correction` module (Legacy Core) — error_correction — Hamming error-correcting code as an enterprise module. Use when working with error_correction in the Enterprise Platform.
 ---
 
 # Module skill: error_correction
 
 - Category: Legacy Core (priority ?)
-- Version: 0.0.0
-- Purpose: error_correction platform module.
+- Version: 1.0.0
+- Purpose: error_correction — Hamming error-correcting code as an enterprise module.
 
 ## What it does
-error_correction platform module.
+error_correction — Hamming error-correcting code as an enterprise module.
+
+Grounded in the 3blue1brown transcript *"Hamming codes part 2: The one-line
+implementation"* (https://www.youtube.com/watch?v=b3NxrZOu_CE): the parity-check
+results read as bits spell the position of a flipped bit, so a Hamming code
+collapses to a tiny XOR/reduce computation. This module exposes that technique as
+a pure-stdlib, network-free capability with a Platform Kernel lifecycle.
+
+The deterministic core lives in
+:mod:`enterprise.modules.error_correction.error_correction` (``HammingCode``,
+``reduce_xor``, ``parity_positions``); this package registers it as a module with
+an initialize / health_check / shutdown lifecycle and a thin facade.
 
 ## Key API (facade methods on the @module class)
-(module-level API)
+- correct\n- decode\n- dimensions\n- encode\n- health_check\n- initialize\n- set_event_bus\n- shutdown\n- stats\n- syndrome
 
 ## Use
 Import via:

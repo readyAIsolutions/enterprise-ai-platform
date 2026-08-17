@@ -62,7 +62,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `developer_experience` | Developer Experience OS Module |
 | `disaster_recovery` | Disaster Recovery OS Module |
 | `enterprise_validation` | Enterprise Validation & Certification OS — Module Entry Point |
-| `error_correction` | error_correction platform module. |
+| `error_correction` | error_correction — Hamming error-correcting code as an enterprise module. |
 | `eval_gate` | ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline). |
 | `folder_agency_system` | folder_agency_system — a folder/org-structure system that organizes an AI |
 | `gateway` | ENI Multi-Gateway Remote Control & Automations Module |

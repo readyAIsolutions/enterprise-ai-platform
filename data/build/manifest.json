@@ -28,7 +28,8 @@
     "claude_code_ui_harness",
     "multiplayer_agent_triage",
     "folder_agency_system",
-    "custom_agent_workflows"
+    "custom_agent_workflows",
+    "error_correction"
   ],
   "transcripts": {
     "JEVanClief": {
@@ -2541,9 +2542,9 @@
         "reason": "math visual explainer — expository teaching, not reusable engineering technique"
       },
       "b3NxrZOu_CE": {
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "math visual explainer — expository teaching, not reusable engineering technique"
+        "title": "Hamming codes part 2: The one-line implementation",
+        "status": "built",
+        "module": "error_correction"
       },
       "X8jsijhllIA": {
         "status": "evaluated-skip",

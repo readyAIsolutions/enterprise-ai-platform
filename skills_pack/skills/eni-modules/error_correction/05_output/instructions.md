@@ -1,6 +1,6 @@
 # Hand off the finished result
 
-Purpose: error_correction platform module.
+Purpose: error_correction — Hamming error-correcting code as an enterprise module.
 
 ## Role
 Hand off the finished result for the `error_correction` module.

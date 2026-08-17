@@ -8,8 +8,8 @@ Generated from the module's real code by gen_module_skills_plugins.py.
 """
 from __future__ import annotations
 
-_MOD = {"name": "error_correction", "category": "Legacy Core", "version": "0.0.0",
-        "purpose": "error_correction platform module.", "facades": []}
+_MOD = {"name": "error_correction", "category": "Legacy Core", "version": "1.0.0",
+        "purpose": "error_correction — Hamming error-correcting code as an enterprise module. Grounded in the 3blue1brown transcript *'Hamming codes part 2: The one-line implementation'* (https://www.youtube.com/watch?v", "facades": ["correct", "decode", "dimensions", "encode", "health_check", "initialize", "set_event_bus", "shutdown", "stats", "syndrome"]}
 
 
 def _on_transform_tool_result(result, **_):

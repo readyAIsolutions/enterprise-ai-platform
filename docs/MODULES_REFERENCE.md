@@ -61,7 +61,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `developer_experience` | Developer Experience OS Module | [docs/modules/developer_experience.md](modules/developer_experience.md) |
 | `disaster_recovery` | Disaster Recovery OS Module | [docs/modules/disaster_recovery.md](modules/disaster_recovery.md) |
 | `enterprise_validation` | Enterprise Validation & Certification OS — Module Entry Point | [docs/modules/enterprise_validation.md](modules/enterprise_validation.md) |
-| `error_correction` | error_correction platform module. | [docs/modules/error_correction.md](modules/error_correction.md) |
+| `error_correction` | error_correction — Hamming error-correcting code as an enterprise module. | [docs/modules/error_correction.md](modules/error_correction.md) |
 | `eval_gate` | ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline). | [docs/modules/eval_gate.md](modules/eval_gate.md) |
 | `folder_agency_system` | folder_agency_system — a folder/org-structure system that organizes an AI | [docs/modules/folder_agency_system.md](modules/folder_agency_system.md) |
 | `gateway` | ENI Multi-Gateway Remote Control & Automations Module | [docs/modules/gateway.md](modules/gateway.md) |

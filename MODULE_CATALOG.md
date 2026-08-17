@@ -45,7 +45,7 @@
 23. **developer_experience** v1.0.0 — Developer Experience OS Module
 24. **disaster_recovery** v1.0.0 — Disaster Recovery OS Module
 25. **enterprise_validation** v1.0.0 — Enterprise Validation & Certification OS — Module Entry Point
-26. **error_correction** v0.0.0 — error_correction platform module.
+26. **error_correction** v1.0.0 — error_correction — Hamming error-correcting code as an enterprise module.
 27. **eval_gate** v1.0.0 — ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline).
 28. **folder_agency_system** v1.0.0 — folder_agency_system — a folder/org-structure system that organizes an AI
 29. **gateway** v1.0.0 — ENI Multi-Gateway Remote Control & Automations Module

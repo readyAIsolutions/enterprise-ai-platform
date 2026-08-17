@@ -1,5 +1,5 @@
 name: eni-module-error_correction
-version: "0.0.0"
+version: "1.0.0"
 description: >-
   ENI Enterprise module wrapper for `error_correction` (Legacy Core). Injects the module's
   purpose and key API into agent context when the module is referenced, per

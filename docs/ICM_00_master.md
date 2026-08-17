@@ -45,7 +45,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Developer Experience OS Module | developer_experience | 01_intake, 03_drafting, 04_verification, 05_output |
 | Disaster Recovery OS Module | disaster_recovery | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Validation & Certification OS — Module Entry Poin | enterprise_validation | 01_intake, 03_drafting, 04_verification, 05_output |
-| error_correction platform module. | error_correction | 01_intake, 03_drafting, 04_verification, 05_output |
+| error_correction — Hamming error-correcting code as an enter | error_correction | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Eval Gate OS Module — automated LLM evaluation gates (lo | eval_gate | 01_intake, 03_drafting, 04_verification, 05_output |
 | folder_agency_system — a folder/org-structure system that or | folder_agency_system | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Multi-Gateway Remote Control & Automations Module | gateway | 01_intake, 03_drafting, 04_verification, 05_output |

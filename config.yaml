@@ -15,6 +15,15 @@ platform:
 
 # ── Module configuration ─────────────────────────────────────────────────────
 modules:
+  error_correction:
+    enabled: true
+    priority: 20
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      n: 7
+
   safety_governance:
     enabled: true
     priority: 1

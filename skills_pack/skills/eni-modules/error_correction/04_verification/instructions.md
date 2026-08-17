@@ -1,6 +1,6 @@
 # Verify
 
-Purpose: error_correction platform module.
+Purpose: error_correction — Hamming error-correcting code as an enterprise module.
 
 ## Role
 Verify for the `error_correction` module.
