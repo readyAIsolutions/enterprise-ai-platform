@@ -2,85 +2,275 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>ENI × Hermes — Side-by-Side</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ENI × Hermes — Live Build Hub</title>
 <style>
-  :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--fg:#e6edf3;--muted:#8b949e;
-        --green:#3fb950;--red:#f85149;--amber:#d29922;--blue:#58a6ff;}
+  :root{--bg:#0d1117;--panel:#161b22;--panel2:#1c2129;--line:#30363d;--fg:#e6edf3;--muted:#8b949e;
+        --green:#3fb950;--red:#f85149;--amber:#d29922;--blue:#58a6ff;--purple:#a371f7;
+        --ok-bg:rgba(63,185,80,.12);--down-bg:rgba(248,81,73,.12);}
   *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,monospace;background:var(--bg);color:var(--fg)}
-  header{display:flex;align-items:center;gap:14px;padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,monospace;background:radial-gradient(1200px 600px at 50% -10%,#11161d 0%,var(--bg) 60%);color:var(--fg)}
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;background:rgba(22,27,34,.9);border-bottom:1px solid var(--line);flex-wrap:wrap;backdrop-filter:blur(4px)}
   header h1{font-size:16px;margin:0;letter-spacing:.5px}
-  .pills{display:flex;gap:8px;margin-left:8px}
-  .pill{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
-  .pill.up{color:var(--green);border-color:var(--green)}
-  .pill.down{color:var(--red);border-color:var(--red)}
-  .tabs{display:flex;gap:4px;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
-  .tab{cursor:pointer;padding:7px 16px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);font-size:13px}
-  .tab:hover{color:var(--fg)}
+  .sub{font-size:11px;color:var(--muted)}
+  .pills{display:flex;gap:8px;margin-left:8px;flex-wrap:wrap}
+  .pill{font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .pill.up{color:var(--green);border-color:rgba(63,185,80,.4)}
+  .pill.up .dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .pill.down{color:var(--red);border-color:rgba(248,81,73,.4)}
+  .pill.down .dot{background:var(--red);box-shadow:0 0 6px var(--red)}
+  .pill.unknown{color:var(--muted)}
+  .pill.unknown .dot{background:var(--muted)}
+  .tabs{display:flex;gap:4px;padding:8px 16px;background:rgba(22,27,34,.9);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .tab{cursor:pointer;padding:7px 16px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);font-size:13px;transition:.15s}
+  .tab:hover{color:var(--fg);background:var(--panel2)}
   .tab.active{background:#1f2633;color:var(--fg);border-color:var(--line)}
-  .frame-wrap{position:relative;height:calc(100vh - 112px)}
-  iframe{width:100%;height:100%;border:0}
   .go{margin-left:auto;display:flex;gap:10px;font-size:12px;color:var(--muted)}
   a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .go a.up{color:var(--green)}
+  .go a.down{color:var(--red)}
   .note{font-size:11px;color:var(--amber);margin-left:6px}
+  .frame-wrap{position:relative;height:calc(100vh - 112px)}
+  iframe{width:100%;height:100%;border:0;background:var(--bg)}
+  .panel{height:calc(100vh - 112px);overflow:auto;padding:18px}
+  .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+  .stat{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+  .stat .v{font-size:24px;font-weight:700;margin-top:4px}
+  .stat .v.g{color:var(--green)}.stat .v.a{color:var(--amber)}.stat .v.b{color:var(--blue)}.stat .v.r{color:var(--red)}
+  .sec{font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:22px 0 10px;display:flex;align-items:center;gap:8px}
+  .sec .cnt{font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--fg)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;transition:.15s}
+  .card:hover{border-color:#3b4754;transform:translateY(-1px)}
+  .card .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .card .tid{font-size:11px;color:var(--muted);font-family:monospace}
+  .badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:2px 9px;border-radius:999px}
+  .badge.queued{background:rgba(139,148,158,.15);color:var(--muted)}
+  .badge.assigned{background:rgba(88,166,255,.15);color:var(--blue)}
+  .badge.running{background:rgba(210,153,34,.15);color:var(--amber)}
+  .badge.completed{background:rgba(63,185,80,.15);color:var(--green)}
+  .badge.failed{background:rgba(248,81,73,.15);color:var(--red)}
+  .card .goal{font-size:13px;font-weight:600;line-height:1.4}
+  .meta{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:10px;color:var(--muted);background:rgba(139,148,158,.1);border:1px solid var(--line);border-radius:6px;padding:2px 7px;white-space:nowrap}
+  .chip b{color:var(--fg);font-weight:600}
+  .worker{font-size:11px;color:var(--muted);padding:5px 8px;background:rgba(88,166,255,.08);border-left:2px solid var(--blue);border-radius:4px}
+  .progress{height:8px;background:#0b0f14;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-top:2px}
+  .progress .bar{height:100%;border-radius:999px;transition:width .6s ease}
+  .bar.running{background:linear-gradient(90deg,var(--amber),var(--blue))}
+  .bar.done{background:var(--green)}
+  .bar.failed{background:var(--red)}
+  .bar.queued{background:var(--muted)}
+  .pct{font-size:10px;color:var(--muted);text-align:right;margin-top:2px}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:40px 10px;border:1px dashed var(--line);border-radius:12px}
+  .workers{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  .wcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .wcard .wname{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+  .wcard .wdot{width:9px;height:9px;border-radius:50%;flex:none}
+  .wdot.up{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .wdot.down{background:var(--red)}
+  .wcard .wmeta{font-size:11px;color:var(--muted);margin-top:6px}
+  .wcard .wload{margin-top:8px;font-size:10px;color:var(--muted)}
+  .wbar{height:6px;background:#0b0f14;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-top:3px}
+  .wbar i{display:block;height:100%;background:var(--blue)}
+  .grid2{display:grid;grid-template-columns:1fr 330px;gap:16px;align-items:start}
+  @media(max-width:980px){.grid2{grid-template-columns:1fr}}
+  .lastsync{font-size:11px;color:var(--muted)}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{opacity:.4}50%{opacity:1}100%{opacity:.4}}
 </style>
 </head>
 <body>
 <header>
-  <h1>ENI <span style="color:var(--blue)">×</span> Hermes — Side-by-Side Build</h1>
+  <h1>ENI <span style="color:var(--blue)">×</span> Hermes <span style="color:var(--muted)">—</span> Live Build Hub</h1>
+  <span class="live-dot" title="Live"></span>
+  <span class="sub" id="lastsync">waiting…</span>
   <div class="pills">
-    <span class="pill" id="pill-hermes">Hermes …</span>
-    <span class="pill" id="pill-eni">ENI …</span>
-    <span class="pill" id="pill-mp">Multiplayer …</span>
-    <span class="pill" id="pill-ctrl">Controller …</span>
+    <span class="pill unknown" id="pill-hermes"><span class="dot"></span>Hermes</span>
+    <span class="pill unknown" id="pill-eni"><span class="dot"></span>ENI</span>
+    <span class="pill unknown" id="pill-mp"><span class="dot"></span>Multiplayer</span>
+    <span class="pill unknown" id="pill-ctrl"><span class="dot"></span>Controller</span>
   </div>
-  <div class="go"><a href="#" id="open-eni">ENI</a> · <a href="#" id="open-hermes">Hermes</a> · <a href="#" id="open-mp">board</a></div>
+  <div class="go" id="go-links"></div>
 </header>
 
 <div class="tabs">
-  <button class="tab active" data-tab="eni">ENI Platform</button>
+  <button class="tab" data-tab="eni">ENI</button>
   <button class="tab" data-tab="hermes">Hermes</button>
-  <button class="tab" data-tab="mp">Multiplayer Board</button>
-  <button class="tab" data-tab="ctrl">One-Prompt API</button>
+  <button class="tab active" data-tab="mp">Multiplayer</button>
+  <button class="tab" data-tab="ctrl">One-Prompt</button>
 </div>
 
-<div class="frame-wrap" id="wrap-eni"><iframe id="f-eni"></iframe></div>
-<div class="frame-wrap" id="wrap-hermes" style="display:none"><iframe id="f-hermes" class="hf"></iframe></div>
-<div class="frame-wrap" id="wrap-mp" style="display:none"><iframe id="f-mp" class="hf"></iframe></div>
-<div class="frame-wrap" id="wrap-ctrl" style="display:none"><iframe id="f-ctrl" class="hf"></iframe></div>
+<div class="frame-wrap" id="wrap-eni" style="display:none"><iframe id="f-eni"></iframe></div>
+<div class="frame-wrap" id="wrap-hermes" style="display:none"><iframe id="f-hermes"></iframe></div>
+<div class="panel" id="wrap-mp">
+  <div class="stat-row" id="mp-stats"></div>
+  <div class="lastsync">board: <span id="mp-src">–</span></div>
+  <div class="sec">Active Tasks <span class="cnt" id="cnt-active">0</span></div>
+  <div class="grid2">
+    <div>
+      <div class="cards" id="mp-active"></div>
+      <div class="sec">Queued <span class="cnt" id="cnt-queue">0</span></div>
+      <div class="cards" id="mp-queue"></div>
+      <div class="sec">Done <span class="cnt" id="cnt-done">0</span></div>
+      <div class="cards" id="mp-done"></div>
+    </div>
+    <aside>
+      <div class="sec">Workers <span class="cnt" id="cnt-workers">0</span></div>
+      <div class="workers" id="mp-workers"></div>
+    </aside>
+  </div>
+</div>
+<div class="frame-wrap" id="wrap-ctrl" style="display:none"><iframe id="f-ctrl"></iframe></div>
 
 <script>
+// ── Config ──────────────────────────────────────────────────────────────
+const HUB='/api/status';            // hub endpoint (same origin, JSON up/port per service)
+const BOARD='http://127.0.0.1:8788/api/board';
+const SRC={eni:'http://127.0.0.1:8421',hermes:'http://127.0.0.1:8765/docs',
+           ctrl:'http://127.0.0.1:8913/health'};
+const OPEN={eni:'http://127.0.0.1:8421',hermes:'http://127.0.0.1:8765/docs',
+            mp:'http://127.0.0.1:8788/api/board',ctrl:'http://127.0.0.1:8913/health'};
 const MAP={eni:'wrap-eni',hermes:'wrap-hermes',mp:'wrap-mp',ctrl:'wrap-ctrl'};
-const SRC={eni:'http://127.0.0.1:8421',hermes:'http://127.0.0.1:8765/docs',mp:'http://127.0.0.1:8788/api/board',ctrl:'http://127.0.0.1:8913/health'};
-// default hermes src depends on live mode
-function setSrcs(status){
-  const hp = status && status.hermes ? status.hermes.port : 8765;
-  if(hp===9119){SRC.hermes='http://127.0.0.1:9119';document.querySelector('#pill-hermes').textContent='Hermes (dash)';}
-  else {SRC.hermes='http://127.0.0.1:8765/docs';}
-  for(const k in SRC){document.getElementById('f-'+k).src=SRC[k];}
+const PILLS={hermes:{id:'pill-hermes',label:'Hermes'},eni:{id:'pill-eni',label:'ENI'},
+             mp:{id:'pill-mp',label:'Multiplayer'},ctrl:{id:'pill-ctrl',label:'Controller'}};
+
+// ── Status pills + links ────────────────────────────────────────────────
+function setPill(key,up,label,port){
+  const c=document.getElementById(PILLS[key].id);
+  c.className='pill '+(up===true?'up':(up===false?'down':'unknown'));
+  c.innerHTML='<span class="dot"></span>'+label+(port?' · '+port:'');
 }
-function setPill(id,up,label){const e=document.getElementById('pill-'+id);e.textContent=(up?'● ':'○ ')+label;e.className='pill '+(up?'up':'down');}
-async function poll(){
+function helm(svc,up){return '<a class="'+(up?'up':'down')+'" target="_blank" href="'+OPEN[svc]+'">'+svc+'</a>';}
+async function pollStatus(){
   try{
-    const r=await fetch('/api/status',{cache:'no-store'});
+    const r=await fetch(HUB,{cache:'no-store'});
     const s=await r.json();
-    setPill('hermes',s.hermes.up,'Hermes');
-    setPill('eni',s.eni_dashboard.up,'ENI');
-    setPill('mp',s.multiplayer.up,'Multiplayer');
-    setPill('ctrl',s.controller.up,'Controller');
-    return s;
-  }catch(e){setPill('hermes',false,'Hermes');setPill('eni',false,'ENI');setPill('mp',false,'Multiplayer');setPill('ctrl',false,'Controller');}
+    const def=v=>(v?v.up!==false:false);
+    setPill('hermes',def(s&&s.hermes),'Hermes',s&&s.hermes?s.hermes.port:null);
+    setPill('eni',def(s&&s.eni_dashboard),'ENI',s&&s.eni_dashboard?s.eni_dashboard.port:null);
+    setPill('mp',def(s&&s.multiplayer),'Multiplayer',s&&s.multiplayer?s.multiplayer.port:null);
+    setPill('ctrl',def(s&&s.controller),'Controller',s&&s.controller?s.controller.port:null);
+    const hp=(s&&s.hermes&&s.hermes.port)||8765;
+    if(hp===9119){SRC.hermes='http://127.0.0.1:9119';OPEN.hermes='http://127.0.0.1:9119';}
+    else{SRC.hermes='http://127.0.0.1:8765/docs';OPEN.hermes='http://127.0.0.1:8765/docs';}
+    document.getElementById('f-hermes').src=SRC.hermes;
+    document.getElementById('go-links').innerHTML=
+      helm('eni',def(s&&s.eni_dashboard))+' · '+
+      helm('hermes',def(s&&s.hermes))+' · '+
+      helm('mp',def(s&&s.multiplayer));
+    document.getElementById('lastsync').textContent='status '+new Date().toLocaleTimeString();
+  }catch(e){
+    setPill('hermes',false);setPill('eni',false);setPill('mp',false);setPill('ctrl',false);
+  }
 }
-// first load: get status so hermes src + pills are right
-(async()=>{const s=await poll();setSrcs(s);})();
-setInterval(poll,3000);
+
+// ── Multiplayer board rendering ─────────────────────────────────────────
+function cardHTML(t){
+  const status=(t.status||'queued').toLowerCase();
+  const worker=t.assigned_client||t.client_id||'–';
+  const progress=calcProgress(t);
+  const barCls=status==='completed'?'done':(status==='failed'?'failed':(status==='running'||status==='assigned')?'running':'queued');
+  const stepTxt=t.step!=null?('step '+t.step):'';
+  const chips=[];
+  if(t.repo)chips.push('<span class="chip">repo <b>'+esc(t.repo)+'</b></span>');
+  if(stepTxt)chips.push('<span class="chip">'+stepTxt+'</span>');
+  if(t.model_hint)chips.push('<span class="chip">model <b>'+esc(t.model_hint)+'</b></span>');
+  if(t.attempt&&t.attempt>1)chips.push('<span class="chip">try <b>'+t.attempt+'</b></span>');
+  return '<div class="card"><div class="top"><span class="tid">'+esc(t.task_id||t.id||'task')+
+    '</span><span class="badge '+status+'">'+status+'</span></div>'+
+    '<div class="goal">'+esc(t.goal||'')+'</div>'+
+    (t.feature?'<div class="meta"><span class="chip">feature <b>'+esc(t.feature)+'</b></span></div>':'')+
+    '<div class="worker">👤 '+esc(String(worker))+'</div>'+
+    '<div class="progress"><div class="bar '+barCls+'" style="width:'+progress+'%"></div></div>'+
+    '<div class="pct">'+progress+'%</div>'+
+    (t.summary?'<div class="chip" style="color:var(--muted)">'+esc(String(t.summary).slice(0,120))+'</div>':'')+
+    (chips.length?'<div class="meta">'+chips.join('')+'</div>':'')+
+    '</div>';
+}
+function renderCards(container,list){
+  container.innerHTML = list.length ? list.map(cardHTML).join('') :
+    '<div class="empty">No tasks here yet — submit a plan to the multiplayer board.</div>';
+}
+function calcProgress(t){
+  const status=(t.status||'queued').toLowerCase();
+  if(status==='completed')return 100;
+  if(status==='failed')return 100;
+  if(status==='assigned')return 20;
+  if(status==='running'){
+    // use step as an approximation of build-phase progress (cap at 95)
+    const step=t.step||1;
+    return Math.min(95,15+step*10);
+  }
+  return 5;
+}
+function esc(s){s=s==null?'':String(s);return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function renderBoard(b){
+  const st=b.stats||{};
+  document.getElementById('mp-stats').innerHTML=
+    '<div class="stat"><div class="k">Active</div><div class="v a">'+(st.active||0)+'</div></div>'+
+    '<div class="stat"><div class="k">Queued</div><div class="v b">'+(st.queue||0)+'</div></div>'+
+    '<div class="stat"><div class="k">Done</div><div class="v g">'+(st.done||0)+'</div></div>'+
+    '<div class="stat"><div class="k">Workers</div><div class="v">'+(st.clients||0)+'</div></div>';
+  document.getElementById('cnt-active').textContent=(b.active||[]).length;
+  document.getElementById('cnt-queue').textContent=(b.queue||[]).length;
+  document.getElementById('cnt-done').textContent=(b.done||[]).length;
+  renderCards(document.getElementById('mp-active'),b.active||[]);
+  renderCards(document.getElementById('mp-queue'),b.queue||[]);
+  renderCards(document.getElementById('mp-done'),b.done||[]);
+  renderWorkers(b.clients||[]);
+  document.getElementById('mp-src').textContent=BOARD+' · '+new Date().toLocaleTimeString();
+}
+function renderWorkers(clients){
+  const box=document.getElementById('mp-workers');
+  document.getElementById('cnt-workers').textContent=clients.length;
+  if(!clients.length){box.innerHTML='<div class="empty">No workers connected.</div>';return;}
+  box.innerHTML=clients.map(c=>{
+    const up=c.disconnected?false:true;
+    const running=(c.running||[]).length;
+    const max=c.max_concurrent_tasks||1;
+    const load=Math.min(100,Math.round(running/max*100));
+    return '<div class="wcard"><div class="wname"><span class="wdot '+(up?'up':'down')+'"></span>'+
+      esc(c.client_id||c.id||'worker')+'</div>'+
+      '<div class="wmeta">'+(c.hostname?'host '+esc(c.hostname):'')+
+      (c.models&&c.models.length?' · '+(c.models.length>3?c.models.slice(0,3).join(', ')+'…':esc(c.models.join(', '))):'')+
+      '</div>'+
+      '<div class="wload">'+(up?('running '+running+'/'+max+' tasks'):'offline')+'</div>'+
+      (up?'<div class="wbar"><i style="width:'+load+'%"></i></div>':'')+
+      '</div>';
+  }).join('');
+}
+async function pollBoard(){
+  try{
+    const r=await fetch(BOARD,{cache:'no-store'});
+    const b=await r.json();
+    renderBoard(b);
+    setPill('mp',true,'Multiplayer','8788');
+  }catch(e){
+    document.getElementById('mp-active').innerHTML=
+      '<div class="empty">Multiplayer board unreachable at '+esc(BOARD)+' — is the multiplayer server up?</div>';
+    setPill('mp',false,'Multiplayer','8788');
+  }
+}
+
+// ── Wiring ──────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');
-  for(const k in MAP){document.getElementById(MAP[k]).style.display=(k===b.dataset.tab)?'':'none';}
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  for(const k in MAP)document.getElementById(MAP[k]).style.display=(k===b.dataset.tab)?'':'none';
 });
-document.getElementById('open-eni').href='http://127.0.0.1:8421';
-document.getElementById('open-hermes').href='http://127.0.0.1:8765/docs';
-document.getElementById('open-mp').href='http://127.0.0.1:8788/api/board';
+// iframe sources (static, non-board ones)
+document.getElementById('f-eni').src=SRC.eni;
+document.getElementById('f-ctrl').src=SRC.ctrl;
+// live loops
+pollStatus();
+pollBoard();
+setInterval(pollStatus,2000);   // hub status every 2s
+setInterval(pollBoard,2000);    // board every 2s
 </script>
 </body>
 </html>

@@ -133,6 +133,111 @@ def test_external_llm_not_used_by_default_and_no_key_log(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# 3b. Real-generation path (LLM configured): compile + smoke + retry
+# ---------------------------------------------------------------------------
+
+
+_VALID_PROGRAM = (
+    "def main():\n"
+    "    return 'real generated program'\n"
+    "\n"
+    "if __name__ == '__main__':\n"
+    "    print(main())\n"
+)
+
+
+def _make_fake_llm(sequence):
+    """Return a fake LLM callable that yields a chosen program each call."""
+    calls = []
+
+    def fake(prompt, step=None, feature=None):
+        calls.append({"prompt": prompt, "step": step, "feature": feature})
+        src = sequence[min(len(calls) - 1, len(sequence) - 1)]
+        return src
+
+    fake.calls = calls
+    return fake
+
+
+def test_real_generation_compiles_and_runs(tmp_path):
+    fake = _make_fake_llm([_VALID_PROGRAM])
+    prov = BuildProvider(sessions_dir=str(tmp_path), llm_callable=fake)
+    result = prov.run_plan(goal="Build a tiny todo cli", session_id="real_1")
+
+    session_dir = result["session_dir"]
+    assert len(fake.calls) >= 4  # one LLM call per real plan step
+    assert os.path.isfile(result["manifest_file"])
+
+    for record in result["steps"]:
+        # every step in real-generation mode is marked ok with a runnable item
+        assert record["status"] == "ok"
+        assert record["ok"] is True
+        assert record["error"] is None
+        assert record["artifact_how"] == "external-llm"
+        assert os.path.isfile(record["file"])
+        # the generated artifacts are real, compilable python
+        with open(record["file"]) as fh:
+            src = fh.read()
+        assert "def main" in src or "FEATURE" in src or "your_model" in src
+
+
+def test_real_generation_retries_on_failure(tmp_path):
+    # first attempt is broken (won't compile), retries must repair it
+    broken = "def main(:\n    return 1\n"
+    fake = _make_fake_llm([broken, _VALID_PROGRAM, _VALID_PROGRAM])
+    prov = BuildProvider(sessions_dir=str(tmp_path), llm_callable=fake)
+    result = prov.run_plan(goal="Build a tiny todo cli", session_id="real_retry")
+
+    # the first step got a broken program then retried with the error appended
+    first = result["steps"][0]
+    assert len(first["attempts"]) >= 2
+    assert first["attempts"][0]["status"] == "test-failed"
+    assert first["attempts"][-1]["status"] == "test-passed"
+    assert first["status"] == "ok"
+    assert first["ok"] is True
+    # the retry prompt carried the previous error (retry with error context)
+    assert "PREVIOUS TEST ERROR" in fake.calls[1]["prompt"]
+
+
+def test_real_generation_via_env_config(tmp_path, monkeypatch):
+    # env config alone (no injected callable) enables the real path
+    def fake_http(prompt, url, key_env, model="default"):
+        assert url == "https://llm.example/v1"
+        assert model == "turbo-7"
+        return _VALID_PROGRAM
+
+    import sys
+    bp = sys.modules[BuildProvider.__module__]
+    monkeypatch.setattr(bp, "_call_external_llm", fake_http)
+    monkeypatch.setenv("MP_LLM_URL", "https://llm.example/v1")
+    monkeypatch.setenv("MP_LLM_KEY_ENV", "FAKE_KEY")
+    monkeypatch.setenv("MP_LLM_MODEL", "turbo-7")
+
+    prov = BuildProvider(sessions_dir=str(tmp_path))
+    result = prov.run_plan(goal="Build a tiny todo cli", session_id="real_env")
+    for record in result["steps"]:
+        assert record["ok"] is True
+        assert record["status"] == "ok"
+        assert record["artifact_how"] == "external-llm"
+
+
+def test_real_generation_exhausts_retries_then_marks_failed(tmp_path):
+    always_broken = "def main(:\n    return 1\n"
+    fake = _make_fake_llm([always_broken])
+    prov = BuildProvider(sessions_dir=str(tmp_path), llm_callable=fake)
+    result = prov.run_plan(goal="Build a tiny todo cli", session_id="real_fail")
+
+    first = result["steps"][0]
+    # all 3 attempts used (initial + 2 retries), none passed
+    assert len(first["attempts"]) == 3
+    assert all(a["status"] == "test-failed" for a in first["attempts"])
+    assert first["status"] == "failed"
+    assert first["ok"] is False
+    assert first["error"]
+
+
+
+# ---------------------------------------------------------------------------
 # 4. Controller HTTP endpoints
 # ---------------------------------------------------------------------------
 
