@@ -208,6 +208,8 @@ commands:
   local     Boot the side-by-side local stack: ENI one-prompt controller (:8913)
             + multiplayer server (:8787) + hermes local-agent (:8765).
             Usage: local [--no-server]
+  icm       Interpretable Context Methodology (ICM) skill layer:
+            scaffold NAME | route TASK | context PROJ STAGE | list.
   up        Print docker compose bring-up instructions.
 
 options:
@@ -455,6 +457,92 @@ def cmd_local(argv) -> int:
 USAGE_EXTRA = ""
 
 
+def cmd_icm(argv) -> int:
+    """ICM (Interpretable Context Methodology): scaffold / route / context.
+
+    Usage:
+      eni_cli icm scaffold <name> [--dir PATH]      new skill project (standard template)
+      eni_cli icm route <task> [--project DIR]      classify task -> 'sequential'|'swarm' + stage
+      eni_cli icm context <project> <stage>         print only that stage's markdown (progressive disclosure)
+      eni_cli icm list [--dir PATH]                 list existing ICM projects
+    """
+    if not argv:
+        print(cmd_icm.__doc__)
+        return 2
+    cmd, rest = argv[0], argv[1:]
+    # ensure enterprise package importable (enterprise package needs its parent)
+    sys.path.insert(0, str(ENI_PARENT))
+    sys.path.insert(0, str(REPO_ROOT))
+    try:
+        from enterprise.modules.icm import ICMProject, classify, scaffold
+    except Exception as exc:
+        print(_red(f"icm module not importable: {exc}"))
+        return 1
+    proj_dir = str(REPO_ROOT / "icm_projects")
+
+    if cmd == "scaffold":
+        name = rest[0] if rest else "new_skill"
+        if "--dir" in rest:
+            proj_dir = rest[rest.index("--dir") + 1]
+        os.makedirs(proj_dir, exist_ok=True)
+        root = scaffold(os.path.join(proj_dir, name))
+        print(_green(f"scaffolded ICM project: {root}"))
+        print("  " + ", ".join(sorted(p.name for p in root.iterdir() if p.is_dir())))
+        return 0
+    if cmd == "route":
+        task = rest[0] if rest else input("task: ")
+        # find a project: explicit, or scan proj_dir
+        project = None
+        if "--project" in rest:
+            project = rest[rest.index("--project") + 1]
+        elif os.path.isdir(proj_dir):
+            for p in sorted(os.listdir(proj_dir)):
+                if os.path.exists(os.path.join(proj_dir, p, "00_master.md")):
+                    project = os.path.join(proj_dir, p)
+                    break
+        routed = classify(task)
+        stage = None
+        if project:
+            try:
+                stage = ICMProject.open(project).route(task)
+                stage = stage.slug if stage else None
+            except Exception:
+                stage = None
+        print(f"  task     : {task}")
+        print(f"  route    : {_green(routed)}")
+        print(f"  stage    : {stage or '(none routed — sequential recommended)'}")
+        print(f"  project  : {project or '(none found)'}")
+        return 0
+    if cmd == "context":
+        if len(rest) < 2:
+            print("usage: eni_cli icm context <project> <stage>")
+            return 2
+        project, stage = rest[0], rest[1]
+        try:
+            ctx = ICMProject.open(project).stage_context(
+                next(s for s in ICMProject.open(project).stages if stage in s.slug))
+        except Exception as exc:
+            print(_red(f"error: {exc}"))
+            return 1
+        print(ctx)
+        return 0
+    if cmd == "list":
+        if "--dir" in rest:
+            proj_dir = rest[rest.index("--dir") + 1]
+        found = []
+        for p in sorted(os.listdir(proj_dir)):
+            m = os.path.join(proj_dir, p, "00_master.md")
+            if os.path.exists(m):
+                found.append(p)
+        print("ICM projects:" if found else "no ICM projects yet (use: eni_cli icm scaffold <name>)")
+        for p in found:
+            print("  -", p)
+        return 0
+    print(f"unknown icm subcommand: {cmd}\n")
+    print(cmd_icm.__doc__)
+    return 2
+
+
 def cmd_agent_os(argv) -> int:
     """Report the agent_os module status (JSON)."""
     import json
@@ -493,6 +581,8 @@ def main(argv) -> int:
         return cmd_local(rest)
     if cmd == "agent-os":
         return cmd_agent_os(rest)
+    if cmd == "icm":
+        return cmd_icm(rest)
     print(f"unknown command: {cmd}\n")
     print(USAGE.strip())
     return 2

@@ -29,13 +29,13 @@ by one server with a live board.
 │  LAYER 1  PLATFORM KERNEL — lifecycle, EventBus, health,     │
 │           metrics, auto-discovery of every module            │
 ├───────────────────────────────────────────────────────────────┤
-│  LAYER 0  50 capability modules (self-validating, stdlib)    │
+│  LAYER 0  51 capability modules (self-validating, stdlib)    │
 └───────────────────────────────────────────────────────────────┘
 ```
 
-## 3. Layer 0 — the 50 capability modules (every one)
+## 3. Layer 0 — the 51 capability modules (every one)
 Each follows the strict `@module → initialize/health_check/shutdown` contract and
-**auto-discovers with zero kernel edits**. Grouped by function (50 total):
+**auto-discovers with zero kernel edits**. Grouped by function (51 total):
 
 ### Agent & orchestration (14)
 | Module | What it does |
@@ -103,11 +103,16 @@ Each follows the strict `@module → initialize/health_check/shutdown` contract 
 | `response_hardening` | **(NEW)** audits/repairs Hermes output-length caps |
 | `hermes_controller` | Autonomous controller facade for Hermes (prompt orchestration) |
 
-### Developer, integration & infra tooling (4)
+### Developer, integration & infra tooling (5)
 | Module | What it does |
 |---|---|
 | `mcp_tools` | FastMCP-style tool registry & MCP serving layer (stdlib) |
 | `prompt_context` | Prompt & context lifecycle management |
+| `icm` | **(NEW)** Interpretable Context Methodology — folder/markdown/script
+  skill-discipline layer: numbered-stage project scaffolder, task→stage router
+  (00_master.md), progressive-disclosure context loading (token savings), and
+  sequential-vs-swarm classifier. Wired into the one-prompt brains via
+  ICM_PROJECT. See docs/ICM_INTEGRATION.md. |
 | `research_verification` | Research tracking + verification |
 | `triadforge` | White/Grey/Black box security testing (wraps the TRIAD hacker box) |
 

@@ -176,6 +176,12 @@ def enrich_prompt(prompt: str, goal: str = "") -> str:
     This is the "make bigger prompts" feature: it wraps the given prompt in
     structured context sections so a worker or external LLM sees intent,
     constraints, acceptance criteria and output format alongside the core ask.
+
+    ICM integration (optional): if env ``ICM_PROJECT`` points at an ICM skill
+    project, the routed stage's markdown is appended as context so the worker
+    follows the project's numbered-stage instructions (progressive disclosure)
+    rather than a bare inline prompt. When unset, this is a no-op — no hard
+    coupling.
     """
     prompt = (prompt or "").strip()
     if not prompt:
@@ -195,6 +201,31 @@ def enrich_prompt(prompt: str, goal: str = "") -> str:
         "Expand on every part; do not just restate the ask. Produce the full "
         "artifact with all details filled in.",
     ]
+    # ── Optional ICM stage context (progressive disclosure) ──────────────
+    import os as _os
+    icm_root = _os.environ.get("ICM_PROJECT", "").strip()
+    if icm_root and _os.path.isdir(icm_root):
+        try:
+            from enterprise.modules.icm import ICMProject, classify
+        except Exception:
+            return "\n".join(lines)
+        try:
+            proj = ICMProject.open(icm_root)
+            stage = proj.route(goal or prompt)
+            routed = classify(goal or prompt)
+            if stage is not None:
+                ctx = proj.stage_context(stage)
+                lines += [
+                    "",
+                    "## ICM STAGE (skill discipline layer)",
+                    f"- Project: {proj.root.name}",
+                    f"- Route  : {routed} (sequential ICM work)",
+                    f"- Stage  : {stage.slug}",
+                    "",
+                    ctx,
+                ]
+        except Exception:
+            pass
     return "\n".join(lines)
 
 

@@ -58,3 +58,5 @@ metrics/
 *.tmp
 *.temp
 tmp/
+# runtime ICM skill projects
+icm_projects/
