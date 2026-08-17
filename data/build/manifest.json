@@ -1,18 +1,18 @@
 {
   "version": 1,
   "note": "Transcript -> module build ledger. Covers JEVanClief + matthew_berman (paper_feeds/context_routing/shared_workspace are research/rebuilt modules, tracked separately). Status: pulled / built / skipped(no-reusable-value).",
-  "built_modules": ["context_routing", "shared_workspace", "paper_feeds", "second_brain"],
+  "built_modules": ["context_routing", "shared_workspace", "paper_feeds", "group_chat_orchestration", "second_brain"],
   "transcripts": {
     "JEVanClief": {
       "MkN-ss2Nl10": {"title": "Stop Building AI Agents. Use This Folder System Instead.", "status": "built", "module": "context_routing"},
       "qzVXfVvXbXU": {"title": "We Built Multiplayer AI, No New Agents Needed", "status": "built", "module": "shared_workspace"},
+      "rWHHnIR30DE": {"title": "Group Chat AI is game changing (How you can get ahead of the AI curve)", "status": "built", "module": "group_chat_orchestration"},
+      "0fCQ-4J_jzk": {"title": "Why I Stopped Building AI Agents and Started Using Claude Cowork", "status": "built", "module": "group_chat_orchestration"},
+      "pdoSAWWCDO8": {"title": "Claude Design Full Breakdown: GitHub Imports, Skills, and Local Model Handoff", "status": "built", "module": "group_chat_orchestration"},
+      "RZ0AcCLVPFA": {"title": "AI is the New Compiler (Why 'Learning AI' is the Wrong Goal)", "status": "built", "module": "group_chat_orchestration"},
       "-CUsfao6m7E": {"title": "Your Second Brain Is Not a Notes App", "status": "built", "module": "second_brain"},
       "mme027WZhgo": {"title": "Van Squared: A Free Local AI Model Labeled a 26-Year Archive", "status": "built", "module": "second_brain"},
       "lDXCkx3Nla8": {"title": "AI Since 2011: The Ideas That Outlive Every Model", "status": "built", "module": "second_brain"}
-    },
-    "matthew_berman": {}
-  }
-}
     },
     "matthew_berman": {}
   }
