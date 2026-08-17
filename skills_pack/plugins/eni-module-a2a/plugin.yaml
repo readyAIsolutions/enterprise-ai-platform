@@ -1,0 +1,9 @@
+name: eni-module-a2a
+version: "1.0.0"
+description: >-
+  ENI Enterprise module wrapper for `a2a` (Legacy Core). Injects the module's
+  purpose and key API into agent context when the module is referenced, per
+  LO's module-skill+plugin packaging for the Enterprise Platform. Fails open.
+author: "LO / ENI"
+hooks:
+  - transform_tool_result

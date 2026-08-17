@@ -1,0 +1,33 @@
+"""ENI module plugin: mcp_tools (Legacy Core).
+
+Exposes the module's purpose/key API into the agent context via a lightweight
+tool-result hook, so any agent working on the Enterprise Platform knows this
+module exists and how to reference it. Fails open (no-op) on any error.
+
+Generated from the module's real code by gen_module_skills_plugins.py.
+"""
+from __future__ import annotations
+
+_MOD = {"name": "mcp_tools", "category": "Legacy Core", "version": "1.0.0",
+        "purpose": "ENI MCP Tools Module — FastMCP-style tool registry & MCP serving layer. A dependency-free (stdlib-only) Model Context Protocol tool gateway: a thread-safe registry of callable tools (``@tool`` decora", "facades": ["call_tool", "call_tool_async", "get_tool", "handle_request", "health_check", "initialize", "list_tools", "max_tools", "register_tool", "registry", "set_event_bus", "shutdown", "unregister_tool"]}
+
+
+def _on_transform_tool_result(result, **_):
+    try:
+        tag = "mcp_tools"
+        blob = str(result.get("tool", "")) + str(result.get("name", ""))
+        if tag in blob:
+            lines = [
+                "ENI module [%s] (v%s): %s" % (_MOD["name"], _MOD["version"], _MOD["purpose"]),
+            ]
+            if _MOD["facades"]:
+                lines.append("  API: " + ", ".join(_MOD["facades"]))
+            lines.append("  Tests: python3 -m pytest modules/mcp_tools/tests -q")
+            return {**result, "_eni_module": "\n".join(lines)}
+    except Exception:
+        pass
+    return result
+
+
+def register(ctx) -> None:
+    ctx.register_hook("transform_tool_result", _on_transform_tool_result)

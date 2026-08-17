@@ -1,0 +1,9 @@
+name: eni-module-ai_education_guardrails
+version: "1.0.0"
+description: >-
+  ENI Enterprise module wrapper for `ai_education_guardrails` (Domain). Injects the module's
+  purpose and key API into agent context when the module is referenced, per
+  LO's module-skill+plugin packaging for the Enterprise Platform. Fails open.
+author: "LO / ENI"
+hooks:
+  - transform_tool_result

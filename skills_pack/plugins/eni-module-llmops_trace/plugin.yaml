@@ -1,0 +1,9 @@
+name: eni-module-llmops_trace
+version: "1.1.0"
+description: >-
+  ENI Enterprise module wrapper for `llmops_trace` (Legacy Core). Injects the module's
+  purpose and key API into agent context when the module is referenced, per
+  LO's module-skill+plugin packaging for the Enterprise Platform. Fails open.
+author: "LO / ENI"
+hooks:
+  - transform_tool_result

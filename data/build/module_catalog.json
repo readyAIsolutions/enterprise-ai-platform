@@ -1,0 +1,544 @@
+{
+  "version": 3,
+  "order": [
+    {
+      "module": "paper_feeds",
+      "priority": 1,
+      "category": "Knowledge Intake",
+      "version": "2.0.0",
+      "purpose": "Daily research feeds (arXiv/HF/PwC/AlphaXiv), dedup, tagging, JSON/CSV export."
+    },
+    {
+      "module": "ai_memory_hierarchy",
+      "priority": 1,
+      "category": "Knowledge Intake",
+      "version": "1.0.0",
+      "purpose": "Layered memory model for agents (working/short/long) from AI-memory transcripts."
+    },
+    {
+      "module": "second_brain",
+      "priority": 1,
+      "category": "Knowledge Intake",
+      "version": "1.0.0",
+      "purpose": "Knowledge capture/resurfacing engine: nodes+links, spaced repetition, concept query, compounding."
+    },
+    {
+      "module": "ai_systems_thinking",
+      "priority": 1,
+      "category": "Knowledge Intake",
+      "version": "1.0.0",
+      "purpose": "Feedback loops, coupling and systems lens for AI feature design."
+    },
+    {
+      "module": "group_chat_orchestration",
+      "priority": 2,
+      "category": "Agent Workflow",
+      "version": "1.0.0",
+      "purpose": "Multi-participant AI+human group chat: round-robin, moderator focus, escalation, handoffs."
+    },
+    {
+      "module": "agentic_rag",
+      "priority": 2,
+      "category": "Agent Workflow",
+      "version": "1.0.0",
+      "purpose": "Agent-driven retrieval-augmented generation workflow."
+    },
+    {
+      "module": "human_in_the_loop",
+      "priority": 2,
+      "category": "Agent Workflow",
+      "version": "1.0.0",
+      "purpose": "Human review/approval gates inside agent runs."
+    },
+    {
+      "module": "context_routing",
+      "priority": 2,
+      "category": "Agent Workflow",
+      "version": "1.0.0",
+      "purpose": "Task -> {read/skip/skills} routing table with token-budget guard."
+    },
+    {
+      "module": "shared_workspace",
+      "priority": 2,
+      "category": "Agent Workflow",
+      "version": "1.0.0",
+      "purpose": "Live multi-editor workspace: lock, merge-safe write, history, redact-before-share."
+    },
+    {
+      "module": "ai_coding_harness",
+      "priority": 2,
+      "category": "Agent Workflow",
+      "version": "1.0.0",
+      "purpose": "Harness for coding-agent output: run, verify, audit."
+    },
+    {
+      "module": "automation_triage",
+      "priority": 3,
+      "category": "Build Quality",
+      "version": "1.0.0",
+      "purpose": "What-to-automate ladder, wrong-layer detection, one-client scoping guard."
+    },
+    {
+      "module": "production_agent_hardening",
+      "priority": 3,
+      "category": "Build Quality",
+      "version": "1.0.0",
+      "purpose": "Demo->production hardening linter across 8 scored dimensions + systems loops."
+    },
+    {
+      "module": "production_hardening",
+      "priority": 3,
+      "category": "Build Quality",
+      "version": "1.0.0",
+      "purpose": "Operational hardening checks for shipping an agent into production."
+    },
+    {
+      "module": "engineering_tradeoff",
+      "priority": 3,
+      "category": "Build Quality",
+      "version": "1.0.0",
+      "purpose": "Structured tradeoff scoring for engineering decisions."
+    },
+    {
+      "module": "codegen_audit",
+      "priority": 3,
+      "category": "Build Quality",
+      "version": "1.0.0",
+      "purpose": "Audit generated code for correctness, security and quality signals."
+    },
+    {
+      "module": "procurement_bid_automation",
+      "priority": 4,
+      "category": "Domain",
+      "version": "1.0.0",
+      "purpose": "Automate procurement/RFP bid intake, scoring and responses."
+    },
+    {
+      "module": "video_as_code",
+      "priority": 4,
+      "category": "Domain",
+      "version": "1.0.0",
+      "purpose": "Represent/edit long-form video (animations) as code/scripts."
+    },
+    {
+      "module": "model_psychometrics",
+      "priority": 4,
+      "category": "Domain",
+      "version": "1.0.0",
+      "purpose": "Probe/evaluate model reasoning attributes (psychometric-style evals)."
+    },
+    {
+      "module": "ai_education_guardrails",
+      "priority": 4,
+      "category": "Domain",
+      "version": "1.0.0",
+      "purpose": "Guardrails for using AI in education (anti-cheating, learning-first)."
+    },
+    {
+      "module": "a2a",
+      "priority": 5,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI A2A Module -- Agent-to-Agent protocol (Google A2A style)."
+    },
+    {
+      "module": "agent_catalog",
+      "priority": 6,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Agent Catalog Module -- unified specialist-agent registry."
+    },
+    {
+      "module": "agent_coordination",
+      "priority": 7,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Agent Communication & Coordination OS — Multi-agent orchestration, task scheduling,"
+    },
+    {
+      "module": "agent_core",
+      "priority": 8,
+      "category": "Legacy Core",
+      "version": "2.0.0",
+      "purpose": "Claude Code Core — Enterprise Platform Kernel Module v2.0.0"
+    },
+    {
+      "module": "agent_graph",
+      "priority": 9,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Agent Graph Module — langgraph-style stateful agent graph orchestration."
+    },
+    {
+      "module": "agent_infra",
+      "priority": 10,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Claude Code Superior — Infrastructure Module v1.0.0"
+    },
+    {
+      "module": "agent_os",
+      "priority": 11,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Enterprise Agent OS Module — a unified AI agent operating system."
+    },
+    {
+      "module": "agent_tools",
+      "priority": 12,
+      "category": "Legacy Core",
+      "version": "2.0.0",
+      "purpose": "ENI Enterprise — Claude Code Tools Module v2.0.0"
+    },
+    {
+      "module": "ai_defense",
+      "priority": 13,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Enterprise AI Defense OS Module."
+    },
+    {
+      "module": "artifact_pipeline",
+      "priority": 14,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Artifact Pipeline — navigate & organize all creative works (no LLM)."
+    },
+    {
+      "module": "autonomous_agent_runtime",
+      "priority": 15,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction."
+    },
+    {
+      "module": "compliance",
+      "priority": 16,
+      "category": "Legacy Core",
+      "version": "1.1.0",
+      "purpose": "ENI Enterprise Compliance OS Module."
+    },
+    {
+      "module": "compression_bridge",
+      "priority": 17,
+      "category": "Legacy Core",
+      "version": "3.0.0",
+      "purpose": "Enterprise Platform — Compression Bridge Module v3.0.0"
+    },
+    {
+      "module": "cost_meter",
+      "priority": 18,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4)."
+    },
+    {
+      "module": "customer_experience",
+      "priority": 19,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Customer Experience OS Module."
+    },
+    {
+      "module": "developer_experience",
+      "priority": 20,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Developer Experience OS Module"
+    },
+    {
+      "module": "disaster_recovery",
+      "priority": 21,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Disaster Recovery OS Module"
+    },
+    {
+      "module": "enterprise_validation",
+      "priority": 22,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Enterprise Validation & Certification OS — Module Entry Point"
+    },
+    {
+      "module": "eval_gate",
+      "priority": 23,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline)."
+    },
+    {
+      "module": "gateway",
+      "priority": 24,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Multi-Gateway Remote Control & Automations Module"
+    },
+    {
+      "module": "guardrails",
+      "priority": 25,
+      "category": "Legacy Core",
+      "version": "2.0.0",
+      "purpose": "ENI Guardrails OS Module."
+    },
+    {
+      "module": "hermes_controller",
+      "priority": 26,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent."
+    },
+    {
+      "module": "icm",
+      "priority": 27,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ICM (Interpretable Context Methodology) — skill/prompt-engineering layer."
+    },
+    {
+      "module": "innovation_rd",
+      "priority": 28,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Innovation R&D OS Module"
+    },
+    {
+      "module": "kb_bridge",
+      "priority": 29,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Knowledge Base OS Module"
+    },
+    {
+      "module": "knowledge_graph",
+      "priority": 30,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Knowledge Graph OS Module"
+    },
+    {
+      "module": "llmops_trace",
+      "priority": 31,
+      "category": "Legacy Core",
+      "version": "1.1.0",
+      "purpose": "ENI LLMOps Trace OS Module — local, offline LLM tracing & observability."
+    },
+    {
+      "module": "look_and_feel",
+      "priority": 32,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Enterprise Platform — Look & Feel Registry Module v1.0.0"
+    },
+    {
+      "module": "mcp_tools",
+      "priority": 33,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI MCP Tools Module — FastMCP-style tool registry & MCP serving layer."
+    },
+    {
+      "module": "memory",
+      "priority": 34,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Agent Memory OS Module."
+    },
+    {
+      "module": "mlops_lifecycle",
+      "priority": 35,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Enterprise MLOps/LLMOps Lifecycle Module — Complete Agent Experiment Lifecycle Management"
+    },
+    {
+      "module": "model_miner",
+      "priority": 36,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Enterprise Model Miner OS Module — scan/rip local model training into the KB."
+    },
+    {
+      "module": "model_router",
+      "priority": 37,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Model Router OS Module — enterprise model-routing / fallback gateway."
+    },
+    {
+      "module": "model_security",
+      "priority": 38,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Model Security OS Module."
+    },
+    {
+      "module": "observability",
+      "priority": 39,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Observability — real, consolidated fleet health + Prometheus export."
+    },
+    {
+      "module": "privacy_data",
+      "priority": 40,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Privacy & Data Governance OS Module"
+    },
+    {
+      "module": "prompt_context",
+      "priority": 41,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Prompt & Context Management OS Module"
+    },
+    {
+      "module": "prompt_guard",
+      "priority": 42,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding."
+    },
+    {
+      "module": "rag",
+      "priority": 43,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Production RAG System — Enterprise-grade Retrieval-Augmented Generation."
+    },
+    {
+      "module": "release_change",
+      "priority": 44,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Release & Change Management OS Module"
+    },
+    {
+      "module": "research_verification",
+      "priority": 45,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Research & Verification OS — Enterprise Platform Kernel Module v1.0.0"
+    },
+    {
+      "module": "response_hardening",
+      "priority": 46,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Response Hardening module."
+    },
+    {
+      "module": "response_ops",
+      "priority": 47,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Response Ops Module — self-healing fleet supervisor + ICM routing hook."
+    },
+    {
+      "module": "safety_governance",
+      "priority": 48,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Enterprise — Safety & Governance OS v1.0.0"
+    },
+    {
+      "module": "secret_broker",
+      "priority": 49,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Enterprise Secret Broker OS Module — local-first secret handling."
+    },
+    {
+      "module": "secret_rotation",
+      "priority": 50,
+      "category": "Legacy Core",
+      "version": "1.1.0",
+      "purpose": "ENI Enterprise Secret Rotation OS Module."
+    },
+    {
+      "module": "semantic_memory",
+      "priority": 51,
+      "category": "Legacy Core",
+      "version": "2.0.0",
+      "purpose": "ENI Semantic Memory OS Module."
+    },
+    {
+      "module": "skill_factory",
+      "priority": 52,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution."
+    },
+    {
+      "module": "swarm_bridge",
+      "priority": 53,
+      "category": "Legacy Core",
+      "version": "5.0.0",
+      "purpose": "ENI Swarm Enterprise Module v5.0.0"
+    },
+    {
+      "module": "swarm_network",
+      "priority": 54,
+      "category": "Legacy Core",
+      "version": "2.0.0",
+      "purpose": "Swarm Network Optimization OS — Enterprise Module"
+    },
+    {
+      "module": "task_harness",
+      "priority": 55,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Task Harness OS Module"
+    },
+    {
+      "module": "threat_model",
+      "priority": 56,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Threat Model OS Module."
+    },
+    {
+      "module": "triadforge",
+      "priority": 57,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI TRIAD FORGE Module — White/Grey/Black Box security testing, as a kernel module."
+    },
+    {
+      "module": "unified_inbox",
+      "priority": 58,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Enterprise Platform Unified Inbox module package."
+    },
+    {
+      "module": "unified_work_system",
+      "priority": 59,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Unified Work System Module"
+    },
+    {
+      "module": "universal_score",
+      "priority": 60,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Universal Build Score module."
+    },
+    {
+      "module": "vuln_scanner",
+      "priority": 61,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style)."
+    },
+    {
+      "module": "youtube_transcripts",
+      "priority": 62,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "YouTube transcript puller with PIA VPN IP rotation."
+    }
+  ]
+}
