@@ -333,6 +333,11 @@
         "status": "evaluated-skip",
         "module": null,
         "reason": "personal all-in-one-workflow explainer \u2014 duplicate of unified_work_system"
+      },
+      "bQXi5Nd8c40": {
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "opinion/news about another zero-AI popular repo \u2014 not a reusable technique"
       }
     },
     "matthew_berman": {
@@ -5092,6 +5097,36 @@
         "status": "evaluated-skip",
         "module": null,
         "reason": "AI paper/news explainer \u2014 expository/news summary"
+      },
+      "HytucGhwTRs": {
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "research-news explainer \u2014 expository/news, no buildable technique"
+      },
+      "zOU6usZRJvA": {
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "research-news explainer \u2014 expository/news, no buildable technique"
+      },
+      "shy51E-MU8Y": {
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "research-news explainer \u2014 expository/news, no buildable technique"
+      },
+      "263vx1g52eM": {
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "research-news explainer \u2014 expository/news, no buildable technique"
+      },
+      "Dt0cA2phKfU": {
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "research-news explainer \u2014 expository/news, no buildable technique"
+      },
+      "--ZXFpt2S1E": {
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "research-news explainer \u2014 expository/news, no buildable technique"
       }
     }
   }
