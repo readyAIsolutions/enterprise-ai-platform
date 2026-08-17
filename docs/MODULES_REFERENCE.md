@@ -48,17 +48,22 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `agent_infra` | Claude Code Superior — Infrastructure Module v1.0.0 | [docs/modules/agent_infra.md](modules/agent_infra.md) |
 | `agent_os` | Enterprise Agent OS Module — a unified AI agent operating system. | [docs/modules/agent_os.md](modules/agent_os.md) |
 | `agent_tools` | ENI Enterprise — Claude Code Tools Module v2.0.0 | [docs/modules/agent_tools.md](modules/agent_tools.md) |
+| `agentic_workflow_builder` | agentic_workflow_builder — compose agentic workflows (Claude Code + Cursor). | [docs/modules/agentic_workflow_builder.md](modules/agentic_workflow_builder.md) |
 | `ai_defense` | ENI Enterprise AI Defense OS Module. | [docs/modules/ai_defense.md](modules/ai_defense.md) |
 | `artifact_pipeline` | Artifact Pipeline — navigate & organize all creative works (no LLM). | [docs/modules/artifact_pipeline.md](modules/artifact_pipeline.md) |
 | `autonomous_agent_runtime` | ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction. | [docs/modules/autonomous_agent_runtime.md](modules/autonomous_agent_runtime.md) |
+| `claude_code_ui_harness` | Claude Code UI Harness — Enterprise Module wrapper. | [docs/modules/claude_code_ui_harness.md](modules/claude_code_ui_harness.md) |
 | `compliance` | ENI Enterprise Compliance OS Module. | [docs/modules/compliance.md](modules/compliance.md) |
 | `compression_bridge` | Enterprise Platform — Compression Bridge Module v3.0.0 | [docs/modules/compression_bridge.md](modules/compression_bridge.md) |
 | `cost_meter` | Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4). | [docs/modules/cost_meter.md](modules/cost_meter.md) |
+| `custom_agent_workflows` | custom_agent_workflows — build your OWN AI coding workflows as a module. | [docs/modules/custom_agent_workflows.md](modules/custom_agent_workflows.md) |
 | `customer_experience` | Customer Experience OS Module. | [docs/modules/customer_experience.md](modules/customer_experience.md) |
 | `developer_experience` | Developer Experience OS Module | [docs/modules/developer_experience.md](modules/developer_experience.md) |
 | `disaster_recovery` | Disaster Recovery OS Module | [docs/modules/disaster_recovery.md](modules/disaster_recovery.md) |
 | `enterprise_validation` | Enterprise Validation & Certification OS — Module Entry Point | [docs/modules/enterprise_validation.md](modules/enterprise_validation.md) |
+| `error_correction` | error_correction platform module. | [docs/modules/error_correction.md](modules/error_correction.md) |
 | `eval_gate` | ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline). | [docs/modules/eval_gate.md](modules/eval_gate.md) |
+| `folder_agency_system` | folder_agency_system — a folder/org-structure system that organizes an AI | [docs/modules/folder_agency_system.md](modules/folder_agency_system.md) |
 | `gateway` | ENI Multi-Gateway Remote Control & Automations Module | [docs/modules/gateway.md](modules/gateway.md) |
 | `guardrails` | ENI Guardrails OS Module. | [docs/modules/guardrails.md](modules/guardrails.md) |
 | `hermes_controller` | Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent. | [docs/modules/hermes_controller.md](modules/hermes_controller.md) |
@@ -74,7 +79,10 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `model_miner` | Enterprise Model Miner OS Module — scan/rip local model training into the KB. | [docs/modules/model_miner.md](modules/model_miner.md) |
 | `model_router` | ENI Model Router OS Module — enterprise model-routing / fallback gateway. | [docs/modules/model_router.md](modules/model_router.md) |
 | `model_security` | ENI Model Security OS Module. | [docs/modules/model_security.md](modules/model_security.md) |
+| `multiplayer_agent_triage` | multiplayer_agent_triage — a Platform Kernel module for triaging problems and | [docs/modules/multiplayer_agent_triage.md](modules/multiplayer_agent_triage.md) |
 | `observability` | Observability — real, consolidated fleet health + Prometheus export. | [docs/modules/observability.md](modules/observability.md) |
+| `position_addressed_memory` | Position-addressed memory — *folder-as-memory* for AI context. | [docs/modules/position_addressed_memory.md](modules/position_addressed_memory.md) |
+| `prd_audit` | prd_audit — PRD-gated build workflow: write the PRD, audit it with a second | [docs/modules/prd_audit.md](modules/prd_audit.md) |
 | `privacy_data` | Privacy & Data Governance OS Module | [docs/modules/privacy_data.md](modules/privacy_data.md) |
 | `prompt_context` | Prompt & Context Management OS Module | [docs/modules/prompt_context.md](modules/prompt_context.md) |
 | `prompt_guard` | Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding. | [docs/modules/prompt_guard.md](modules/prompt_guard.md) |
@@ -88,6 +96,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `secret_rotation` | ENI Enterprise Secret Rotation OS Module. | [docs/modules/secret_rotation.md](modules/secret_rotation.md) |
 | `semantic_memory` | ENI Semantic Memory OS Module. | [docs/modules/semantic_memory.md](modules/semantic_memory.md) |
 | `skill_factory` | ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution. | [docs/modules/skill_factory.md](modules/skill_factory.md) |
+| `slash_workflow` | slash_workflow — Plan->Implement->Validate AI-coding workflow with reusable markdown slash-commands, a plan-document schema, isolated-context sub-agents, a dete | [docs/modules/slash_workflow.md](modules/slash_workflow.md) |
 | `swarm_bridge` | ENI Swarm Enterprise Module v5.0.0 | [docs/modules/swarm_bridge.md](modules/swarm_bridge.md) |
 | `swarm_network` | Swarm Network Optimization OS — Enterprise Module | [docs/modules/swarm_network.md](modules/swarm_network.md) |
 | `task_harness` | ENI Task Harness OS Module | [docs/modules/task_harness.md](modules/task_harness.md) |
@@ -96,6 +105,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `unified_inbox` | Enterprise Platform Unified Inbox module package. | [docs/modules/unified_inbox.md](modules/unified_inbox.md) |
 | `unified_work_system` | ENI Unified Work System Module | [docs/modules/unified_work_system.md](modules/unified_work_system.md) |
 | `universal_score` | ENI Universal Build Score module. | [docs/modules/universal_score.md](modules/universal_score.md) |
+| `voice_agent_hub` | voice_agent_hub — voice-driven orchestration of coding agents in a group call. | [docs/modules/voice_agent_hub.md](modules/voice_agent_hub.md) |
 | `vuln_scanner` | ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style). | [docs/modules/vuln_scanner.md](modules/vuln_scanner.md) |
 | `youtube_transcripts` | YouTube transcript puller with PIA VPN IP rotation. | [docs/modules/youtube_transcripts.md](modules/youtube_transcripts.md) |
 
