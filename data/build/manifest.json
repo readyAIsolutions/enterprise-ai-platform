@@ -1,10 +1,14 @@
 {
   "version": 1,
   "note": "Transcript -> module build ledger. Covers JEVanClief + matthew_berman (paper_feeds/context_routing/shared_workspace are research/rebuilt modules, tracked separately). Status: pulled / built / skipped(no-reusable-value).",
-  "built_modules": ["context_routing", "shared_workspace", "paper_feeds", "group_chat_orchestration", "second_brain"],
+  "built_modules": ["context_routing", "shared_workspace", "paper_feeds", "group_chat_orchestration", "second_brain", "automation_triage"],
   "transcripts": {
     "JEVanClief": {
       "MkN-ss2Nl10": {"title": "Stop Building AI Agents. Use This Folder System Instead.", "status": "built", "module": "context_routing"},
+      "SjlCJIU9ODs": {"title": "The Ladder That Explains Every AI Failure (And How to Avoid Them)", "status": "built", "module": "automation_triage"},
+      "956DPSPX4wg": {"title": "You're Automating The Wrong Layer (How 30,000 People Build AI Without Frameworks)", "status": "built", "module": "automation_triage"},
+      "ZMDXs59Ntjc": {"title": "The Real Skill in AI: Knowing What Not to Automate", "status": "built", "module": "automation_triage"},
+      "AZ1l-oaD3tk": {"title": "Afternoon Tea #2: Stop Building Production-Ready AI. Solve for One Client First", "status": "built", "module": "automation_triage"},
       "qzVXfVvXbXU": {"title": "We Built Multiplayer AI, No New Agents Needed", "status": "built", "module": "shared_workspace"},
       "rWHHnIR30DE": {"title": "Group Chat AI is game changing (How you can get ahead of the AI curve)", "status": "built", "module": "group_chat_orchestration"},
       "0fCQ-4J_jzk": {"title": "Why I Stopped Building AI Agents and Started Using Claude Cowork", "status": "built", "module": "group_chat_orchestration"},
