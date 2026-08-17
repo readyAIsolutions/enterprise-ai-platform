@@ -28,7 +28,7 @@ import threading
 import time
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:  # tolerate plain `local_controller` OR `enterprise.local_controller` import
     from local_controller import planner
@@ -70,8 +70,13 @@ def _read_json(body: bytes) -> Dict[str, Any]:
         return {"_error": f"invalid JSON: {exc}"}
 
 
+# In-memory staging buffer for the desktop app's /prompt_buffer endpoint.
+_PROMPT_BUFFER: "deque[Dict[str, Any]]" = deque(maxlen=500)
+_PB_SEQ = [0]
+
+
 class ControllerHandler(BaseHTTPRequestHandler):
-    """HTTP handler dispatching /plan /enrich /program /health."""
+    """HTTP handler dispatching /plan /enrich /program /health + /prompt_buffer + /secret."""
 
     server: "LocalControllerServer"
     server_version = "LocalController/1.0"
@@ -87,14 +92,20 @@ class ControllerHandler(BaseHTTPRequestHandler):
     # -- routing ------------------------------------------------------------
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API name
-        if self.path.split("?")[0] == "/health":
+        path = self.path.split("?")[0]
+        if path == "/health":
             self._handle_health()
+        elif path == "/prompt_buffer":
+            self._handle_prompt_buffer_get()
+        elif path == "/secret":
+            self._handle_secret_get()
         else:
             self._send(
                 404,
                 {
                     "error": "not found",
-                    "endpoints": ["/health", "/plan", "/enrich", "/program"],
+                    "endpoints": ["/health", "/plan", "/enrich", "/program",
+                                  "/prompt_buffer", "/secret"],
                 },
             )
 
@@ -108,6 +119,10 @@ class ControllerHandler(BaseHTTPRequestHandler):
             self._handle_enrich(body)
         elif path == "/program":
             self._handle_program(body)
+        elif path == "/prompt_buffer":
+            self._handle_prompt_buffer_post(body)
+        elif path == "/secret":
+            self._handle_secret_post(body)
         else:
             self._send(404, {"error": "not found", "path": self.path})
 
@@ -120,7 +135,8 @@ class ControllerHandler(BaseHTTPRequestHandler):
                 "status": "ok",
                 "uptime_seconds": round(self.server.uptime_seconds(), 2),
                 "port": self.server.port,
-                "endpoints": ["/plan", "/enrich", "/program", "/health"],
+                "endpoints": ["/plan", "/enrich", "/program", "/health",
+                              "/prompt_buffer", "/secret"],
             },
         )
 
@@ -173,6 +189,73 @@ class ControllerHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         # Keep controller logs tidy; do not print request bodies/keys.
         print(f"[controller] {time.strftime('%H:%M:%S')} {format % args}")
+
+
+# -- /prompt_buffer + /secret (desktop app) -----------------------------
+
+    def _handle_prompt_buffer_get(self) -> None:
+        from urllib.parse import parse_qs, urlparse
+
+        qs = parse_qs(urlparse(self.path).query)
+        drain = qs.get("drain", ["false"])[0].lower() in ("1", "true", "yes")
+        items: List[Dict[str, Any]] = []
+        if drain:
+            while _PROMPT_BUFFER:
+                items.append(_PROMPT_BUFFER.popleft())
+        else:
+            items = list(_PROMPT_BUFFER)
+        self._send(200, {"count": len(items), "drained": drain, "items": items})
+
+    def _handle_prompt_buffer_post(self, body: bytes) -> None:
+        data = _read_json(body)
+        if "_error" in data:
+            self._send(400, data)
+            return
+        text = str(data.get("text", "")).strip()
+        if not text:
+            self._send(400, {"error": "empty text"})
+            return
+        _PB_SEQ[0] += 1
+        entry: Dict[str, Any] = {"id": _PB_SEQ[0], "text": text, "meta": data.get("meta", {})}
+        _PROMPT_BUFFER.append(entry)
+        self._send(200, {"ok": True, "id": entry["id"], "queued": len(_PROMPT_BUFFER)})
+
+    def _handle_secret_get(self) -> None:
+        from urllib.parse import parse_qs, urlparse
+
+        qs = parse_qs(urlparse(self.path).query)
+        name = (qs.get("name", [""])[0] or "").strip()
+        vault = self._vault()
+        if name:
+            value = vault.get(name)
+            if value is None:
+                self._send(404, {"error": "secret not found", "name": name})
+                return
+            self._send(200, {"name": name, "value": value})
+        else:
+            # list NAMES only, never values
+            names: List[str] = sorted(vault._load().keys()) if hasattr(vault, "_load") else []
+            self._send(200, {"names": names, "hint": "pass ?name=<id> to fetch a value"})
+
+    def _handle_secret_post(self, body: bytes) -> None:
+        data = _read_json(body)
+        if "_error" in data:
+            self._send(400, data)
+            return
+        name = str(data.get("name", "")).strip()
+        value = str(data.get("value", ""))
+        if not name:
+            self._send(400, {"error": "missing 'name'"})
+            return
+        try:
+            self._vault().set(name, value)
+        except ValueError as exc:  # invalid placeholder name
+            self._send(422, {"error": str(exc)})
+            return
+        self._send(200, {"ok": True, "name": name, "stored": True})
+
+    def _vault(self) -> "_vault.Vault":
+        return _vault.make_vault()
 
 
 class LocalControllerServer(ThreadingHTTPServer):
