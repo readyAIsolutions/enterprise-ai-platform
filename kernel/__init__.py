@@ -3,7 +3,7 @@ ENI ENTERPRISE PLATFORM KERNEL v1.0
 Orchestrates all 10 OS modules + foundational systems.
 Dynamic module loading, quality gates, audit trails, continuous improvement.
 """
-__version__ = "1.0.0"
+__version__ = "3.0.0"
 __author__ = "ENI Enterprise"
 
 from .kernel import PlatformKernel

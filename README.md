@@ -158,6 +158,37 @@ defined-but-dead `PAUSE`/`RECOVERING` lifecycle paths are implemented via
 timeouts are honored. The 10 unregistered OS modules are now kernel-registered with
 health probes.
 
+### Release v3.0.0 — CO-OP & Module Catalog Expansion (2026-08-27)
+
+**Module catalog grew from 49 to 89** (40 modules added since v2.0.0) via the automated
+ENI swarm transcript-ingestion + module-building pipeline. Full suite: **5120 passed, 1
+skipped** on this release.
+
+Highlights:
+- **Multiplayer CO-OP build system** — real LLM worker fan-out, auth/TLS/multi-tenancy,
+  `submit_plan` parallel orchestration, one-command setup, response-hardening + shared
+  workspace (live multi-editor).
+- **Hermes CO-OP integration** — WS `:8787` / HTTP `:8788`, `local_controller` `:8913`,
+  portable `skills_pack` bundling skills + plugins for every module.
+- **Desktop** — `eni_chat` two-pane GTK+WebKit desktop app (Hermes + Local side by side);
+  controller gained `/prompt_buffer` + `/secret` endpoints.
+- **Research intel rebuild (paper_feeds v2.0)** — structured Atom/RSS ingestion with dedup,
+  tagging, JSON/CSV output, 14 new YouTube channels, arXiv/DeepMind/OpenAI/Google feeds, daily
+  digest cron.
+- **Error correction** — Hamming ECC module (27 tests) for build recovery.
+- **~32 upgrade-wave modules mined from transcripts** (JEVanClief / ColeMedin workflows):
+  `voice_agent_hub`, `agentic_workflow_builder`, `claude_code_ui_harness`,
+  `multiplayer_agent_triage`, `folder_agency_system`, `custom_agent_workflows`,
+  `position_addressed_memory`, `prd_audit`, `slash_workflow`, `artifact_pipeline`,
+  `unified_inbox`, `unified_work_system`, `ai_memory_hierarchy`, `model_psychometrics`,
+  `video_as_code`, `codegen_audit`, `procurement_bid_automation`, `production_hardening`,
+  `engineering_tradeoff`, `agentic_rag`, `human_in_the_loop`, `ai_education_guardrails`,
+  `ai_systems_thinking`, `ai_coding_harness`, `automation_triage`, `group_chat_orchestration`,
+  `second_brain`, `production_agent_hardening`, `shared_workspace`, `context_routing`,
+  and more.
+- **ICM (Interpretable Context Methodology)** fully integrated into the stack; enterprise
+  validation harness (`Enterprise_Validation`), Docker CI incl. security scan.
+
 ### Release v2.0.0 — Golden Boot (2026-08-11)
 
 All previously-scaffolded-but-non-booting modules are now complete, first-class,
