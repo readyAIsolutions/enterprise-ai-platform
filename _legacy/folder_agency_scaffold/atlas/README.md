@@ -1,1 +1,0 @@
-Guaranteed facts; stable, read-mostly.
