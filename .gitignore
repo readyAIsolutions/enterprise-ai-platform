@@ -35,6 +35,8 @@ build/
 
 # Test artifacts
 .coverage
+coverage.xml
+junit.xml
 htmlcov/
 .pytest_cache/
 .mypy_cache/
@@ -46,8 +48,17 @@ htmlcov/
 # Data
 *.sqlite
 *.db
+data/
+!modules/agent_catalog/data/
+!modules/agent_catalog/data/agent_catalog.json
+modules/agent_catalog/data/agents/
+metrics/
 
 # Temporary
 *.tmp
 *.temp
 tmp/
+# runtime ICM skill projects
+icm_projects/
+# ENI seed codec carrier artifacts (generated build output)
+modules/compression_bridge/carriers/

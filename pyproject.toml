@@ -109,7 +109,8 @@ select = [
 ]
 ignore = [
     # Allow line breaks before binary operators (readability)
-    "W503",
+    # NOTE: W503 removed in ruff >=0.41 — keeping it breaks `ruff check`
+    # (Unknown rule selector), which fails the whole CI lint job.
     # Too complex (project-specific)
     "C901",
     # Missing docstring in public module
