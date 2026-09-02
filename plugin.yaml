@@ -1,0 +1,14 @@
+name: enterprise
+version: "2.0.0"
+description: >-
+  The ENI Enterprise Platform ITSELF as a drag-and-drop Hermes plugin. Drop this
+  folder into ~/.hermes/plugins/ (or ./.hermes/plugins/ with project plugins
+  enabled) and Hermes auto-boosts: boots all 87 modules in-process via the
+  Platform ModuleRegistry, registers /enterprise (status) + /apply (initialize)
+  commands, and wires the build-quality modules into Hermes hooks (pre_llm_call
+  surfaces which modules are live; on_session_end proposes a skill). No dashboard,
+  no desktop app, no separate server. Fails open if the platform can t import.
+author: "LO / ENI"
+hooks:
+  - pre_llm_call
+  - on_session_end

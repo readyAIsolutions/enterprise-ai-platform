@@ -1,0 +1,611 @@
+{
+  "a2a": {
+    "name": "a2a",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ENI A2A Module -- Agent-to-Agent protocol (Google A2A style). A stdlib-only implementation of agent-to-agent messaging and task orchestration. Agents advertise themselves with an ``AgentCard`` (resolv",
+    "what": "ENI A2A Module -- Agent-to-Agent protocol (Google A2A style). A stdlib-only implementation of agent-to-agent messaging and task orchestration. Agents advertise themselves with an ``AgentCard`` (resolv"
+  },
+  "agent_catalog": {
+    "name": "agent_catalog",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ENI Agent Catalog Module -- unified specialist-agent registry. Fuses two complementary specialist-agent catalogs into one normalized, searchable platform module: * **Codex** subagents (~/Desktop/aweso",
+    "what": "ENI Agent Catalog Module -- unified specialist-agent registry. Fuses two complementary specialist-agent catalogs into one normalized, searchable platform module: * **Codex** subagents (~/Desktop/aweso"
+  },
+  "agent_coordination": {
+    "name": "agent_coordination",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Agent Communication & Coordination OS \u2014 Multi-agent orchestration, task scheduling, shared knowledge, conflict resolution, verification, and fault tolerance. Version: 1.0.0",
+    "what": "Agent Communication & Coordination OS \u2014 Multi-agent orchestration, task scheduling, shared knowledge, conflict resolution, verification, and fault tolerance. Version: 1.0.0"
+  },
+  "agent_core": {
+    "name": "agent_core",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Claude Code Core \u2014 Enterprise Platform Kernel Module v2.0.0 ============================================================ Re-implementation of Anthropic's Claude Code QueryEngine, Coordinator, Task sys",
+    "what": "Claude Code Core \u2014 Enterprise Platform Kernel Module v2.0.0 ============================================================ Re-implementation of Anthropic's Claude Code QueryEngine, Coordinator, Task sys"
+  },
+  "agent_graph": {
+    "name": "agent_graph",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ENI Agent Graph Module \u2014 langgraph-style stateful agent graph orchestration. A dependency-free (stdlib-only) engine for building and running directed graphs of stateful agent nodes, with checkpoint pe",
+    "what": "ENI Agent Graph Module \u2014 langgraph-style stateful agent graph orchestration. A dependency-free (stdlib-only) engine for building and running directed graphs of stateful agent nodes, with checkpoint pe"
+  },
+  "agent_infra": {
+    "name": "agent_infra",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Claude Code Superior \u2014 Infrastructure Module v1.0.0 ==================================================== Enterprise-grade infrastructure module re-implementing Claude Code's core systems as Python-nat",
+    "what": "Claude Code Superior \u2014 Infrastructure Module v1.0.0 ==================================================== Enterprise-grade infrastructure module re-implementing Claude Code's core systems as Python-nat"
+  },
+  "agent_os": {
+    "name": "agent_os",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Enterprise Agent OS Module \u2014 a unified AI agent operating system. Replicates Julian Goldie's \"Agent OS\" (Hermes + Oracle + Paperclip + Jarvis) as a real, working ENI Enterprise module \u2014 but FOSS and b",
+    "what": "Enterprise Agent OS Module \u2014 a unified AI agent operating system. Replicates Julian Goldie's \"Agent OS\" (Hermes + Oracle + Paperclip + Jarvis) as a real, working ENI Enterprise module \u2014 but FOSS and b"
+  },
+  "agent_tools": {
+    "name": "agent_tools",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ENI Enterprise \u2014 Claude Code Tools Module v2.0.0 ================================================= Enterprise-grade module re-implementing ALL Claude Code tools as native Python async Pydantic-based t",
+    "what": "ENI Enterprise \u2014 Claude Code Tools Module v2.0.0 ================================================= Enterprise-grade module re-implementing ALL Claude Code tools as native Python async Pydantic-based t"
+  },
+  "agentic_rag": {
+    "name": "agentic_rag",
+    "role": "Grounded RAG",
+    "hook": "pre_llm_call (context)",
+    "why": "Grounds builds in retrieved KB/paper context",
+    "what": "Agentic RAG module \u2014 agentic RAG + knowledge-graph retrieval engine. Grounded in the real pulled transcript ``ColeMedin/p0FERNkpyHE.md`` (\"Introducing RAG 2.0: Agentic RAG + Knowledge Graphs (FREE Tem"
+  },
+  "agentic_workflow_builder": {
+    "name": "agentic_workflow_builder",
+    "role": "Workflow builder",
+    "hook": "pre_llm_call",
+    "why": "Builds agentic workflows for a project",
+    "what": "agentic_workflow_builder \u2014 compose agentic workflows (Claude Code + Cursor). Grounded in the JEVanClief transcript *\"Claude Code + Cursor: Making Agentic workflows with an Agentic workflow!\"* (https:/"
+  },
+  "ai_coding_harness": {
+    "name": "ai_coding_harness",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "AI Coding Harness module \u2014 repeatable agentic Claude-Code coding workflows. Implements the prompt->scaffold->generate->iterate->verify loop that JE Van Clief demonstrates across four transcripts (webs",
+    "what": "AI Coding Harness module \u2014 repeatable agentic Claude-Code coding workflows. Implements the prompt->scaffold->generate->iterate->verify loop that JE Van Clief demonstrates across four transcripts (webs"
+  },
+  "ai_defense": {
+    "name": "ai_defense",
+    "role": "AI defense",
+    "hook": "pre_llm_call",
+    "why": "Defends the build loop from adversarial input",
+    "what": "ENI Enterprise AI Defense OS Module. Defense against *AI-driven / automated* attackers: statistical anomaly detection, bot/agent traffic classification, model-extraction probing shield, credential- st"
+  },
+  "ai_education_guardrails": {
+    "name": "ai_education_guardrails",
+    "role": "Guardrails",
+    "hook": "pre_llm_call",
+    "why": "Safety/quality guardrails on build prompts",
+    "what": "AI Education Guardrails \u2014 responsible & effective AI use in academics/edtech. Distilled from four pulled JE Van Clief transcripts: * \"AI in Academics: How NOT to Use It\" (czIBNYeiAuw) \u2014 learning how N"
+  },
+  "ai_memory_hierarchy": {
+    "name": "ai_memory_hierarchy",
+    "role": "Core memory",
+    "hook": "on_session_end",
+    "why": "Persistent memory management",
+    "what": "AI Memory Hierarchy \u2014 an enterprise module modeling the AI memory hierarchy. Grounded in the JEVanClief transcript *\"How a 1953 Word Game Explains AI Memory\"* (https://www.youtube.com/watch?v=S3fXSc5z"
+  },
+  "ai_systems_thinking": {
+    "name": "ai_systems_thinking",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ai_systems_thinking module \u2014 systems-thinking evaluation for AI system designs. Grounded in the pulled JE Van Clief transcripts: * ``NWyTsKTKka8`` \u2014 *Systems Thinking for People Who Build With AI* * `",
+    "what": "ai_systems_thinking module \u2014 systems-thinking evaluation for AI system designs. Grounded in the pulled JE Van Clief transcripts: * ``NWyTsKTKka8`` \u2014 *Systems Thinking for People Who Build With AI* * `"
+  },
+  "artifact_pipeline": {
+    "name": "artifact_pipeline",
+    "role": "Artifact pipeline",
+    "hook": "post_tool_call",
+    "why": "Manages build artifacts",
+    "what": "Artifact Pipeline \u2014 navigate & organize all creative works (no LLM). Grounded in the JEVanClief transcript *\"Watch Me Build Something Claude Code Can't Do Yet\"* (https://www.youtube.com/watch?v=KC0VEZ"
+  },
+  "automation_triage": {
+    "name": "automation_triage",
+    "role": "Task triage",
+    "hook": "pre_llm_call",
+    "why": "Picks the right module/tool chain per build step",
+    "what": "Automation Triage module \u2014 a decision framework for WHAT to automate. Implements the task-triage ladder, wrong-layer detection, \"what not to automate\" guard, and one-client scoping guard extracted fro"
+  },
+  "autonomous_agent_runtime": {
+    "name": "autonomous_agent_runtime",
+    "role": "Autonomous runtime",
+    "hook": "on_session_start",
+    "why": "Autonomous agent execution runtime",
+    "what": "ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction. A first-class Platform Kernel module that wraps the ``provider_abstraction`` subsystem: a multi-provider LLM abstraction (provide"
+  },
+  "claude_code_ui_harness": {
+    "name": "claude_code_ui_harness",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Claude Code UI Harness \u2014 Enterprise Module wrapper. Grounded in the real pulled JE Van Clief transcript ``data/transcripts/JEVanClief/J2GLzkaUrBc.md`` \u2014 \"I'm Building a Custom Front End for Claude Cod",
+    "what": "Claude Code UI Harness \u2014 Enterprise Module wrapper. Grounded in the real pulled JE Van Clief transcript ``data/transcripts/JEVanClief/J2GLzkaUrBc.md`` \u2014 \"I'm Building a Custom Front End for Claude Cod"
+  },
+  "codegen_audit": {
+    "name": "codegen_audit",
+    "role": "Code audit",
+    "hook": "transform_tool_result",
+    "why": "Audits generated diffs; surfaces what adds value vs what to drop",
+    "what": "codegen_audit \u2014 audit / evaluate AI-generated code. Grounded in three JE Van Clief coding-tool-eval transcripts: * ``_rtyhVD4v4A`` \u2014 \"One of These AI Coding Tools Failed Completely\": comparing AI codi"
+  },
+  "compliance": {
+    "name": "compliance",
+    "role": "Compliance",
+    "hook": "post_llm_call",
+    "why": "Ensures build outputs meet compliance rules",
+    "what": "ENI Enterprise Compliance OS Module. Offline security-control mapping & audit evidence for the ENI platform across: * OWASP LLM Top 10 (2025) * NIST AI RMF 1.0 core functions (GOVERN / MAP / MEASURE /"
+  },
+  "compression_bridge": {
+    "name": "compression_bridge",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Enterprise Platform \u2014 Compression Bridge Module v3.0.0 ====================================================== Enterprise-grade compression module bridging the core Compression engine into the Enterpri",
+    "what": "Enterprise Platform \u2014 Compression Bridge Module v3.0.0 ====================================================== Enterprise-grade compression module bridging the core Compression engine into the Enterpri"
+  },
+  "context_routing": {
+    "name": "context_routing",
+    "role": "Context routing",
+    "hook": "pre_llm_call",
+    "why": "Routes the right context into each build step",
+    "what": "Context Routing module \u2014 task\u2192(read/skip/skills) routing with token discipline. Implements the routing-table + progressive-disclosure principles extracted from the pulled JE Van Clief transcript \"Stop"
+  },
+  "cost_meter": {
+    "name": "cost_meter",
+    "role": "Cost metering",
+    "hook": "post_llm_call",
+    "why": "Tallies tokens/$ per build step",
+    "what": "Cost Meter \u2014 per-tenant cost metering + fractional-reasoning policy (B3 + C4). Registers itself as a first-class Platform Kernel module so the rest of the stack can: * meter tokens/cost per tenant (vi"
+  },
+  "custom_agent_workflows": {
+    "name": "custom_agent_workflows",
+    "role": "Custom workflows",
+    "hook": "pre_llm_call",
+    "why": "Runs project-specific build workflows",
+    "what": "custom_agent_workflows \u2014 build your OWN AI coding workflows as a module. Grounded in the Cole Medin transcript *\"The True Power of AI Coding \u2014 Build Your OWN Workflows (Full Guide)\"* (https://www.yout"
+  },
+  "customer_experience": {
+    "name": "customer_experience",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Customer Experience OS Module. Provides a comprehensive suite for managing the end-to-end customer journey, including journey mapping, support ticketing, AI-assisted support guardrails, CX metrics, fe",
+    "what": "Customer Experience OS Module. Provides a comprehensive suite for managing the end-to-end customer journey, including journey mapping, support ticketing, AI-assisted support guardrails, CX metrics, fe"
+  },
+  "developer_experience": {
+    "name": "developer_experience",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Developer Experience OS Module ============================== Enterprise-grade Developer Experience operating system providing a unified framework for developer journey, standards, environments, golde",
+    "what": "Developer Experience OS Module ============================== Enterprise-grade Developer Experience operating system providing a unified framework for developer journey, standards, environments, golde"
+  },
+  "disaster_recovery": {
+    "name": "disaster_recovery",
+    "role": "Disaster recovery",
+    "hook": "on_session_end",
+    "why": "Build-loop recovery",
+    "what": "Disaster Recovery OS Module Enterprise-grade disaster recovery, business continuity, and crisis management. Covers backup, recovery, cyber recovery, AI continuity, exercises, and crisis coordination. "
+  },
+  "engineering_tradeoff": {
+    "name": "engineering_tradeoff",
+    "role": "Trade-off analysis",
+    "hook": "post_llm_call",
+    "why": "Identifies engineering tradeoffs and cheaper/harder replans",
+    "what": "Engineering Tradeoff module \u2014 a satisficing (not 'best'-maximising) engine. Grounded in the real pulled JE Van Clief transcript \"data/transcripts/JEVanClief/-YursW-UIoY.md\" \u2014 \"A Pagani, a Toyota, and "
+  },
+  "enterprise_validation": {
+    "name": "enterprise_validation",
+    "role": "Validation gate",
+    "hook": "post_tool_call",
+    "why": "Evidences each build claim with real checks",
+    "what": "Enterprise Validation & Certification OS \u2014 Module Entry Point ============================================================== @module(name='enterprise_validation', version='1.0.0')"
+  },
+  "error_correction": {
+    "name": "error_correction",
+    "role": "Self-healing retry",
+    "hook": "post_llm_call",
+    "why": "Catches failed build steps and auto-retries hardened",
+    "what": "error_correction \u2014 Hamming error-correcting code as an enterprise module. Grounded in the 3blue1brown transcript *\"Hamming codes part 2: The one-line implementation\"* (https://www.youtube.com/watch?v="
+  },
+  "eval_gate": {
+    "name": "eval_gate",
+    "role": "Build-quality gate",
+    "hook": "post_tool_call",
+    "why": "Scores each artifact vs its declared spec; blocks weak output",
+    "what": "ENI Eval Gate OS Module \u2014 automated LLM evaluation gates (local & offline). Local, stdlib-only automated evaluation of model output quality using fully deterministic lexical/heuristic metrics (no exte"
+  },
+  "folder_agency_system": {
+    "name": "folder_agency_system",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "folder_agency_system \u2014 a folder/org-structure system that organizes an AI startup's work as an on-disk folder hierarchy of capabilities, projects, and agents, with immutable version-one templates, dep",
+    "what": "folder_agency_system \u2014 a folder/org-structure system that organizes an AI startup's work as an on-disk folder hierarchy of capabilities, projects, and agents, with immutable version-one templates, dep"
+  },
+  "gateway": {
+    "name": "gateway",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ENI Multi-Gateway Remote Control & Automations Module Connects the ENI Enterprise platform to external messaging channels (Telegram, Discord, generic webhooks) and provides a cron/interval scheduler f",
+    "what": "ENI Multi-Gateway Remote Control & Automations Module Connects the ENI Enterprise platform to external messaging channels (Telegram, Discord, generic webhooks) and provides a cron/interval scheduler f"
+  },
+  "group_chat_orchestration": {
+    "name": "group_chat_orchestration",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Group Chat Orchestration module \u2014 multi-participant AI + human group chat. Grounded in the pulled JE Van Clief transcripts: * rWHHnIR30DE \"Group Chat AI is game changing\" \u2014 five-person group chat wher",
+    "what": "Group Chat Orchestration module \u2014 multi-participant AI + human group chat. Grounded in the pulled JE Van Clief transcripts: * rWHHnIR30DE \"Group Chat AI is game changing\" \u2014 five-person group chat wher"
+  },
+  "guardrails": {
+    "name": "guardrails",
+    "role": "Guardrails",
+    "hook": "pre_llm_call",
+    "why": "Safety/quality guardrails on build prompts",
+    "what": "ENI Guardrails OS Module. Programmable input/output validators with a validate / fix / refix loop inspired by guardrails-ai, fully offline and stdlib-only. Two layers ship here: * **Classic layer** \u2014 "
+  },
+  "hermes_controller": {
+    "name": "hermes_controller",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Enterprise Hermes Controller OS Module \u2014 autonomous controller for Hermes Agent. A stdlib-only facade that wraps the ENI Hermes Controller (prompt expander + router + privacy boundary + reinforcement)",
+    "what": "Enterprise Hermes Controller OS Module \u2014 autonomous controller for Hermes Agent. A stdlib-only facade that wraps the ENI Hermes Controller (prompt expander + router + privacy boundary + reinforcement)"
+  },
+  "human_in_the_loop": {
+    "name": "human_in_the_loop",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Human-in-the-Loop module \u2014 a human-oversight orchestration layer for the compute layer. Grounded in the real pulled JE Van Clief transcript \"Afternoon tea: Why Humans Belong in the Compute Layer\" (30N",
+    "what": "Human-in-the-Loop module \u2014 a human-oversight orchestration layer for the compute layer. Grounded in the real pulled JE Van Clief transcript \"Afternoon tea: Why Humans Belong in the Compute Layer\" (30N"
+  },
+  "icm": {
+    "name": "icm",
+    "role": "ICM skill org",
+    "hook": "on_session_end",
+    "why": "Organizes skills per ICM stages",
+    "what": "ICM (Interpretable Context Methodology) \u2014 skill/prompt-engineering layer. Registers the ICM engine as a first-class Platform Kernel module so the rest of the stack can: * scaffold standard numbered-st"
+  },
+  "innovation_rd": {
+    "name": "innovation_rd",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Innovation R&D OS Module Enterprise-grade innovation and research & development management system. Provides tools for research tracking, experiment management, integrity checks, sandboxed environments",
+    "what": "Innovation R&D OS Module Enterprise-grade innovation and research & development management system. Provides tools for research tracking, experiment management, integrity checks, sandboxed environments"
+  },
+  "kb_bridge": {
+    "name": "kb_bridge",
+    "role": "Knowledge base bridge",
+    "hook": "pre_llm_call",
+    "why": "Bridges builds to the ENI knowledge base",
+    "what": "ENI Knowledge Base OS Module Enterprise-grade wrapper around Hermes KB Universal, providing structured CRUD, search, vector search, metrics, and health checks as a registered Platform Kernel module. E"
+  },
+  "knowledge_graph": {
+    "name": "knowledge_graph",
+    "role": "Knowledge graph",
+    "hook": "on_session_end",
+    "why": "Structures build knowledge as a graph",
+    "what": "Knowledge Graph OS Module Enterprise-grade knowledge graph for mapping and managing organizational knowledge: entities, relationships, provenance, resolution, contradiction management, and secure retr"
+  },
+  "llmops_trace": {
+    "name": "llmops_trace",
+    "role": "LLM ops trace",
+    "hook": "post_llm_call",
+    "why": "Traces every build step; detects regressions",
+    "what": "ENI LLMOps Trace OS Module \u2014 local, offline LLM tracing & observability. A langfuse-style, fully-offline tracing/observability subsystem for LLM applications. Mirrors the ``model_security`` / ``eval_g"
+  },
+  "look_and_feel": {
+    "name": "look_and_feel",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Enterprise Platform \u2014 Look & Feel Registry Module v1.0.0 ========================================================= Enterprise-grade visual design registry bridging into the Enterprise Platform OS. Par",
+    "what": "Enterprise Platform \u2014 Look & Feel Registry Module v1.0.0 ========================================================= Enterprise-grade visual design registry bridging into the Enterprise Platform OS. Par"
+  },
+  "mcp_tools": {
+    "name": "mcp_tools",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ENI MCP Tools Module \u2014 FastMCP-style tool registry & MCP serving layer. A dependency-free (stdlib-only) Model Context Protocol tool gateway: a thread-safe registry of callable tools (``@tool`` decorat",
+    "what": "ENI MCP Tools Module \u2014 FastMCP-style tool registry & MCP serving layer. A dependency-free (stdlib-only) Model Context Protocol tool gateway: a thread-safe registry of callable tools (``@tool`` decorat"
+  },
+  "memory": {
+    "name": "memory",
+    "role": "Core memory",
+    "hook": "on_session_end",
+    "why": "Persistent memory management",
+    "what": "ENI Agent Memory OS Module. A mem0-style hybrid long-term memory engine: dependency-free semantic / episodic / declarative / procedural memory with per-user profiles, deterministic feature-hash embedd"
+  },
+  "mlops_lifecycle": {
+    "name": "mlops_lifecycle",
+    "role": "MLOps lifecycle",
+    "hook": "on_session_end",
+    "why": "Manages build/model lifecycle",
+    "what": "ENI Enterprise MLOps/LLMOps Lifecycle Module \u2014 Complete Agent Experiment Lifecycle Management ============================================================================================ This module p"
+  },
+  "model_miner": {
+    "name": "model_miner",
+    "role": "Model knowledge mining",
+    "hook": "on_session_end",
+    "why": "Mines knowledge out of models into the KB",
+    "what": "Enterprise Model Miner OS Module \u2014 scan/rip local model training into the KB. Turns LO's idea into a first-class enterprise module: scan local models that have training worth using, connect to each, \""
+  },
+  "model_psychometrics": {
+    "name": "model_psychometrics",
+    "role": "Model evaluation",
+    "hook": "post_llm_call",
+    "why": "Scores model outputs psychometrically",
+    "what": "Enterprise Model Psychometrics OS Module \u2014 audit the trait profile of AI models with validated psychometric scales. Grounded in JEVanClief's \"ethics engine\" / \"becoming an AI psychologist\" pipeline (d"
+  },
+  "model_router": {
+    "name": "model_router",
+    "role": "Model routing",
+    "hook": "pre_llm_call",
+    "why": "Routes each step to the right model (free/cheap vs strong)",
+    "what": "ENI Model Router OS Module \u2014 enterprise model-routing / fallback gateway. A production-grade, stdlib-only model-routing gateway ripped from the LiteLLM retry/cooldown pattern. It manages a fleet of mo"
+  },
+  "model_security": {
+    "name": "model_security",
+    "role": "Model security",
+    "hook": "pre_llm_call",
+    "why": "Sanitizes prompts; blocks injection into build loop",
+    "what": "ENI Model Security OS Module. Model-agnostic security pipeline providing infrastructure-level guards that work regardless of whether the underlying model is compromised. Implements OWASP LLM Top 10 mi"
+  },
+  "multiplayer_agent_triage": {
+    "name": "multiplayer_agent_triage",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "multiplayer_agent_triage \u2014 a Platform Kernel module for triaging problems and wins when many AI agents / players operate together in one shared product. Grounded in the JEVanClief transcript *\"Alpha L",
+    "what": "multiplayer_agent_triage \u2014 a Platform Kernel module for triaging problems and wins when many AI agents / players operate together in one shared product. Grounded in the JEVanClief transcript *\"Alpha L"
+  },
+  "observability": {
+    "name": "observability",
+    "role": "Observability",
+    "hook": "post_llm_call",
+    "why": "Observability of the build loop",
+    "what": "Observability \u2014 real, consolidated fleet health + Prometheus export. A1 upgrade: replaces the old \"health is a scored number\" fiction with a live map of what is ACTUALLY healthy right now. Provides: *"
+  },
+  "paper_feeds": {
+    "name": "paper_feeds",
+    "role": "Paper digestion",
+    "hook": "pre_llm_call",
+    "why": "Grounds novel designs in recent papers",
+    "what": "Paper-feeds module \u2014 daily AI research digests (arXiv/HF/PwC/AlphaXiv). Rebuilt v2.0: structured ``Paper`` model, primary arXiv Atom API ingestion with HTML fallback, change detection (only *new* pape"
+  },
+  "position_addressed_memory": {
+    "name": "position_addressed_memory",
+    "role": "Positional memory",
+    "hook": "on_session_end",
+    "why": "Deterministic position-addressed memory model",
+    "what": "Position-addressed memory \u2014 *folder-as-memory* for AI context. Grounded in the JEVanClief transcript *\"How I Run Creative, Software, and Business Work as One System\"* (https://www.youtube.com/watch?v="
+  },
+  "prd_audit": {
+    "name": "prd_audit",
+    "role": "Requirements/PRD gate",
+    "hook": "pre_tool_call or pre_llm_call",
+    "why": "Requires a written PRD/plan before heavy build steps",
+    "what": "prd_audit \u2014 PRD-gated build workflow: write the PRD, audit it with a second instance, then gate execution until it clears a threshold. Grounded in JEVanClief's \"I'm Building a Custom Front End for Cla"
+  },
+  "privacy_data": {
+    "name": "privacy_data",
+    "role": "Privacy/data",
+    "hook": "pre_tool_call",
+    "why": "Keeps private/sensitive data out of builds",
+    "what": "Privacy & Data Governance OS Module ==================================== Enterprise-grade privacy, data governance, security, and compliance module. Modules: classifier - Data classification engine (s"
+  },
+  "procurement_bid_automation": {
+    "name": "procurement_bid_automation",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Procurement Bid Automation module \u2014 deterministic government/RFP bid assistant. Grounded in the real JE Van Clief transcripts: * ``data/transcripts/JEVanClief/I-enT6szVQQ.md`` \u2014 \"I Used AI to Fix Gove",
+    "what": "Procurement Bid Automation module \u2014 deterministic government/RFP bid assistant. Grounded in the real JE Van Clief transcripts: * ``data/transcripts/JEVanClief/I-enT6szVQQ.md`` \u2014 \"I Used AI to Fix Gove"
+  },
+  "production_agent_hardening": {
+    "name": "production_agent_hardening",
+    "role": "Agent hardening",
+    "hook": "transform_llm_output",
+    "why": "Gates agent output to shippable quality",
+    "what": "Production Agent Hardening module \u2014 ship a demo agent that survives production. Implements the production-readiness lessons from two pulled JE Van Clief transcripts: * \"Two Engineers on Why Your Agent"
+  },
+  "production_hardening": {
+    "name": "production_hardening",
+    "role": "Production hardening",
+    "hook": "transform_llm_output",
+    "why": "Production-quality gates (no stubs, no placeholders)",
+    "what": "Production Hardening module \u2014 production-readiness for ML / agent systems. Grounded in the real pulled JE Van Clief transcript \"data/transcripts/JEVanClief/ezRtp6K6zwE.md\" \u2014 \"Two Engineers on Why Your"
+  },
+  "prompt_context": {
+    "name": "prompt_context",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Prompt & Context Management OS Module ====================================== Enterprise-grade module for prompt lifecycle management, context orchestration, optimization, token budgeting, evaluation, ",
+    "what": "Prompt & Context Management OS Module ====================================== Enterprise-grade module for prompt lifecycle management, context orchestration, optimization, token budgeting, evaluation, "
+  },
+  "prompt_guard": {
+    "name": "prompt_guard",
+    "role": "Prompt guard",
+    "hook": "pre_llm_call",
+    "why": "Blocks prompt-injection into the build loop",
+    "what": "Enterprise Prompt Guard OS Module \u2014 injection / jailbreak / policy guarding. A stdlib-only facade that inspects an inbound prompt and returns a :class:`GuardVerdict` deciding whether it may proceed to"
+  },
+  "rag": {
+    "name": "rag",
+    "role": "RAG retrieval",
+    "hook": "pre_llm_call (context)",
+    "why": "Retrieval-augmented generation for grounded reasoning",
+    "what": "Production RAG System \u2014 Enterprise-grade Retrieval-Augmented Generation. This module provides a complete, production-ready RAG system with: 1. Chunking Strategies (Semantic + Fixed) 2. Embedding Model"
+  },
+  "release_change": {
+    "name": "release_change",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Release & Change Management OS Module Enterprise-grade release and change management for the ENI platform. Manages the full lifecycle of changes: classification, workflow, deployment strategies, quali",
+    "what": "Release & Change Management OS Module Enterprise-grade release and change management for the ENI platform. Manages the full lifecycle of changes: classification, workflow, deployment strategies, quali"
+  },
+  "research_verification": {
+    "name": "research_verification",
+    "role": "Verification",
+    "hook": "pre_tool_call",
+    "why": "Verifies sources; gates unvalidated claims",
+    "what": "Research & Verification OS \u2014 Enterprise Platform Kernel Module v1.0.0 ====================================================================== Enterprise-grade module implementing the Research & Verific"
+  },
+  "response_hardening": {
+    "name": "response_hardening",
+    "role": "Response hardening",
+    "hook": "transform_llm_output",
+    "why": "Ensures real, complete responses",
+    "what": "ENI Response Hardening module. Detects and repairs the Hermes agent output-length / truncation ceilings so long outputs never dead-end on \"Response truncated due to output length limit\". WHY THIS EXIS"
+  },
+  "response_ops": {
+    "name": "response_ops",
+    "role": "Response ops",
+    "hook": "post_llm_call",
+    "why": "Build-loop response operations",
+    "what": "ENI Response Ops Module \u2014 self-healing fleet supervisor + ICM routing hook. Public surface: * :class:`FleetSupervisor` / :func:`create_fleet_supervisor` \u2014 the self-healing supervisor that probes known"
+  },
+  "safety_governance": {
+    "name": "safety_governance",
+    "role": "Safety governance",
+    "hook": "pre_llm_call",
+    "why": "Governs safe build execution",
+    "what": "ENI Enterprise \u2014 Safety & Governance OS v1.0.0 AI Safety, Security, Guardrails, Evaluation, Monitoring, Incident Response."
+  },
+  "second_brain": {
+    "name": "second_brain",
+    "role": "Memory/knowledge",
+    "hook": "on_session_end",
+    "why": "Compresses session to durable memory + KB",
+    "what": "Second Brain module \u2014 a knowledge capture & resurfacing engine. Grounded in three real pulled JE Van Clief transcripts: * \"Your Second Brain Is Not a Notes App\" (-CUsfao6m7E) \u2014 a second brain links id"
+  },
+  "secret_broker": {
+    "name": "secret_broker",
+    "role": "Secrets broker",
+    "hook": "pre_tool_call",
+    "why": "Exfil-less secrets for module/vendor calls",
+    "what": "Enterprise Secret Broker OS Module \u2014 local-first secret handling. Keeps secrets away from remote LLM/API calls via the reversible local-first flow ``detect -> substitute -> call model -> reverse-subst"
+  },
+  "secret_rotation": {
+    "name": "secret_rotation",
+    "role": "Secret rotation",
+    "hook": "on_session_end",
+    "why": "Rotates leaking credentials",
+    "what": "ENI Enterprise Secret Rotation OS Module. Credential hygiene for the ENI Enterprise AI Platform: rotation policies, expiry tracking, rotation scheduling, and breach revocation. All secrets are stored "
+  },
+  "semantic_memory": {
+    "name": "semantic_memory",
+    "role": "Semantic memory",
+    "hook": "pre_llm_call",
+    "why": "Surface relevant past context via semantic retrieval",
+    "what": "ENI Semantic Memory OS Module. Cognee-style graph/persistent memory + semantic retrieval capability: a lightweight, dependency-free semantic retrieval layer built on sparse feature-hash embeddings (de"
+  },
+  "shared_workspace": {
+    "name": "shared_workspace",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Shared Workspace module \u2014 live multi-editor collaboration (from transcript). Implements the shared, live, versioned workspace described in the pulled \"Multiplayer AI\" transcript: concurrent multi-edit",
+    "what": "Shared Workspace module \u2014 live multi-editor collaboration (from transcript). Implements the shared, live, versioned workspace described in the pulled \"Multiplayer AI\" transcript: concurrent multi-edit"
+  },
+  "skill_factory": {
+    "name": "skill_factory",
+    "role": "Skill factory",
+    "hook": "on_session_end",
+    "why": "Proposes one new skill per completed task",
+    "what": "ENI Skill Factory Module \u2014 Meta-Skill Generator / Registry / Self-Evolution. Enterprise-grade module that discovers, generates, stores, versions, benchmarks, and self-evolves markdown skill recipes (s"
+  },
+  "slash_workflow": {
+    "name": "slash_workflow",
+    "role": "Slash workflows",
+    "hook": "pre_llm_call",
+    "why": "Runs slash-command build workflows",
+    "what": "slash_workflow \u2014 Plan->Implement->Validate AI-coding workflow with reusable markdown slash-commands, a plan-document schema, isolated-context sub-agents, a deterministic task cycle, and CLAUDE.md-styl"
+  },
+  "swarm_bridge": {
+    "name": "swarm_bridge",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ENI Swarm Enterprise Module v5.0.0 =================================== Enterprise Platform Kernel module for the ENI Swarm \u2014 the 50-builder on-demand AI agent fleet coordinated by Master Driver v5.0. ",
+    "what": "ENI Swarm Enterprise Module v5.0.0 =================================== Enterprise Platform Kernel module for the ENI Swarm \u2014 the 50-builder on-demand AI agent fleet coordinated by Master Driver v5.0. "
+  },
+  "swarm_network": {
+    "name": "swarm_network",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Swarm Network Optimization OS \u2014 Enterprise Module ================================================== Enterprise-grade connection multiplexer for maximum agent concurrency. Integrates the Swarm Turboch",
+    "what": "Swarm Network Optimization OS \u2014 Enterprise Module ================================================== Enterprise-grade connection multiplexer for maximum agent concurrency. Integrates the Swarm Turboch"
+  },
+  "task_harness": {
+    "name": "task_harness",
+    "role": "Task harness",
+    "hook": "pre_llm_call",
+    "why": "Runs the build-task harness",
+    "what": "ENI Task Harness OS Module Maestro-style long-running task harness: SQLite-backed task cards with pause/resume, dependency ordering, priority scheduling, heartbeat liveness, and structured state so an"
+  },
+  "threat_model": {
+    "name": "threat_model",
+    "role": "Threat modeling",
+    "hook": "pre_tool_call",
+    "why": "Threat-models build actions before they run",
+    "what": "ENI Threat Model OS Module. Offline MITRE ATLAS / STRIDE threat modeling and attack-surface analysis for LLM systems. Provides a curated catalogue of MITRE ATLAS threats, a threat library with categor"
+  },
+  "triadforge": {
+    "name": "triadforge",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ENI TRIAD FORGE Module \u2014 White/Grey/Black Box security testing, as a kernel module. Wraps the standalone TRIAD FORGE hacker box (~/Desktop/TriadForge) into the ENI Enterprise Platform so it boots HEAL",
+    "what": "ENI TRIAD FORGE Module \u2014 White/Grey/Black Box security testing, as a kernel module. Wraps the standalone TRIAD FORGE hacker box (~/Desktop/TriadForge) into the ENI Enterprise Platform so it boots HEAL"
+  },
+  "unified_inbox": {
+    "name": "unified_inbox",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Enterprise Platform Unified Inbox module package. Grounded in the JEVanClief \"Clawdbot (Moltbot) Has 100K Stars. It Has Zero AI.\" transcript: a zero-AI universal assistant that consolidates every mess",
+    "what": "Enterprise Platform Unified Inbox module package. Grounded in the JEVanClief \"Clawdbot (Moltbot) Has 100K Stars. It Has Zero AI.\" transcript: a zero-AI universal assistant that consolidates every mess"
+  },
+  "unified_work_system": {
+    "name": "unified_work_system",
+    "role": "Unified work system",
+    "hook": "pre_llm_call",
+    "why": "Orchestrates all work system modules",
+    "what": "ENI Unified Work System Module Enterprise-grade module that runs creative, technical/software, and business work as ONE system \u2014 grounded in the JEVanClief one-system thesis. At the heart of the modul"
+  },
+  "universal_score": {
+    "name": "universal_score",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "ENI Universal Build Score module. One accurate, industry-grounded build-quality number that tests any real software build on disk and certifies it. 100 = fully sellable enterprise; a excellence bonus ",
+    "what": "ENI Universal Build Score module. One accurate, industry-grounded build-quality number that tests any real software build on disk and certifies it. 100 = fully sellable enterprise; a excellence bonus "
+  },
+  "video_as_code": {
+    "name": "video_as_code",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "Video as Code Enterprise Module. Grounded in the JEVanClief talk *\"Video as Code: My AI Animation Stack\"* (https://www.youtube.com/watch?v=yEa6dgh7wuc). Treats AI video/animation generation as softwar",
+    "what": "Video as Code Enterprise Module. Grounded in the JEVanClief talk *\"Video as Code: My AI Animation Stack\"* (https://www.youtube.com/watch?v=yEa6dgh7wuc). Treats AI video/animation generation as softwar"
+  },
+  "voice_agent_hub": {
+    "name": "voice_agent_hub",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "voice_agent_hub \u2014 voice-driven orchestration of coding agents in a group call. Grounded in JEVanClief's \"We Ran Claude Code By Voice In A Group Call (The Future of Work?)\" (https://www.youtube.com/wat",
+    "what": "voice_agent_hub \u2014 voice-driven orchestration of coding agents in a group call. Grounded in JEVanClief's \"We Ran Claude Code By Voice In A Group Call (The Future of Work?)\" (https://www.youtube.com/wat"
+  },
+  "vuln_scanner": {
+    "name": "vuln_scanner",
+    "role": "Vuln scan",
+    "hook": "post_tool_call",
+    "why": "Scans workspace for leaked creds/vulns",
+    "what": "ENI Vuln Scanner OS Module \u2014 offline LLM vulnerability scanning (garak-style). Local, stdlib-only, black-box vulnerability scanning of LLM endpoints using deterministic heuristic probes (keywords / re"
+  },
+  "youtube_transcripts": {
+    "name": "youtube_transcripts",
+    "role": "Build capability",
+    "hook": "pre_llm_call",
+    "why": "YouTube transcript puller with PIA VPN IP rotation. Pulls full-channel or per-video transcripts (yt-dlp + youtube-transcript-api), rotating the exit IP through Private Internet Access so a whole-chann",
+    "what": "YouTube transcript puller with PIA VPN IP rotation. Pulls full-channel or per-video transcripts (yt-dlp + youtube-transcript-api), rotating the exit IP through Private Internet Access so a whole-chann"
+  }
+}

@@ -1,0 +1,874 @@
+===============================================================================
+CLUSTER 1 — PLATFORM CORE DIGEST
+Source repo: /home/hunter/Desktop/Enterprise Builder/enterprise
+Digest author: SWARM READER 1 (platform core)
+Scope: docs + kernel + foundation + orchestration + integration + monitoring +
+       tenancy + systemd units + root config/build files
+===============================================================================
+
+This document explains the "brain" of the ENI Enterprise platform to someone
+who has never seen it. Read it top-to-bottom: it starts with the top-level
+idea, then drills into each file, class and config value, and finally shows
+how the pieces connect (ports, events, lifecycle).
+
+Ports you will meet (memorize these):
+  :8421   API Gateway + Dashboard (FastAPI / Starlette admin console)
+  :8787   Multiplayer Coordination Server (WebSocket)
+  :8788   Multiplayer HTTP API (REST, same server)
+  :8913   Local Controller "one-prompt -> program" brain
+  :9090   Prometheus metrics exporter
+  :8920   free-model-router (local LLM gateway)
+  :8922   swarm-turbocharger (network optimizer / swarm)
+  :9120   agent-server
+  :8420   swarm-bridge
+  :8080   local/free model endpoint (model_router deployment)
+
+Common Python paths: modules are imported as enterprise.modules.<name>,
+kernel as enterprise.kernel, etc. PYTHONPATH=line must point at the repo so
+"enterprise" resolves.
+
+===============================================================================
+PART 0 — WHAT THE WHOLE THING IS (the one-paragraph idea)
+===============================================================================
+ENI is a self-validating, modular "AI build operating system." One plain-English
+goal goes in, a tested program comes out. It is built from:
+  * A single orchestration kernel (platform_kernel.py -> PlatformOS) that boots
+    and supervises every capability "module."
+  * ~50 independent capability modules (in modules/, NOT covered in this digest
+    — that is cluster 2) that auto-register with the kernel.
+  * Cross-cutting systems: kernel plumbing, foundation libraries
+    (policies, evaluations, prompts), orchestration (workflows, plugins,
+    feature flags), integration (API gateway, event hub, service mesh),
+    monitoring (metrics, alerts, dashboards, logs), and tenancy (per-customer
+    isolation for monetization).
+  * A newer "cooperative multi-player build floor" (multiplayer/, :8787/:8788)
+    where many machines, each with their own GPUs and API keys, build the SAME
+    codebase at the SAME time under one coordination server.
+
+The selling story is "a horizontal cooperative build floor": N people * N
+machines each run a light client; a central server splits a goal into tasks,
+assigns them to the best machine, merges their work, and shows a live board.
+
+===============================================================================
+PART 1 — ROOT FILES AND DOCS
+===============================================================================
+
+--- 1.1 README.md (86 lines) -----------------------------------------------
+The public pitch. Key claims:
+  - "Enterprise AI operating system ... agentic kernel, swarm orchestration,
+    free-model routing, and independent OS modules."
+  - Architecture bullet points call out:
+      * Platform Kernel (platform_kernel.py) = singleton PlatformOS with
+        ModuleRegistry auto-discovery, EventBus pub/sub, HealthChecker,
+        lifecycle management, metrics collection and a logging bridge.
+      * Modules (modules/<name>/) = each a @module(...)-decorated Module
+        subclass exposing initialize / health_check / shutdown, discovered by
+        scanning modules/*/__init__.py.
+      * Tooling (foundation, orchestration, tenancy, integration) = prompt
+        registry, policy/evaluation engines, workflow composer, plugin system,
+        feature flags, tenant manager, API gateway + event hub + service mesh.
+      * Dashboard (dashboard/) = Starlette admin console on :8421.
+      * Infra = Docker + multi-stage Dockerfile, CI/CD, Makefile, scripts.
+  - Lists several "upgrade waves" with dates:
+      2026-08-02 autonomy layer: skill_factory, task_harness, gateway module,
+        semantic_memory.
+      2026-08-04 "Demiurge boost": model_router, universal_score.
+      v2.0.0 "Golden Boot" (2026-08-11): platform boots ~49 modules, including
+        agent_catalog, mlops_lifecycle, rag, autonomous_agent_runtime,
+        agent_os. It also notes kernel fixes: ModuleRegistry.discover() now
+        actually imports packages so all @module classes bind; PAUSE/RECOVERING
+        paths implemented via PlatformOS.pause()/resume(); per-module startup
+        timeouts honored.
+  - Quick start: `python3 -m pytest -q -p no:cacheprovider` and
+    `python3 dashboard/server.py  # :8421`.
+  - Config: everything lives in config.yaml under modules.<name> with
+    enabled/priority/required/timeouts/config.
+
+--- 1.2 ARCHITECTURE_v2.md (170 lines) ---
+The "master plan" doc (v3.0 "CO-OP", dated 2026-08-16; owner LO).
+  - Vision/insight: one Hermes + one machine = one build lane. To add lanes
+    today you buy a bigger box. This project changes the model to a
+    horizontal cooperative build floor: N people * N machines, each running a
+    "builder client" with their own keys/GPUs, all coordinated by one server.
+  - Target repo layout (the "cleaned tree"): README, LICENSE, Makefile,
+    pyproject.toml, requirements.txt, docker-compose.yml, Dockerfile,
+    config/config.yaml + config/security_policies.yaml, then
+    platform_kernel.py at root, kernel/, modules/ (49), foundation/,
+    orchestration/, tenancy/, integration/, dashboard/ (:8421),
+    multiplayer/ (server/, client/, protocol.py, proxy.py, dashboard_mp.py),
+    skills_pack/, local_controller/ (controller.py, planner.py,
+    private_vault.py, build_engine.py), data/, logs/, scripts/, tests/, docs/.
+  - The cooperative build (centerpiece):
+      Roles: Coordination Server (one box/VPS — task broker, workspace-merge
+        authority, live ledger, dashboard API; protocol WebSocket + HTTP REST
+        on one port), Builder Clients (each machine — register a profile
+        {cpus, ram, gpu, models, api-key tags}, claim tasks, run them via local
+        agent, upload results; keys NEVER sent to server), Shared Workspace
+        (server keeps git-backed canonical tree; client checks out a task slice,
+        runs, commits; merge orchestrator resolves conflicts and only promotes
+        green results).
+      Message flow (JSON over WS): hello -> welcome -> task -> work_start ->
+        work_log (streaming) -> artifact/work_result -> heartbeat -> ack /
+        retry_once / requeue. State machine QUEUED->ASSIGNED->RUNNING->
+        COMPLETED|FAILED(retry once).
+      Merge policy: fragment by module/namespace (zero conflicts); fallback
+        3-way git merge with a "resolver artifact" (a dedicated merge task)
+        rather than clobbering; integration gate runs tests before promote;
+        all merges logged to a ledger (who, files, when, tests-passed).
+      Dashboard endpoints: /health, /api/board, /api/submit; live WS push.
+  - Local brains (local_controller/): planner.py (goal -> task DAG ->
+    bigger prompts), private_vault.py (OS-keyring secrets, placeholders
+    {KEY:github} to the cloud), build_provider.py (one prompt -> program).
+    Fires into multi-player when >1 machine online, else local.
+  - Candidate "cut list": duplicate/divergent copies (Eni Builder/ dirs under
+    eni_compression/, compression_bridge/, ENI_KB, ENI_Swarm_NEW), carrier
+    PNG/.carrier build artifacts, caches, and single-machine swarm duplicates.
+  - Capital: self-hosted license; per-cluster licensing (free 1, Pro<=10,
+    Team unlimited); multi-tenancy (tenancy/) for SaaS; white-label dashboard;
+    and the 15-minute sales demo = cooperative floor + one-prompt->program.
+
+--- 1.3 docs/CAPABILITY_REFERENCE.md (183 lines, "v2.0.0 Golden Boot + v3 CO-OP") ---
+The master capability catalog. Headline numbers: 4,411 tests collected,
+4,410 passed, 1 skipped (verified 2026-08-16).
+  - FIVE LAYERS diagram:
+      Layer 4: Portable Hermes layer — 963 files (skills/LSP/MCP/plugins)
+               mirror + one-command installer.
+      Layer 3: Local brains :8913 — planner, redacting vault, build provider.
+      Layer 2: Cooperative build floor WS:8787 / HTTP:8788 — broker,
+               conflict-safe merge, auth/TLS/tenancy, /api/submit_plan.
+      Layer 1: Platform kernel — lifecycle, EventBus, health, metrics,
+               auto-discovery of every module.
+      Layer 0: 50 capability modules (self-validating, stdlib).
+  - Layer 0 module catalog grouped (examples):
+      Agent & orchestration (14): agent_core, agent_infra, agent_tools,
+        agent_os, agent_coordination, agent_graph, agent_catalog (432
+        specialists), autonomous_agent_runtime, a2a, task_harness,
+        skill_factory, gateway, swarm_network, swarm_bridge.
+      Model/MLOps/verification (8): model_router, model_miner,
+        model_security, mlops_lifecycle, llmops_trace, eval_gate,
+        universal_score, enterprise_validation.
+      Safety/security/compliance (10): safety_governance, threat_model,
+        ai_defense, compliance, privacy_data, guardrails, prompt_guard,
+        secret_broker, secret_evolution, vuln_scanner.
+      Knowledge/memory/retrieval (6): knowledge_graph, kb_bridge, memory,
+        semantic_memory, rag, compression_bridge.
+      Governance/ops/lifecycle (8): release_change, disaster_recovery,
+        innovation_rd, developer_experience, customer_experience,
+        look_and_feel, response_hardening, hermes_controller.
+      Developer/integration/infra (4): mcp_tools, prompt_context,
+        research_verification, triadforge.
+  - Platform subsystems listed: kernel/ (kernel, orchestrator, registry,
+    audit, quality_gate), foundation/ (policy_engine, evaluation_engine,
+    prompt_registry), orchestration/ (workflow_composer, plugin_framework,
+    feature_flags), tenancy/ (tenant_manager), integration/ (api_gateway,
+    event_hub, service_mesh), monitoring/ (metrics_collector, health_dashboard,
+    alert_manager, log_aggregator), dashboard/ (Starlette admin :8421),
+    docker/.
+  - Cooperative floor details (layer 2): multiplayer server WS:8787 + HTTP:8788;
+    capability-aware round-robin assignment; heartbeat-timeout requeue;
+    retry-once; JSONL persistence; clients bring own GPU/keys; server never
+    sees other machines' secrets; workers type shell / python / llm (the llm_worker
+    writes real code via planner + external LLM MP_LLM_URL, two-layer redaction);
+    /api/submit_plan one goal -> N uniquely named step tasks across the fleet;
+    harness binds 0.0.0.0, auth token MP_AUTH_TOKEN, per-tenant isolated
+    workspaces, TLS (wss), conflict detector that never clobbers. Proven live:
+    POST /api/submit_plan {"goal":"build a budget tracker","tenant":"acme"}
+    -> 6 steps -> llm builder -> merged into wspace/acme/ (tenant-isolated),
+    ledger "APPLIED ... conflicts=0".
+  - Layer 3 endpoints: /plan, /enrich, /program (runs to artifacts + manifest +
+    self-test, retry <=2), /health. Vault redacts real secrets.
+  - Layer 4 operators: skills_pack (20 categories, 957 skill files, 1 LSP, 2
+    MCP, 3 plugins = 963 total), install_skillspack.sh idempotent, scripts
+    eni_cli (status doctor install setup fleet local agent-os up),
+    setup.sh (one-command install + verify), boot_all.sh/.bat.
+  - systemd units: eni-controller.service (:8913), eni-multiplayer-server.service (:8787).
+
+--- 1.4 docs/TECHNICAL_REFERENCE.md (580 lines) ---
+The older, exhaustive technical doc. Note: it describes the older 20-module
+architecture ("28 components", platform_kernel 74,141 bytes), so treat its
+counts as historical, but the mechanics are faithful.
+  - Kernel code walkthrough: PlatformOS.get_instance(), registry.discover()
+    scans enterprise/modules/*/, EventBus.publish("safety.incident.incident",
+    {...}), subscribe with wildcards safety.* (single level), safety.**
+    (multi-level ), ** (everything), HealthChecker -> {status, modules,
+    healthy, degraded, down}.
+  - Key classes: PlatformOS, ModuleRegistry, EventBus (wildcards, priority,
+    dead-letter), HealthChecker (periodic pings), MetricsCollector,
+    LoggingBridge, LifecycleManager.
+  - Event envelope fields: event_id, event_type, source, payload, priority,
+    correlation_id, prev_correlation_id, timestamp, ttl_seconds, status,
+    retry_count, trace_context.
+  - API Gateway: "71 endpoints across 16 router groups" tables —
+      /api/v1/health (3), /api/v1/modules (2), /api/v1/events (4),
+      /api/v1/agents (2), /api/v1/incidents (3), /api/v1/compliance (1),
+      /api/v1/feature-flags (3), /api/v1/tenants (3), /api/v1/resources (1),
+      /api/v1/alerts (1), /api/v1/metrics (2), /api/v1/orchestration (2),
+      /api/v1/cx (2), /api/v1/audit (1), /api/v1/auth (2),
+      /api/v1/events/stream (1). Auth: anonymous health, Bearer/API-key;
+      rate limit token bucket per-IP/per-user.
+  - Service Mesh: CircuitBreaker (failure_threshold=5, recovery_timeout=30,
+    half_open_max_requests=3), ServiceRegistry, ServiceInstance,
+    LoadBalancer; state machine CLOSED ->(5 fail)-> OPEN ->(30s)-> HALF_OPEN
+    ->(3 ok)-> CLOSED.
+  - Module registration pattern: @module(name, version) class MyModule(Module)
+    with async initialize() (set status HEALTHY), health_check(), shutdown().
+  - Module table (lines 180-199) with line counts and tests (e.g.
+    safety_governance 13,208 lines / 168 tests; privacy_data 7,063/177; ...).
+  - Foundation subsystems list (config_feature_flags, plugin_framework,
+    policy_engine, prompt_registry, tenant_manager, evaluation_engine,
+    module_registry, workflow_composer).
+  - Deployment: bare metal (pip install -r requirements.txt, PlatformOS boot,
+    uvicorn enterprise.integration.api_gateway:app --port 8421), Docker
+    compose 14 services, systemd units.
+  - Validation formula (enterprise_validation OS, 10 axes weights summing to 1.0):
+    module_score = 0.20 functional + 0.15 reliability + 0.15 security
+    + 0.10 performance + 0.10 maintainability + 0.08 scale + 0.08 observability
+    + 0.07 documentation + 0.04 cost + 0.03 ai_quality.
+  - Security: Bearer/JWT, token bucket rate limiting, circuit breakers, and
+    "168 safety tests," volatiles, PII redaction, toxicity, hallucination
+    detection, prompt injection resistance; immutable Audit Trail (SOC2/GDPR/
+    HIPAA-ready).
+  - Scaling: horizontal (stateless services except SQLite, distributed pub/sub),
+    vertical (80 agents single machine, 60 pools/120 keepalive, 16MB TCP bufs,
+    backlog 5000), WiFi-aware swarm turbocharger table (e.g. -48dBm -> 80
+    agents -> 56 req/s; -70dBm -> 25 agents -> 17 req/s).
+
+--- 1.5 config.yaml (560 lines) — the single source of runtime truth ---
+Loaded by PlatformOS at startup. Top-level sections:
+  platform: name "ENI Enterprise Platform", version 1.0.0, environment
+    "production" (alt staging/development), data_dir logs "logs" metrics "metrics".
+  modules.* block: every module has enabled, priority (lower = earlier),
+    required, startup_timeout_sec, health_check_interval_sec, and a nested
+    config dict. Representative settings:
+      safety_governance: pri=1 required, guardrail_strictness high,
+        incident_alert_threshold critical.
+      agent_coordination: pri=2 required, max_concurrent_agents 50,
+        message_queue_size 10000, failover true.
+      privacy_data: pri=3 required, AES-256-GCM, data_residency ["US","EU"],
+        gdpr_compliance true.
+      knowledge_graph: pri=4 optional, 1M entities/10M relationships, full_text.
+      prompt_context: pri=5 required, max_context_tokens 128000, cache_ttl 3600.
+      developer_experience / customer_experience / release_change (canary,
+        rollback) / innovation_rd / disaster_recovery (RTO 60min, RPO 15min).
+      skill_factory (data/skills, max_versions 10), task_harness
+        (data/tasks.sqlite), agent_catalog (data/agent_catalog.db),
+        gateway (channels + cron jobs; sample webhook http://127.0.0.1:8099/
+        gateway/echo, cron "0 9 * * *" callback report_universal_score),
+        semantic_memory (embedding_dim 256, top_k 5),
+        model_security (PRIORITY 0 boots FIRST; thresholds ~0.7, policy
+        config/security_policies.yaml),
+        model_router (PRIORITY 50; two deployments: "openrouter-flash"
+        deepseek/deepseek-v4-flash-0731 @ https://openrouter.ai/api/v1, weight 3,
+        allowed_fails 3, cooldown 60, group chat; "local-free-router"
+        local/free @ http://127.0.0.1:8080/v1, weight 1, cooldown 30),
+        universal_score (PRIORITY 40; bonus_cap 25, hard_gate_cap 40, run_tests false),
+        memory (data/agent_memory.sqlite, dim 128, top_k 5, max_per_type 1000),
+        mcp_tools, a2a (max_tasks 10000, handoff_depth 64),
+        eval_gate (default_threshold 0.7),
+        agent_graph (max_steps 1000, max_runs 10000),
+        llmops_trace, vuln_scanner (probes prompt_extraction/jailbreak/pii_leak/
+        toxicity), guardrails (on_fail raise, max_refix_rounds 3),
+        compliance (frameworks owasp_llm_top10/nist_ai_rmf/mitre_atlas),
+        secret_evolution, threat_model (default_likelihood 3 / impact 3),
+        triadforge (db /home/hunter/Desktop/TriadForge/...),
+        ai_defense (anomaly window 60s z 4.0 flood 20/s; bot; extraction
+        max 200 q/min; stuffing lockout 300s),
+        secret_broker (detector entropy 3.8), prompt_guard (risk_threshold 2.0),
+        look_and_feel, agent_os (max_conflicts 20),
+        autonomous_agent_runtime (default_provider openai_compatible),
+        rag (embedder "hash"), mlops_lifecycle (drift_threshold 0.05).
+  logging: level INFO (json format), outputs console (text INFO), file
+    (DEBUG json -> logs/platform.log, max_bytes 104857600=100MB, backup_count 10),
+    syslog (WARNING facility local0).
+  metrics: enabled, collection_interval_sec 15, retention_days 90, exporters
+    prometheus (port 9090, path /metrics) and json_file
+    (metrics/platform_metrics.json).
+  health: enabled, global_interval_sec 30, failure_threshold 3,
+    recovery_threshold 2, timeout_sec 10.
+  event_bus: max_queue_size 100000, async_dispatch true, max_workers 8,
+    dead_letter_enabled true, dead_letter_retention 7 (days).
+  lifecycle: startup_grace_period_sec 60, shutdown_timeout_sec 30,
+    degraded_threshold dependency 0.5, auto_restart false, max_attempts 3.
+
+--- 1.6 requirements.txt (65 lines) ---
+Runtime/deps: fastapi, uvicorn[standard], starlette; pydantic v2, pydantic-settings,
+pyyaml, orjson; numpy<3, pandas, jinja2, psutil, prompt-toolkit; httpx, aiohttp,
+redis (>=5.0.0,<6); (sqlalchemy/asyncpg/alembic commented out); python-jose,
+passlib[bcrypt], python-multipart; structlog, prometheus-client,
+opentelemetry-api/sdk; python-dateutil, click, rich, typer, tenacity,
+python-dotenv. Dev: pytest + pytest-asyncio/-cov/-xdist/-mock; ruff, mypy.
+
+--- 1.7 Makefile (164 lines) ---
+Root wrapper that delegates all container ops to docker/Makefile and adds
+local Python targets. Targets: build / build-dev / run / run-dev / run-core /
+run-swarm / stop / down / down-volumes / restart / rebuild / test / test-cov /
+test-integration / deploy / push / status / logs / shell / clean / clean-all /
+ci / ship; local: setup, setup-dev, lint (ruff check), format, typecheck (mypy),
+test-local, test-local-cov. Enterprise-specific CLI and pack targets:
+skillspack-install / skillspack-dryrun, eni-install / eni-doctor / eni-status /
+eni-up, up-hermes (docker compose --profile hermes), and one-command
+eni-setup / eni-local / eni-fleet / eni-boot.
+
+--- 1.8 pyproject.toml (235 lines) ---
+Build metadata + tool config.
+  - [build-system] setuptools>=68 + wheel; backend setuptools.build_meta.
+  - [project] name eni-enterprise version 1.0.0, description "Platform kernel,
+    10 OS modules, API gateway, dashboard," license Proprietary, requires-python
+    >=3.11,<3.13, classifiers Production/Stable. Dynamic dependencies pulled
+    from requirements.txt. Package find includes kernel*, dashboard*,
+    integration*, foundation*, modules*, monitoring*; excludes tests/scripts/etc.
+  - Tool config: ruff (target py311, line-length 100, big select set incl. F,E,W,
+    I,N,C4,B,SIM,RET,TID,TCH,ARG,PTH,PT,UP,ANN; ignore C901/D100/D104/D400);
+    mypy (strict=true, lots of disallow_*); [tool.pytest.ini_options]
+    minversion 8, testpaths ["tests","modules","scripts/tests"], pythonpath .,-addopts
+    --import-mode=importlib --strict-markers --tb=short --disable-warnings
+    -p no:cacheprovider -p no:anyio, asyncio_mode auto, markers per module;
+    [tool.coverage] source list, fail_under 50.
+
+===============================================================================
+PART 2 — platform_kernel.py (2256 lines) — THE ORCHESTRATION KERNEL
+===============================================================================
+This is the heart. It defines the abstractions that every other component uses:
+status enums, lifecycle states, the event bus, the Module contract and registry,
+health checker, metrics, logging, config loading, and PlatformOS itself.
+
+--- 2.1 HealthStatus (Enum: line 71) ---
+Module/system health: HEALTHY, DEGRADED, UNHEALTHY, STARTING, STOPPING,
+UNKNOWN. Helper is_operational() (true for HEALTHY|DEGRADED) and is_terminal()
+(true for UNHEALTHY|UNKNOWN).
+
+--- 2.2 LifecycleState (Enum: line 90) ---
+The platform state machine:
+  UNINITIALIZED -> INITIALIZING -> DISCOVERING -> CONFIGURING -> STARTING ->
+  RUNNING / DEGRADED -> PAUSING / PAUSED / STOPPING -> STOPPED, plus CRASHED
+  -> RECOVERING. Each state has a whitelist can_transition_to(target), so
+  invalid transitions raise. Example allowed moves: STARTING -> {RUNNING,
+  DEGRADED, CRASHED, STOPPING}, RUNNING -> {DEGRADED, PAUSING, STOPPING},
+  PAUSED -> {RUNNING, RECOVERING, STOPPING}, CRASHED -> {RECOVERING, STOPPING},
+  RECOVERING -> {RUNNING, DEGRADED, CRASHED, STOPPING}. A module-level
+  _STATE_INDEX provides a numeric gauge for metrics.
+
+--- 2.3 Event system (lines 184-512) ---
+  EventPriority: LOW=0, NORMAL=50, HIGH=100, CRITICAL=200.
+  Event: dataclass (event_id UUID4, topic, source, payload, timestamp, priority,
+    correlation_id, metadata). Factory Event.create(topic, source, payload,
+    priority=..., correlation_id=..., metadata=...).
+  Subscription: {id, topic, handler (async or sync callable), subscriber_name,
+    priority_filter, once(bool)}.
+  EventBus: thread-safe pub/sub. Supports async dispatch via a thread-pool
+    executor, priority filtering, dead-letter queue, event history
+    (_SEEN_HISTORY_MAX 10000), topic matching with wildcards, get_stats(),
+    shutdown() (drains the executor).
+  publish(): records the event, finds matching subscriptions via
+    _get_matching_subscriptions(topic), applies priority filter, dispatches
+    (async to executor if enabled; else synchronously). On handler exception it
+    routes to the dead-letter queue. publish_sync() runs inline.
+
+--- 2.4 Module and the @module decorator (lines 514-618) ---
+  Module(abc.ABC): the base contract every capability module implements.
+    State: _meta_name/_meta_version/_meta_config (set by decorator), _config,
+    _status (HealthStatus), _started_at, _module_id (UUID4).
+    Mandatory async methods: initialize() (bring up), health_check() -> returns
+    HealthStatus, shutdown() (teardown). Name/version/status/module_id are
+    properties.
+  module(...) decorator: registers the class into the global _MODULE_REGISTRY
+    dict {name: class}. Usage: @module(name="safety_governance", version="1.0.0").
+    Any class so decorated is picked up by ModuleRegistry.discover() with zero
+    kernel edits.
+
+--- 2.5 ModuleRecord & ModuleRegistry (lines 625-886) ---
+  ModuleRecord: dataclass {name, path, version, module_class, instance,
+    enabled, required, priority, config, discovered_at}.
+  ModuleRegistry:
+    DEFAULT_MODULES_PATH = <repo>/modules.
+    discover() -> list of module names: scans
+    modules/<name>/__init__.py, imports each package so that the @module
+    decorator bodies run and classes, then records modules; reads version from
+    __init__ (__version__) via _extract_version.
+    initialize_all() -> dict[module_name -> HealthStatus]: sorts enabled
+      modules by priority (lowest first), loops, constructs each class and
+      awaits initialize() inside a per-layer startup timeout (default 30s from
+      lifecycle.startup_timeout_sec); collects post-init status.
+    import_module(name) attempts to load enterprise.modules.<name>.
+  This is the piece README says was fixed: real module import so all @module
+  classes bind (previously silently initialized nothing).
+
+--- 2.6 HealthChecker & HealthReport (lines 911-1213) ---
+  HealthReport: dataclass {module_name, status, response_time_ms, timestamp,
+    details, consecutive_failures, consecutive_successes}. "platform" module
+    name used for aggregate report; to_dict() for JSON.
+  HealthChecker(registry, event_bus, config from health section):
+    - run_all_checks() -> runs each module's health_check(), plus a
+      functional_health_check that (when a module exposes probe() or
+      functional_probe()) runs a real, non-mutating probe and folds the result
+      into the report; appends an aggregate "platform" report.
+    - run_check_for(module_name) for a single module.
+    - Tracks rolling window of reports; _update_tracking counts consecutive
+      failures/successes; _aggregate to a platform-level status (using the
+      health config failure_threshold=3 / recovery_threshold=2).
+    - get_failure_count(name), is_degraded(name), get_all_reports().
+
+--- 2.7 Metrics & Logging & Config (lines 1215-1665) ---
+  MetricPoint / MetricsCollector (lines 1215-1372): an in-process metrics
+    store with counters, gauges, histograms. increment(name, tags),
+    set_gauge, observe (for histogram), snapshot(), get_recent(),
+    get_counter/get_gauge/get_histogram_stats, reset(). Fed at startup by
+    PlatformOS so metrics reflect platform reality.
+  LoggingBridge (1324-1498): configures the Python logging root from the
+    "logging" section, builds console/file/syslog handlers via _create_handler,
+    a JSON formatter, bridges per-module loggers, set_level / level.
+  ConfigurationLoader (1526-1665): loads YAML (enterprise/config.yaml,
+    or explicit path), merges _load_defaults(), applies env overrides
+    (_apply_env_overrides), reload(), get(key, default), exposes .config.
+
+--- 2.8 PlatformOS (lines 1671-2200) — the top-level
+  PlatformOS: the singleton orchestrator. Thread-safe; get via PlatformOS.instance()
+  (direct construction raises). reset_instance() for testing.
+  Attributes: state (LifecycleState), state_history, subsystem pointers
+  (_config_loader, _module_registry, _event_bus, _health_checker,
+  _metrics_collector, _logging_bridge), platform_id (UUID4), started_at,
+  _health_poll_task, _health_poll_interval.
+  Lifecycle flow:
+    initialize(config_path=None, modules_path=None):
+      transitions to INITIALIZING; loads config; builds LoggingBridge; creates
+      EventBus and MetricsCollector; transitions DISCOVERING; creates and runs
+      ModuleRegistry.discover(); transitions CONFIGURING; creates HealthChecker
+      and reads global health poll interval from health.global_interval_sec.
+    start():
+      must be in CONFIGURING|STOPPED; transitions STARTING; sets started_at;
+      awaits module_registry.initialize_all(); determines initial state: if any
+      "required" module isn't HEALTHY -> DEGRADED, else RUNNING; records gauges
+      (platform.state, platform.modules.initialized, platform.modules.healthy)
+      and increments platform.lifecycle.starts; starts background health poll
+      loop task; publishes platform.started event.
+    shutdown():
+      transitions STOPPING, cancels the health poll task, publishes
+      platform.stopping, shuts down modules, then STOPPED.
+    pause() / resume(): README-advertized features.
+      pause() from RUNNING/DEGRADED/RECOVERING -> PAUSING -> PAUSED (stops the
+        poll loop).
+      resume() from PAUSED -> RECOVERING: re-initializes modules that are
+        UNHEALTHY/UNKNOWN (await instance.initialize(); set HEALTHY), restarts
+        the health poll, then -> RUNNING.
+      _health_poll_loop(): while RUNNING/DEGRADED/RECOVERING, sleep the
+        interval, run_all_checks(), _evaluate_platform_health().
+      _evaluate_platform_health(reports): if the aggregate "platform" report is
+        UNHEALTHY and not already DEGRADED -> DEGRADED; if HEALTHY and DEGRADED
+        -> RECOVERING then RUNNING.
+      _transition_to(target): validates with the state machine, records to
+        state_history, publishes platform.state_change event.
+    Accessors: event_bus, module_registry, health_checker, metrics, logging,
+      config, platform_id, uptime_seconds, status_report().
+    status_report(): high-level status dict {platform_id, state, uptime,
+      config{environment, version}, modules{discovered, deque}, events stats,
+      metrics snapshot, state_history[last 20]}.
+    register_signal_handlers(): installs SIGINT/SIGTERM handlers that schedule
+      a clean shutdown() on the running loop.
+  create_platform(config_path, modules_path): convenience = instance() + initialize().
+
+Important note: platform_kernel.py is the REAL produced core; the docs in
+docs/TECHNICAL_REFERENCE.md describe it (with slightly different class order)
+and both agree on behavior.
+
+===============================================================================
+PART 3 — kernel/ (the supporting kernel packages)
+===============================================================================
+The kernel/ directory holds a set of small packages that complement/alternate
+with platform_kernel.py. kernel/__init__.py re-exports PlatformKernel,
+ModuleRegistry, Orchestrator, QualityGateEngine, AuditTrail (version 1.0.0).
+
+--- 3.1 kernel/kernel.py (162 lines) — PlatformKernel ---
+A lightweight, context-based orchestration kernel.
+  Enums: ModuleAuthority (REQUIRED/ADVISORY/BLOCKING/OBSERVER), GateStatus
+    (PASSED/PENDING/FAILED/SKIPPED).
+  Dataclasses: QualityGate{name, status, evidence, timestamp, blocker},
+    ModuleActivation{module_name, authority, config}, KernelContext{session_id,
+    project, objective, modules, gates, audit_log, artifacts, metrics,
+    started_at, completed_at}.
+  PlatformKernel(module_path=None): scans module_path/ modules and reads
+    __version__ from each __init__; methods add_gate, pass_gate, fail_gate,
+    check_blockers (failed blocker gates), all_required_passed, finalize()
+    (returns the full context summary: modules activated, gates, blockers,
+    metrics, artifacts).
+  Singletons: get_kernel() (lazy singleton), new_context(project, objective).
+
+--- 3.2 kernel/registry.py (189 lines) ---
+The static "ModuleRegistry" describing each OS module's contract.
+  ModuleSpec dataclass: id, name, version, description, inputs, outputs,
+    dependencies, permissions, activation_conditions, quality_gates, blocking,
+    agents.
+  ModuleRegistry.MODULES: a dict of 10 base spec definitions, e.g. backend
+    safety_governance (M-001, inputs project_context... outputs risk_assessment,
+    guardrail_spec, eval_report, incident_response_plan, etc.), M-006
+    developer_experience, M-007 innovation_rd, M-008 disaster_recovery
+    (blocking=true, gates QG-010/QG-016), M-009 release_change (blocking, gates
+    QG-007/QG-017), M-010 customer_experience.
+  Helpers: get(mid), list_all(), get_blocking_modules(),
+    get_dependency_order(required) (topological sort respecting module
+    dependencies), get_all_gates(module_ids).
+
+--- 3.3 kernel/orchestrator.py (170 lines) ---
+Multi-agent orchestration across OS modules.
+  Enums: TaskStatus (PENDING/IN_PROGRESS/COMPLETED/FAILED/BLOCKED/CANCELLED),
+    TaskPriority (CRITICAL=0 ... LOW=3).
+  Dataclasses: TaskMessage{task_id, objective, required_inputs/outputs,
+    dependencies, assigned_agent, priority, confidence, assumptions, risks,
+    evidence, status, result, error}; AgentDefinition{name, role, capabilities,
+    module, authority execute/advise/approve}.
+  AGENTS: 12 agent roles — executive (approve), product_manager (approve),
+    architect (execute), backend/frontend (developer_experience),
+    security+compliance (safety_governance, authority block), ai_engineer
+    (prompt_context), data_engineer (privacy_data), qa/devops (release_change,
+    execute), docs.
+  Orchestrator(max_workers=10): create_task, get_agent, assign_best_agent
+    (keyword-capability matching, defaults to executive), execute_parallel
+    (ThreadPoolExecutor over ready tasks, respecting dependency order, marks
+    statuses, collects results), log_decision, conflict_resolve (evidence-based
+    --- never authority alone; compares confidence, or "escalate" on a tie,
+    logs the decision).
+
+--- 3.4 kernel/audit.py (187 lines) ---
+Immutable, tamper-evident audit trail (SOC2/ISO27001/GDPR styling).
+  Enums: AuditLevel (INFO/WARNING/CRITICAL/SECURITY/COMPLIANCE).
+  AuditEntry dataclass: timestamp, level, module, event, actor, target, #
+    (outcome, data, session_id, hash, prev_hash).
+  AuditTrail (SQLite; default db ~/.eni/audit/audit.db):
+    - _init_db creates table audit_log with entry_hash + prev_hash columns +
+      indexes on timestamp/module/session.
+    - log(...) computes a SHA-256 hash of the entry fields (first 16 hex),
+      looks up the previous entry's hash, and stores both — building a hash
+      chain; commit.
+    - query() with optional filter for module/level/session, limit.
+    - verify_integrity(): reads all rows ordered by id and checks each
+      prev_hash matches the previous row's hash; returns total_entries,
+      breakdown, integrity "OK"/"BROKEN", broken.chain_at.
+    - search() LIKE on event strings.
+    - compliance_report(start, end): totals by level and module + integrity.
+  Singletons: get_audit(), audit_log(module, event, **kwargs).
+
+--- 3.5 kernel/quality_gate.py (164 lines) ---
+Enforce deployment gates across modules.
+  GateSeverity (CRITICAL/HIGH/MEDIUM/LOW); GateDefinition(id, name, description,
+    severity, module, check_fn, required_evidence, timeout_seconds).
+  QualityGateEngine.GATES: 17 defined gates QG-001..QG-017 mapped to modules,
+    e.g.:
+      QG-001 security_tests (CRITICAL, safety), QG-002 ai_evaluations
+      (hallucination/bias), QG-005 red_team (HIGH), QG-006 monitoring_active
+      (CRITICAL safety), QG-007 rollback_plan (CRITICAL release), QG-008
+      data_quality (CRITICAL privacy), QG-009 encryption (CRITICAL privacy),
+      QG-010 backuptests (CRITICAL DR), QG-011 prompt_version (MEDIUM
+      prompt_context), QG-012 no_context_conflicts (MEDIUM prompt_context),
+      QG-013 agent_verification (HIGH agent_coordination), QG-014
+      dependency_check (CRITICAL agents), QG-015 knowledge_provenance (HIGH
+      knowledge_graph), QG-016 recovery_test (CRITICAL DR), QG-017 change_record
+      (CRITICAL release).
+  Class methods: get_gate, get_module_gates, get_critical_gates,
+    validate_evidence(gate_id, evidence) -> {valid, gate, missing_evidence,
+    provided_evidence}, all_gate_summary().
+
+===============================================================================
+PART 4 — foundation/ (policy, evaluation, prompts)
+===============================================================================
+These are the "taste and standards" subsystems: what is allowed (policy), how
+good are the outputs (evaluation), and what prompts to use/version (perfect).
+
+--- 4.1 foundation/policy_engine.py (1126 lines) ---
+"Enterprise Policy Definition, Enforcement, and Audit System." Policies
+defined via JSON/YAML schema; rule-based enforcement with severity; audit
+logs; conflict detection; compliance-framework mapping (GDPR, SO-2, HIPAA,
+PCI-DSS, ISO 27001).
+  Key types (from docstring + class map): Severity (int-Enum), PolicyError
+  + subclasses (PolicyDefinitionError, PolicyConflictError, PolicyEnforcementError),
+  RuleCondition (a single test), PolicyRule (rule with conditions, severity,
+  action), PolicyDefinition (serializable policy with metadata), Violation,
+  AuditEntry + AuditLogger (tamper-evidence via hashing), ConflictReport /
+  ConflictDetector (static analysis of overlapping/contradictory rules),
+  PolicySet (grouped policies), and a PolicyEnforcer (runtime engine) plus
+  ComplianceMapper to map policies to frameworks.
+  Purpose: define "the rules the platform must obey." It is the standard library
+  the module safety/governance and compliance modules can call.
+
+--- 4.2 foundation/evaluation_engine.py (1214 lines) ---
+"Model Evaluation Framework, Benchmark Runner, Comparison Matrix."
+  Automated model evaluation across named quality dimensions, a benchmark
+  runner, regression detection, comparison matrices to rank models, and
+  configurable composite scoring.
+  Classes: QualityDimension (Enum: e.g. accuracy, relevance, safety...),
+  SuiteStatus, RegressionDirection, EvalCase (input->expected), EvalSuite
+  (named collection of cases), DimensionScore, EvalResult, EvalRun, ScorerConfig
+  (+ weights/thresholds), QualityScorer (composite score with default per-
+  dimension scorers: _accuracy, _relevance, _safety, _coherence, ...),
+  ModelInvoker(Protocol), BenchmarkRunner (executes suites), ComparisonEntry /
+  RankingEntry / ComparisonMatrix (multi-model/multi-suite ranking),
+  RegressionSignal / RegressionReport / RegressionDetector (detect drops
+  between runs), EvalStore, StandardBenchmarks.
+  Purpose: measure model/output quality objectively.
+
+--- 4.3 foundation/prompt_registry.py (1096 lines) ---
+"Centralized Enterprise Prompt Management." Versioning (semver), full-text
+  catalog search, deprecation lifecycle, A/B testing with traffic split, a
+  Jinja2-style template engine with block inheritance, and a structured
+  approval workflow.
+  Classes: PromptStatus, VariantAllocation, PromptRegistryError + sub-
+  exceptions, TemplateBlock, PromptTemplate (Jinja-like {% block %}),
+  PromptVersion (semver), PromptRecord (full history), ABTestVariant, ABTest
+  (control vs variants), SearchFilter, PromptCatalog (search by name/tag/
+  metadata), PromptRegistry (orchestrates: create version, promote, deprecate,
+  run A/B, export catalog, observer events).
+
+===============================================================================
+PART 5 — orchestration/ (workflows, plugins, feature flags)
+===============================================================================
+--- 5.1 orchestration/workflow_composer.py (969 lines) ---
+Declarative DAG-based workflow builder + execution engine. Sequential,
+parallel, conditional (branch/merge), and fan-out patterns.
+  Errors: WorkflowError, CycleDetectedError, NodeNotFoundError,
+  WorkflowExecutionError, NodeTimeoutError.
+  Enums: ExecutionMode, NodeState, ExecutionPolicy.
+  Dataclasses: RetryPolicy (per-node with backoff), NodeResult, WorkflowResult,
+  Edge (a dependency), WorkflowNode (a step).
+  Core classes: DAG (the graph; validates no cycles, topological execution),
+  WorkflowBuilder (fluent builder API), Workflow (execution entry point:
+  tracing, audits, runs, returns WorkflowResult).
+  Purpose: compose a multi-step build task into a runnable graph the kernel can
+  execute with retries/timeouts.
+
+--- 5.2 orchestration/plugin_framework.py (1261 lines) ---
+Plugin / Tool system with discovery, loading, hot-reload, sandboxing.
+  Capabilities: filesystem plugin discovery (namespace packages +
+  entry-points); dynamic loading with dependency resolution; hot-reload via
+  a file watcher (inotify/polling); sandboxed execution with resource limits
+  and import restriction; capability declaration/introspection; semver
+  compatibility checking; full lifecycle load->init->start->stop->unload.
+  Classes: Errors (PluginError, PluginNotFoundError, PluginLoadError,
+  IncompatibleVersionError, SandboxViolationError, CircularDependencyError),
+  SemVer, PluginState, PluginCapability, PluginManifest, PluginBase(abc),
+  SandboxPolicy, SubprocessSandbox, PluginDiscovery, RegistryEntry,
+  PluginRegistry, PluginManager, _IsolatedPluginProxy, PluginFileWatcher,
+  _SandboxImportHook.
+
+--- 5.3 orchestration/feature_flags.py (1097 lines) ---
+Config & Feature Flag system. Dynamic config, targeting rules, versioning,
+audit.
+  Features: boolean + multi-variate flags; targeting by user, tenant,
+  percentage rollout, environment, groups; gradual rollouts (0%->100%) with
+  consistent bucketing; config versioning with rollback; full audit log;
+  cache with TTL; kill switches; flag dependencies.
+  Classes: FeatureFlagError + subclasses; enums FlagType, FlagState,
+  TargetOperator, AuditAction; target structures TargetRule, TargetingRuleSet,
+  FlagDefinition, AuditEntry, ConfigSnapshot, ConfigVersionStore, AuditLogger,
+  FeatureFlagEngine (evaluate(target) -> enabled, toggle, etc.).
+
+===============================================================================
+PART 6 — integration/ (the outside-world surface)
+===============================================================================
+
+--- 6.1 integration/api_gateway.py (1457 lines) — REST API on :8421 ---
+A FastAPI app (the same :8421 as dashboard). Exposes all module capabilities
+as versioned REST endpoints with auto OpenAPI docs, auth middleware, rate
+limiting, Pydantic validation, CORS, GZip, request-ID tracing.
+  Constants: API_VERSION "v1", API_PREFIX "/api/v1", DEFAULT_RATE_LIMIT 100
+  req/min, DEFAULT_BURST_SIZE 20.
+  Pydantic models: HealthStatus, ModuleHealthResponse, PlatformHealthResponse,
+  KernelContextCreate, GateUpdateRequest, EventPublishRequest, OrchestrationTask,
+  ErrorResponse, APIKeyRequest, RateLimitInfo.
+  Infrastructure classes: TokenBucket, RateLimiter, AuthHandler (JWT/OAuth2/
+  bearer), and the app builder create_app() which includes 17 routers:
+  health, kernel, modules, events, orchestration, knowledge, privacy, safety,
+  prompts, releases, cx, innovation, dr, dx, admin. Lifecycle starts kernel
+  on startup and stops on shutdown.
+  Auth: anonymous for health; "Authorization: Bearer <key> or JWT; per-endpoint
+  config.
+
+--- 6.2 integration/event_hub.py (1096 lines) — central event backbone ---
+The production-grade publish/subscribe hub connected to the kernel EventBus.
+Defines standard event schemas, module-to-module contracts, reliable delivery.
+  Classes: EventPriority (str Enum), EventStatus, ContractDirection, EventSchema,
+  EventEnvelope (the standard event shape), EventSubscription, EventContract
+  (module-to-module communication contracts), DeadLetterQueue (failed events
+  + replay), EventTracer (distributed tracing via correlation IDs), EventBus
+  (async routing engine, pattern matching), SyncEventPublisher.
+  Standard event categories:
+    system.* (lifecycle), kernel.* (context/gates/audit), module.* (module
+    lifecycle), agent.* (task/message/status), data.* (governance), safety.*
+    (guardrail/incident), knowledge.* (graph), release.* (deploy/rollback).
+  Purpose: a wider, contract-audited event backbone over the in-kernel bus.
+
+--- 6.3 integration/service_mesh.py (1096 lines) — inter-service skills ---
+"Service discovery, health checking, circuit breaking, load balancing,
+resilience patterns for inter-module communication."
+  Classes: HealthStatus (str Enum), CircuitState (CLOSED/OPEN/HALF_OPEN),
+  LoadBalanceStrategy (Enum), ServiceInstance, HealthCheckConfig, HealthRecord,
+  CircuitBreakerConfig (e.g. failure_threshold, recovery_timeout_seconds,
+  half_open_max_requests), RetryConfig, CircuitBreaker (failure-aware,
+  state machine CLOSED->(5 failures)->OPEN->(30s)->HALF_OPEN->(3 ok)->CLOSED),
+  CircuitError, ServiceRegistry (discovery + registration), HealthChecker
+  (periodic probing with rolling window), LoadBalancer (strategy-based dispatch:
+  round-robin, least-connections, weighted), ResilienceManager (retry, timeout,
+  bulkhead, rate limiting), ServiceMesh (unifies the above), MeshTopology
+  (dependency graph visualization).
+  Also exposes Prometheus-friendly status/state updates.
+
+===============================================================================
+PART 7 — monitoring/ (the observability stack)
+===============================================================================
+Four files implement a full telemetry + alerting + dashboard + log stack over
+the kernel. (The monitoring/README.md documents it compactly.)
+
+--- 7.1 monitoring/metrics_collector.py (1205 lines) ---
+Prometheus-compatible metrics exporter. Wraps the kernel MetricsCollector and
+formats output for Prometheus.
+  Classes: MonitoringMetricsCollector (module-aware dimensions, methods like
+  record_endpoint_request / record_event / export_prometheus /
+  sync_from_kernel(registry, health_checker, event_bus)), PrometheusMetricsExporter
+  (renders text/plain), MetricsRegistry (central naming/subtype registry).
+  Metric types: counters, gauges, histograms. Coverage: all 20 registers in
+  modules + 71 endpoints across 16 router groups, EventBus.
+  Exported metric names (from README): eni_platform_health_status (gauge),
+  eni_module_health_status{module}, eni_endpoint_requests_total, ..._duration,
+  eni_events_* , eni_alerts_active_total, eni_swarm_wifi_signal_dbm,
+  eni_circuit_breaker_state.
+  Export served at GET /metrics (port 9090 per config).
+
+--- 7.2 monitoring/health_dashboard.py (867 lines) ---
+Real-time health aggregation for the dashboard. Collects module health,
+endpoint status, event bus stats, alert summaries, resource utilization, swarm
+turbo metrics -> a single snapshot.
+  Classes: HealthColor, DashboardStatus, ModuleHealthCard, EndpointHealthCard,
+  DashboardSnapshot (to_dict()), HealthDashboard (aggregator).
+  Dashboard snapshots 9 sections: platform overview, module grid, endpoint
+  grid, event bus, active alerts, service mesh, resources, swarm turbo, incidents.
+
+--- 7.3 monitoring/alert_manager.py (1033 lines) ---
+Threshold-based alerting with severity, escalation, dedup, cooldown, EventBus
+integration.
+  Enums: AlertSeverity (INFO..CRITICAL), AlertState (FIRING/RESOLVED/
+  ACKNOWLEDGED/ESCALATED/SUPPRESSED).
+  AlertCondition, AlertRule (threshold defs), EscalationPolicy, Alert
+  (lifecycle), AlertManager (evaluate_all, get_active, get_summary).
+  Integration: publishes alert.* events to the kernel EventBus; HealthChecker
+  feeds module health; metrics feed thresholds; API Gateway /api/v1/alerts.
+  18 pre-configured rules cover module health, endpoint errors/latency, event
+  bus failure/DLQ, circuit open, CPU/mem/disk, wifi degradation, swarm agent
+  exhaustion, alert storms.
+
+--- 7.4 monitoring/log_aggregator.py (732 lines) ---
+Centralized structured log collection. Ingests, routes, filters, exports.
+  LogLevel (DEBUG..CRITICAL), LogEntry (structured, with module/correlation/
+  trace_context), LogAggregationConfig (outputs, filters, retention),
+  LogAggregator (start/stop, ingestRaw, query recent, ring buffer, rate
+  limit _AggregatorHandler (a python logging.Handler bridge).
+  Output sinks: console, rotating file, JSON file, syslog, in-memory buffer.
+  Publishes log events to the kernel EventBus; integrates with MetricsCollector
+  for log-volume metrics.
+
+===============================================================================
+PART 8 — tenancy/tenant_manager.py (1875 lines) — multi-tenant isolation
+===============================================================================
+"Full Multi-Tenant Isolation System." Per-customer sandboxes -> what makes
+SaaS / monetization possible. Integrates with the kernel via module interface.
+  Enums: TenantStatus (e.g. active/suspended/...), IsolationMode
+    (shared/dedicated/hybrid, with is_operational / is_terminal /
+    requires_dedicated_infrastructure / allows_cross_tenant_caching), 
+    SubscriptionTier (ordered, supports >= and <=), AuditEventType, Permission.
+  Quota (dict of api_calls/storage/agents/models/tokens with merge/from_dict),
+  Role (permissions, to_dict, custom roles), Tenant (tenant_id, name, tier,
+    quotas, isolation level, users, roles, config, partitions/audit; methods
+    check permission, add/revoke role, provision/activate/suspend/reactivate/
+    delete with rollouts, config get/set/reset, partition_key),
+  TenantManagerError + specific exceptions (TenantNotFoundError,
+    TenantStatusError, TenantQuotaExceededError, PermissionDeniedError,
+    RoleConflictError).
+  TenantManager: a thread-safe store of tenants with:
+    - provision_tenant (creates tenant with tier/defaults, provisioning hooks),
+    - suspend_tenant / reactivate_tenant / delete_tenant (with data cleanup
+      hooks),
+    - create_role / update_role / a role / get_roles / assign_role /
+      revoke_role,
+    - permissions: get_user_roles, get_user_permissions, check_permission,
+    - quotas: get/update/reset quotas, check_quota, record_usage, get_usage,
+    - config overrides: get/set/delete/get_all/reset per-tenant,
+    - partitions: get_partition_key, create_partition (per-tenant dataency),
+      delete_partition,
+    - audit logging of all ops: _audit, get_audit_log, compliance report.
+    - lifecycle helpers: change_tier, suspend_all_by_quota, get_stats,
+      update_metadata, health_check.
+  Purpose: each customer project is an isolated tenant (own quotas, users,
+  roles, config, data partitions), so one server can host many customers —
+  which powers the "managed service SaaS" revenue model.
+
+===============================================================================
+PART 9 — systemd/*.service (2 units) — auto-start services
+===============================================================================
+  eni-controller.service:
+    Description: "ENI Local Controller (one-prompt -> program brain on :8913)".
+    ExecStart: /usr/bin/python3 -m enterprise.local_controller.controller
+      --port 8913
+    WorkingDirectory: /home/hunter/Desktop/Enterprise Builder
+    Restart=always, RestartSec=5, output to journal; WantedBy=default.target.
+  eni-multiplayer-server.service:
+    Description: "ENI Multiplayer Coordination Server (WebSocket :8787 +
+      HTTP :8788)".
+    ExecStart: /usr/bin/python3 -m enterprise.multiplayer.server.server 8787
+    WorkingDirectory same; Restart=always; RestartSec=5.
+    Comments remind: auth disabled by default, set MP_AUTH_TOKEN to a token and
+    MP_HOST=0.0.0.0 to enable.
+
+===============================================================================
+PART 10 — HOW IT ALL CONNECTS (the wiring summary)
+===============================================================================
+1. Boot: PlatformOS.initialize() loads config.yaml, builds LoggingBridge,
+   EventBus, MetricsCollector, discovers modules (Placeholder registry .discover()
+   imports every module/<name>/__init__.py so @module decorators register),
+   builds HealthChecker. start() then initializes all enabled modules in
+   priority order with startup timeouts, decides RUNNING vs DEGRADED from
+   required-module health, records metrics, starts the health poll loop, and
+   publishes platform.started.
+2. Module contract: every capability (safety_governance, model_router, ...)
+   is a class extending Module, decorated @module(...), implementing async
+   initialize/health_check/shutdown. The registry bores them; the health
+   checker pings them; the event bus connects them via topics like
+   safety.incident or platform.started.
+3. State machine: LifecycleState tracks the platform; pause/stopped/recovering
+   are implemented and resume() repairs unhealthy modules.
+4. Events: EventBus.publish(topic, payload). Wildcards and priority filter
+   route to subscribers; dead-letter captures failures. The event_hub layer
+   provides standardized schemas + contracts on top.
+5. API + dashboard: the gateway (:8421) exposes /api/v1/health, /modules,
+   /flagg events, /orchestration, /tenants, etc. Same port as the dashboard.
+6. Quality & audit: kernel/quality_gate.py explains 17 deployment gates
+   (security tests, rollback, data quality, encryption, recovery); kernel/audit.py
+   is the tamper-evident SQLite chain; kernel/orchestrator.py coordinates
+   specialist agents with evidence-based conflict resolution.
+7. Policies / brains: foundation gives policy rules for enforcement,
+   evaluation scorecards for model quality, and a prompt registry for
+   production prompts (semver, A/B).
+8. Multi-tenant: tenancy/tenant_manager.py isolates each customer behind its
+   quotas, roles, config, and partitions; the gateway routes by tenant.
+9. Telemetry: monitoring/* collects Prometheus metrics (:9090), thresholds
+   -> alerts (alert.* events), health snapshots for the dashboard, and
+   structured logs.
+10. Cooperative build (the new centerpiece): the multiplayer server (:8787/
+    :8788) brokers tasks to client machines (:any), each with its own keys;
+    planner + vault in local_controller (:8913) turns one prompt into code;
+    merges are conflict-safe and integrated only when tests pass.
+
+===============================================================================
+BELOW THE HOOD NOTES / GOTCHAS (worth knowing for the master doc)
+===============================================================================
+- The repo appears mid-consolidation: TECHNICAL_REFERENCE.md and monitoring/
+  README still say "20 modules / 71 endpoints / 16 router groups," while
+  README / CAPABILITY_REFERENCE say "49-50 modules" and the config has 39
+  module blocks. Use the per-file reality (module count = whatever the registry
+  discovered at boot; the golden-boot claim is ~49.3).
+- platform_kernel.py is the authoritative kernel; kernel/{kernel,orchestrator,
+  registry,audit,quality_gate}.py are supporting subsystems (the kernel
+  Registry is a *declarative* 10-module spec, not the 50-module file scanner).
+- The docs sometimes reference from enterprise.platform_kernel; the file lives
+  at repo root and must be importable via PYTHONPATH.
+- Ports to keep straight in the master doc map: 8421 (gateway+dashboard),
+  9090 (prometheus), 8913 (local controller), 8787/8788 (mp server), 8099
+  (gateway echo webhook sample), 8080 (local/free model in model_router),
+  8920 (free-mode router), 8922 (swarm turbo), 8420 (swarm-bridge), 9120 (agent).
+
+END OF CLUSTER 1 PLATFORM-CORE DIGEST
