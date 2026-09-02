@@ -167,7 +167,6 @@ __version__ = "3.0.0"
 # ships the SAME money-metered, fluent-recovery compression the paid-model
 # plugin uses. Recover any carrier free: xz -dc <carrier>.xz
 
-from . import eni_seed_codec as seed_codec
 from eni_seed_codec import (
     compress as seed_compress,
     decompress as seed_decompress,
@@ -175,3 +174,5 @@ from eni_seed_codec import (
     est_usd as seed_est_usd,
     stats_line as seed_stats,
 )  # noqa: E402
+
+from . import eni_seed_codec as seed_codec

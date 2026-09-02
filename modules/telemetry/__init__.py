@@ -19,8 +19,10 @@ _F = Path(__file__).resolve().parent
 if str(_F.parent.parent.parent) not in sys.path:
     sys.path.insert(0, str(_F.parent.parent.parent))
 
-from . import telemetry  # noqa: F401
-from . import gui_server  # noqa: F401
+from . import (
+    gui_server,  # noqa: F401
+    telemetry,  # noqa: F401
+)
 
 
 def create_telemetry_module(config: dict | None = None):  # noqa: ANN001

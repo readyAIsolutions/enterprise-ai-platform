@@ -22,7 +22,8 @@ thin facade.
 from __future__ import annotations
 
 import logging
-from typing import Any, Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Any, List, Optional
 
 from enterprise.platform_kernel import Event, HealthStatus, Module, module
 
@@ -73,10 +74,10 @@ __all__ = [
 class AgenticWorkflowBuilderModule(Module):
     """Kernel module exposing agentic-workflow composition logic."""
 
-    def __init__(self, config: Optional[dict] = None) -> None:
+    def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
         self._event_bus = None
-        self._workflows: List[Workflow] = []
+        self._workflows: list[Workflow] = []
 
     async def initialize(self) -> None:
         self._status = HealthStatus.STARTING
@@ -124,7 +125,7 @@ class AgenticWorkflowBuilderModule(Module):
         name: str,
         role: str,
         system_prompt: str = "",
-        tools: Optional[Iterable[str]] = None,
+        tools: Iterable[str] | None = None,
     ) -> AgentSpec:
         agent = AgentSpec(
             name=name,
@@ -144,7 +145,7 @@ class AgenticWorkflowBuilderModule(Module):
         )
         return workflow
 
-    def make_todo_list(self, goal: str, steps: Iterable[str]) -> List[dict]:
+    def make_todo_list(self, goal: str, steps: Iterable[str]) -> list[dict]:
         return create_todo_list(goal, steps)
 
     def make_statement(
@@ -153,7 +154,7 @@ class AgenticWorkflowBuilderModule(Module):
         description: str,
         category: str,
         field: str = "",
-        compliance: Optional[Iterable[str]] = None,
+        compliance: Iterable[str] | None = None,
     ) -> ParsedStatement:
         return ParsedStatement(
             individual=individual,
@@ -163,10 +164,10 @@ class AgenticWorkflowBuilderModule(Module):
             compliance=list(compliance or []),
         )
 
-    def split_monolith(self, source: str, filename: str = "massive.py") -> List[dict]:
+    def split_monolith(self, source: str, filename: str = "massive.py") -> list[dict]:
         return decompose_module(source, filename)
 
-    def cost(self, hours: Optional[float] = None) -> dict:
+    def cost(self, hours: float | None = None) -> dict:
         cfg = self._config or {}
         plan = str(cfg.get("plan", "api"))
         hourly = float(cfg.get("hourly_rate", 5.0))
@@ -189,6 +190,6 @@ class AgenticWorkflowBuilderModule(Module):
             )
 
 
-def create_agentic_workflow_builder_module(config: Optional[dict] = None) -> AgenticWorkflowBuilderModule:
+def create_agentic_workflow_builder_module(config: dict | None = None) -> AgenticWorkflowBuilderModule:
     """Factory used for kernel discovery / direct instantiation."""
     return AgenticWorkflowBuilderModule(config=config)

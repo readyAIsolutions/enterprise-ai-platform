@@ -74,11 +74,11 @@ class PositionAddressedMemoryModule(Module):
     is wired (via :meth:`set_event_bus`).
     """
 
-    def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         super().__init__(config)
-        self._addressing: Optional[MemoryAddressing] = None
-        self._event_bus: Optional[Any] = None
-        self._init_error: Optional[str] = None
+        self._addressing: MemoryAddressing | None = None
+        self._event_bus: Any | None = None
+        self._init_error: str | None = None
 
     # ------------------------------------------------------------------ pub
     def _publish(self, topic: str, payload: dict[str, Any]) -> None:
@@ -217,7 +217,7 @@ class PositionAddressedMemoryModule(Module):
 
 
 def create_position_addressed_memory_module(
-    config: Optional[dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> PositionAddressedMemoryModule:
     """Create (but do not initialize) a :class:`PositionAddressedMemoryModule`."""
     return PositionAddressedMemoryModule(config=config or {})

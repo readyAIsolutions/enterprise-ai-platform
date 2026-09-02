@@ -7,12 +7,12 @@ __version__ = "1.0.0"
 __author__ = "Eni Builder Enterprise"
 
 from .platform_kernel import (
-    PlatformOS,
-    ModuleRegistry,
     EventBus,
-    module,
     HealthStatus,
     LifecycleState,
+    ModuleRegistry,
+    PlatformOS,
+    module,
 )
 
 __all__ = [
@@ -231,13 +231,13 @@ def _plugin_on_start(session_id="", **k):
 def _plugin_on_tool_hook(tool_name="", args=None, result=None, **k):
     reg = _plugin_boot()
     if reg is None:
-        return None
+        return
     try:
         names = {r.name for r in reg.list_modules() if getattr(r, "enabled", False)}
         purpose = _plugin_reason_map()
         tool = str(tool_name or "")
         if not tool:
-            return None
+            return
         gates = {
             "eval_gate": "post_tool_call",
             "codegen_audit": "transform_tool_result",
@@ -258,7 +258,7 @@ def _plugin_on_tool_hook(tool_name="", args=None, result=None, **k):
                            purpose.get("rag", {}).get("why", ""))
     except Exception:
         pass
-    return None
+    return
 
 def register(ctx) -> None:
     _plugin_boot()

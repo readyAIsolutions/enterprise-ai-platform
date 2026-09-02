@@ -221,7 +221,6 @@ def decompress_bytes(data: bytes) -> bytes:
                 "`pip install zstandard`. Fatal otherwise: %s" % e)
     # Legacy PNG tEXt carrier (ENI chunk)
     if data[:8] == b"\x89PNG\r\n\x1a\n":
-        import io
         import struct
         pos = 8
         while pos < len(data):
