@@ -33,6 +33,7 @@ Legacy support: decompress auto-detects old PNG tEXt carriers (xipv3/xz/zlib)
 and old raw zstd frames; zstd-framed legacy carriers decode only if the optional
 `zstandard` package is installed (we print a clear one-line hint otherwise).
 """
+# ruff: noqa: T201 B904 PTH100 PTH120 UP031 EM101 ANN204  # intentional style for a stdlib-only portable CLI codec
 from __future__ import annotations
 
 import hashlib
@@ -154,7 +155,6 @@ def compress(text: str, tool: str = "") -> dict:
     """
     data = text.encode("utf-8", errors="replace")
     orig_len = len(data)
-    started = time.time()
 
     # Best stdlib ratio path: xz preset 9 (streaming to avoid memory blowups).
     try:
@@ -172,7 +172,6 @@ def compress(text: str, tool: str = "") -> dict:
     carrier = CARRIER_DIR / f"ENI-{sha}.xz"
     carrier.write_bytes(comp)
 
-    est_tok_saved = max(0.0, est_tokens(text) - est_tokens_tail_window(text))
     manifest = {
         "sha256_orig": hashlib.sha256(data).hexdigest(),
         "engine": engine, "ratio": round(ratio, 3),
@@ -241,7 +240,7 @@ class _BytesIO:
         import io
         self._b = io.BytesIO(b)
 
-    def read(self, *a, **k):
+    def read(self, *a: int, **k: object) -> bytes:
         return self._b.read(*a, **k)
 
 

@@ -9,6 +9,7 @@ This is not a "capability" module that ships business logic — it is the observ
 layer for the drop-in. It self-registers as a platform module so /enterprise apply
 treats it like any other module (idempotent, healthy on import).
 """
+# ruff: noqa: E402 ANN201 ANN202  # sys.path bootstrap import + platform-agnostic signature
 from __future__ import annotations
 
 import sys

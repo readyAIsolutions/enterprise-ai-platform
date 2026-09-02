@@ -13,6 +13,7 @@ Endpoints:
 Real data only: build sessions from data/build_sessions/*/manifest.json, module
 purpose from module_purpose.json, live usage from module_usage.jsonl.
 """
+# ruff: noqa: E501 T201 ANN201 ANN002 ANN003 PTH110 PTH123 SIM105 SIM115 W292  # template CSS/JS + stdlib http server style
 from __future__ import annotations
 
 import json
@@ -295,7 +296,7 @@ function detail(s){
     window.scrollTo(0,0);
 }
 function escapeHtml(x){return String(x||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-load(); 
+load();
 let _detailOpen=false;
 setInterval(function(){ if(_detailOpen) return; load(); },4000);
 </script>

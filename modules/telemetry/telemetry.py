@@ -7,6 +7,7 @@ for WHICH tool step, and WHY (the module's real purpose).
 
 Pure stdlib, fail-open: any error is swallowed — telemetry must never break a build.
 """
+# ruff: noqa: PTH123  # stdlib-only JSONL writer stays on open() for portability
 from __future__ import annotations
 
 import json
