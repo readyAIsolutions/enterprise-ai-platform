@@ -50,6 +50,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `agent_infra` | Claude Code Superior — Infrastructure Module v1.0.0 |
 | `agent_os` | Enterprise Agent OS Module — a unified AI agent operating system. |
 | `agent_tools` | ENI Enterprise — Claude Code Tools Module v2.0.0 |
+| `agentic_rag_planner` | Agentic RAG retrieval-strategy planner module. |
 | `agentic_workflow_builder` | agentic_workflow_builder — compose agentic workflows (Claude Code + Cursor). |
 | `ai_coding_workflow` | ai_coding_workflow — a framework-agnostic, 3-phase AI-coding workflow |
 | `ai_defense` | ENI Enterprise AI Defense OS Module. |
@@ -60,6 +61,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `compliance` | ENI Enterprise Compliance OS Module. |
 | `composable_workflow_engine` | composable_workflow_engine — a compose-your-own context-engineering |
 | `compression_bridge` | compression_bridge platform module. |
+| `context_workflow_framework` | context_workflow_framework — build-your-own context-engineering workflow |
 | `cost_meter` | Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4). |
 | `custom_agent_workflows` | custom_agent_workflows — build your OWN AI coding workflows as a module. |
 | `customer_experience` | Customer Experience OS Module. |

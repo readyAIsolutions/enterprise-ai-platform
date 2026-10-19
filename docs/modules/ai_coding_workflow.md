@@ -1,6 +1,6 @@
 # Module: `ai_coding_workflow`
 
-- Category: Legacy Core · priority 15
+- Category: Legacy Core · priority 16
 - Version: 1.0.0
 - Purpose: ai_coding_workflow — a framework-agnostic, 3-phase AI-coding workflow
 - Skill: `eni-module-ai_coding_workflow` (ICM stages) in skills_pack/skills/eni-modules/ai_coding_workflow/

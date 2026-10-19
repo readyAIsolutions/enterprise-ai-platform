@@ -1,6 +1,6 @@
 # ICM module map: rag_strategy_router
 
-- Category: Legacy Core (priority 57)
+- Category: Legacy Core (priority 59)
 - Version: 1.0.0
 - Purpose: ``rag_strategy_router`` — intent-based VECTOR / GRAPH / HYBRID RAG router.
 - API: dispatch, health_check, initialize, register_retriever, route, route_batch, set_event_bus, shutdown

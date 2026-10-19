@@ -1,6 +1,6 @@
 # Module: `composable_workflow_engine`
 
-- Category: Legacy Core · priority 22
+- Category: Legacy Core · priority 23
 - Version: 1.0.0
 - Purpose: composable_workflow_engine — a compose-your-own context-engineering
 - Skill: `eni-module-composable_workflow_engine` (ICM stages) in skills_pack/skills/eni-modules/composable_workflow_engine/

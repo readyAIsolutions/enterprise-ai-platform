@@ -1,6 +1,6 @@
 # ICM module map: developer_experience
 
-- Category: Legacy Core (priority 27)
+- Category: Legacy Core (priority 29)
 - Version: 1.0.0
 - Purpose: Developer Experience OS Module
 - API: health_check, initialize, shutdown

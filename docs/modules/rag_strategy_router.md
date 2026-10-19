@@ -1,6 +1,6 @@
 # Module: `rag_strategy_router`
 
-- Category: Legacy Core · priority 57
+- Category: Legacy Core · priority 59
 - Version: 1.0.0
 - Purpose: ``rag_strategy_router`` — intent-based VECTOR / GRAPH / HYBRID RAG router.
 - Skill: `eni-module-rag_strategy_router` (ICM stages) in skills_pack/skills/eni-modules/rag_strategy_router/

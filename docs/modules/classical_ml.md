@@ -1,6 +1,6 @@
 # Module: `classical_ml`
 
-- Category: Legacy Core · priority 19
+- Category: Legacy Core · priority 20
 - Version: 1.0.0
 - Purpose: Classical-ML module — stdlib classical machine-learning toolkit.
 - Skill: `eni-module-classical_ml` (ICM stages) in skills_pack/skills/eni-modules/classical_ml/

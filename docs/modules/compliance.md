@@ -1,6 +1,6 @@
 # Module: `compliance`
 
-- Category: Legacy Core · priority 21
+- Category: Legacy Core · priority 22
 - Version: 1.1.0
 - Purpose: ENI Enterprise Compliance OS Module.
 - Skill: `eni-module-compliance` (ICM stages) in skills_pack/skills/eni-modules/compliance/

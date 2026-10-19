@@ -35,7 +35,9 @@
     "hybrid_kg_retrieval",
     "classical_ml",
     "composable_workflow_engine",
-    "rag_strategy_router"
+    "rag_strategy_router",
+    "context_workflow_framework",
+    "agentic_rag_planner"
   ],
   "transcripts": {
     "JEVanClief": {
@@ -2627,7 +2629,8 @@
         "module": "hybrid_kg_retrieval",
         "reason": null,
         "secondary_modules": [
-          "rag_strategy_router"
+          "rag_strategy_router",
+          "agentic_rag_planner"
         ]
       },
       "mHBk8Z7Exag": {
@@ -2636,7 +2639,8 @@
         "module": "ai_coding_workflow",
         "reason": null,
         "secondary_modules": [
-          "composable_workflow_engine"
+          "composable_workflow_engine",
+          "context_workflow_framework"
         ]
       }
     },

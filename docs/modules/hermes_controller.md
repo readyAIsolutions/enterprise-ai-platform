@@ -1,6 +1,6 @@
 # Module: `hermes_controller`
 
-- Category: Legacy Core · priority 35
+- Category: Legacy Core · priority 37
 - Version: 1.0.0
 - Purpose: Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent.
 - Skill: `eni-module-hermes_controller` (ICM stages) in skills_pack/skills/eni-modules/hermes_controller/

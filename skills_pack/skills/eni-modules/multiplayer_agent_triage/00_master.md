@@ -1,6 +1,6 @@
 # ICM module map: multiplayer_agent_triage
 
-- Category: Legacy Core (priority 49)
+- Category: Legacy Core (priority 51)
 - Version: 1.0.0
 - Purpose: multiplayer_agent_triage — a Platform Kernel module for triaging problems and
 - API: critical_items, engine, health_check, initialize, record_win, set_event_bus, shutdown, summary

@@ -1,6 +1,6 @@
 # ICM module map: prd_audit
 
-- Category: Legacy Core (priority 52)
+- Category: Legacy Core (priority 54)
 - Version: 1.0.0
 - Purpose: prd_audit — PRD-gated build workflow: write the PRD, audit it with a second
 - API: audit, audit_markdown, gate, gate_document, gate_markdown, health_check, initialize, parse_prd

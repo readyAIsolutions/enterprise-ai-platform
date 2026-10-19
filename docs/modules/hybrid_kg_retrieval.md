@@ -1,6 +1,6 @@
 # Module: `hybrid_kg_retrieval`
 
-- Category: Legacy Core · priority 36
+- Category: Legacy Core · priority 38
 - Version: 1.0.0
 - Purpose: hybrid_kg_retrieval — an agentic RAG 2.0 retrieval engine that combines a
 - Skill: `eni-module-hybrid_kg_retrieval` (ICM stages) in skills_pack/skills/eni-modules/hybrid_kg_retrieval/

@@ -1,6 +1,6 @@
 # ICM module map: folder_agency_system
 
-- Category: Legacy Core (priority 32)
+- Category: Legacy Core (priority 34)
 - Version: 1.0.0
 - Purpose: folder_agency_system — a folder/org-structure system that organizes an AI
 - API: create_agent, create_atlas, create_capability, create_project, create_workbench, health_check, import_template, initialize

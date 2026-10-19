@@ -692,6 +692,22 @@ modules:
     health_check_interval_sec: 60
     config: {}
 
+  context_workflow_framework:
+    enabled: true
+    priority: 37
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config: {}
+
+  agentic_rag_planner:
+    enabled: true
+    priority: 38
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config: {}
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL

@@ -1,6 +1,6 @@
 # ICM module map: compliance
 
-- Category: Legacy Core (priority 21)
+- Category: Legacy Core (priority 22)
 - Version: 1.1.0
 - Purpose: ENI Enterprise Compliance OS Module.
 - API: ENI Enterprise Compliance OS Module.

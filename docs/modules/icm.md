@@ -1,6 +1,6 @@
 # Module: `icm`
 
-- Category: Legacy Core · priority 37
+- Category: Legacy Core · priority 39
 - Version: 1.0.0
 - Purpose: ICM (Interpretable Context Methodology) — skill/prompt-engineering layer.
 - Skill: `eni-module-icm` (ICM stages) in skills_pack/skills/eni-modules/icm/

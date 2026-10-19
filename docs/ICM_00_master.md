@@ -33,6 +33,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Claude Code Superior — Infrastructure Module v1.0.0 | agent_infra | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Agent OS Module — a unified AI agent operating sy | agent_os | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise — Claude Code Tools Module v2.0.0 | agent_tools | 01_intake, 03_drafting, 04_verification, 05_output |
+| Agentic RAG retrieval-strategy planner module. | agentic_rag_planner | 01_intake, 03_drafting, 04_verification, 05_output |
 | agentic_workflow_builder — compose agentic workflows (Claude | agentic_workflow_builder | 01_intake, 03_drafting, 04_verification, 05_output |
 | ai_coding_workflow — a framework-agnostic, 3-phase AI-coding | ai_coding_workflow | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise AI Defense OS Module. | ai_defense | 01_intake, 03_drafting, 04_verification, 05_output |
@@ -43,6 +44,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | ENI Enterprise Compliance OS Module. | compliance | 01_intake, 03_drafting, 04_verification, 05_output |
 | composable_workflow_engine — a compose-your-own context-engi | composable_workflow_engine | 01_intake, 03_drafting, 04_verification, 05_output |
 | compression_bridge platform module. | compression_bridge | 01_intake, 03_drafting, 04_verification, 05_output |
+| context_workflow_framework — build-your-own context-engineer | context_workflow_framework | 01_intake, 03_drafting, 04_verification, 05_output |
 | Cost Meter — per-tenant cost metering + fractional-reasoning | cost_meter | 01_intake, 03_drafting, 04_verification, 05_output |
 | custom_agent_workflows — build your OWN AI coding workflows  | custom_agent_workflows | 01_intake, 03_drafting, 04_verification, 05_output |
 | Customer Experience OS Module. | customer_experience | 01_intake, 03_drafting, 04_verification, 05_output |

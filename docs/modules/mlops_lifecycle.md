@@ -1,6 +1,6 @@
 # Module: `mlops_lifecycle`
 
-- Category: Legacy Core · priority 45
+- Category: Legacy Core · priority 47
 - Version: 1.0.0
 - Purpose: ENI Enterprise MLOps/LLMOps Lifecycle Module — Complete Agent Experiment Lifecycle Management
 - Skill: `eni-module-mlops_lifecycle` (ICM stages) in skills_pack/skills/eni-modules/mlops_lifecycle/

@@ -1,6 +1,6 @@
 # Module: `slash_workflow`
 
-- Category: Legacy Core · priority 67
+- Category: Legacy Core · priority 69
 - Version: 1.0.0
 - Purpose: slash_workflow — Plan->Implement->Validate AI-coding workflow with reusable markdown slash-commands, a plan-document schema, isolated-context sub-agents, a dete
 - Skill: `eni-module-slash_workflow` (ICM stages) in skills_pack/skills/eni-modules/slash_workflow/

@@ -1,6 +1,6 @@
 # ICM module map: position_addressed_memory
 
-- Category: Legacy Core (priority 51)
+- Category: Legacy Core (priority 53)
 - Version: 1.0.0
 - Purpose: Position-addressed memory — *folder-as-memory* for AI context.
 - API: addressing, health_check, inherited_context, initialize, resolve, resolve_content, resolve_link, resolve_position
