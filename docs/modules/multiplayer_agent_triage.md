@@ -1,6 +1,6 @@
 # Module: `multiplayer_agent_triage`
 
-- Category: Legacy Core · priority 45
+- Category: Legacy Core · priority 47
 - Version: 1.0.0
 - Purpose: multiplayer_agent_triage — a Platform Kernel module for triaging problems and
 - Skill: `eni-module-multiplayer_agent_triage` (ICM stages) in skills_pack/skills/eni-modules/multiplayer_agent_triage/

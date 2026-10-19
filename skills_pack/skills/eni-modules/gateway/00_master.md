@@ -1,6 +1,6 @@
 # ICM module map: gateway
 
-- Category: Legacy Core (priority 30)
+- Category: Legacy Core (priority 31)
 - Version: 1.0.0
 - Purpose: ENI Multi-Gateway Remote Control & Automations Module
 - API: gateway, health_check, initialize, scheduler, set_event_bus, shutdown

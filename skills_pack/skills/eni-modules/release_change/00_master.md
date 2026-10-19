@@ -1,6 +1,6 @@
 # ICM module map: release_change
 
-- Category: Legacy Core (priority 53)
+- Category: Legacy Core (priority 55)
 - Version: 1.0.0
 - Purpose: Release & Change Management OS Module
 - API: health_check, initialize, shutdown

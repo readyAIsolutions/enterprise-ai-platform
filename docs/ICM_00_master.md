@@ -34,12 +34,13 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Enterprise Agent OS Module — a unified AI agent operating sy | agent_os | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise — Claude Code Tools Module v2.0.0 | agent_tools | 01_intake, 03_drafting, 04_verification, 05_output |
 | agentic_workflow_builder — compose agentic workflows (Claude | agentic_workflow_builder | 01_intake, 03_drafting, 04_verification, 05_output |
+| ai_coding_workflow — a framework-agnostic, 3-phase AI-coding | ai_coding_workflow | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise AI Defense OS Module. | ai_defense | 01_intake, 03_drafting, 04_verification, 05_output |
 | Artifact Pipeline — navigate & organize all creative works ( | artifact_pipeline | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Autonomous Agent Runtime Module -- Multi-provider LLM ab | autonomous_agent_runtime | 01_intake, 03_drafting, 04_verification, 05_output |
 | Claude Code UI Harness — Enterprise Module wrapper. | claude_code_ui_harness | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise Compliance OS Module. | compliance | 01_intake, 03_drafting, 04_verification, 05_output |
-| Enterprise Platform — Compression Bridge Module v3.0.0 | compression_bridge | 01_intake, 03_drafting, 04_verification, 05_output |
+| compression_bridge platform module. | compression_bridge | 01_intake, 03_drafting, 04_verification, 05_output |
 | Cost Meter — per-tenant cost metering + fractional-reasoning | cost_meter | 01_intake, 03_drafting, 04_verification, 05_output |
 | custom_agent_workflows — build your OWN AI coding workflows  | custom_agent_workflows | 01_intake, 03_drafting, 04_verification, 05_output |
 | Customer Experience OS Module. | customer_experience | 01_intake, 03_drafting, 04_verification, 05_output |
@@ -52,6 +53,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | ENI Multi-Gateway Remote Control & Automations Module | gateway | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Guardrails OS Module. | guardrails | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Hermes Controller OS Module — autonomous controll | hermes_controller | 01_intake, 03_drafting, 04_verification, 05_output |
+| hybrid_kg_retrieval — an agentic RAG 2.0 retrieval engine th | hybrid_kg_retrieval | 01_intake, 03_drafting, 04_verification, 05_output |
 | ICM (Interpretable Context Methodology) — skill/prompt-engin | icm | 01_intake, 03_drafting, 04_verification, 05_output |
 | Innovation R&D OS Module | innovation_rd | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Knowledge Base OS Module | kb_bridge | 01_intake, 03_drafting, 04_verification, 05_output |

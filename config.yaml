@@ -649,6 +649,24 @@ modules:
     config:
       publish_events: true
 
+  ai_coding_workflow:
+    enabled: true
+    priority: 32
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      default_framework: "plain"
+
+  hybrid_kg_retrieval:
+    enabled: true
+    priority: 33
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config:
+      default_top_k: 5
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL

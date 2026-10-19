@@ -1,33 +1,19 @@
 ---
 name: eni-module-compression_bridge
-description: Operate the ENI Enterprise `compression_bridge` module (Legacy Core) — Enterprise Platform — Compression Bridge Module v3.0.0 Use when working with compression_bridge in the Enterprise Platform.
+description: Operate the ENI Enterprise `compression_bridge` module (Legacy Core) — compression_bridge platform module. Use when working with compression_bridge in the Enterprise Platform.
 ---
 
 # Module skill: compression_bridge
 
 - Category: Legacy Core (priority ?)
-- Version: 3.0.0
-- Purpose: Enterprise Platform — Compression Bridge Module v3.0.0
+- Version: 0.0.0
+- Purpose: compression_bridge platform module.
 
 ## What it does
-Enterprise Platform — Compression Bridge Module v3.0.0
-======================================================
-
-Enterprise-grade compression module bridging the core Compression engine
-into the Enterprise Platform OS. Provides:
-
-  - CompressionBridge  — unified API for all 12 compression modes + OMEGA transcendent
-  - CompressionHealthCheck — validates all algorithms loadable, OMEGA accessible
-  - Events: compression.completed, compression.omega.transcended, compression.algorithm.selected
-  - Metrics: compression ratios per mode, throughput, omega efficiency
-
-Architecture:
-    __init__.py            — Module housekeeping, @module registration, exports
-    compression_bridge.py  — CompressionBridge (compress, decompress, batch,
-                              omega_transcend, stats, health_che
+compression_bridge platform module.
 
 ## Key API (facade methods on the @module class)
-- bridge\n- health_check\n- initialize\n- shutdown
+(module-level API)
 
 ## Use
 Import via:

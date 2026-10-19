@@ -30,7 +30,9 @@
     "folder_agency_system",
     "custom_agent_workflows",
     "error_correction",
-    "agent_inbox_defense"
+    "agent_inbox_defense",
+    "ai_coding_workflow",
+    "hybrid_kg_retrieval"
   ],
   "transcripts": {
     "JEVanClief": {
@@ -2617,12 +2619,15 @@
     },
     "ColeMedin": {
       "p0FERNkpyHE": {
+        "title": "Introducing RAG 2.0: Agentic RAG + Knowledge Graphs (FREE Template)",
         "status": "built",
-        "module": "agentic_rag"
+        "module": "hybrid_kg_retrieval",
+        "reason": null
       },
       "mHBk8Z7Exag": {
+        "title": "The True Power of AI Coding - Build Your OWN Workflows (Full Guide)",
         "status": "built",
-        "module": "custom_agent_workflows",
+        "module": "ai_coding_workflow",
         "reason": null
       }
     },

@@ -1,6 +1,6 @@
 # Verify
 
-Purpose: Enterprise Platform — Compression Bridge Module v3.0.0
+Purpose: compression_bridge platform module.
 
 ## Role
 Verify for the `compression_bridge` module.

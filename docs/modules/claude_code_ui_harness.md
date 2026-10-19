@@ -1,6 +1,6 @@
 # Module: `claude_code_ui_harness`
 
-- Category: Legacy Core · priority 18
+- Category: Legacy Core · priority 19
 - Version: 1.0.0
 - Purpose: Claude Code UI Harness — Enterprise Module wrapper.
 - Skill: `eni-module-claude_code_ui_harness` (ICM stages) in skills_pack/skills/eni-modules/claude_code_ui_harness/

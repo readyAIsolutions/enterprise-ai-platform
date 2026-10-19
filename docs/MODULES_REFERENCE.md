@@ -50,12 +50,13 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `agent_os` | Enterprise Agent OS Module — a unified AI agent operating system. | [docs/modules/agent_os.md](modules/agent_os.md) |
 | `agent_tools` | ENI Enterprise — Claude Code Tools Module v2.0.0 | [docs/modules/agent_tools.md](modules/agent_tools.md) |
 | `agentic_workflow_builder` | agentic_workflow_builder — compose agentic workflows (Claude Code + Cursor). | [docs/modules/agentic_workflow_builder.md](modules/agentic_workflow_builder.md) |
+| `ai_coding_workflow` | ai_coding_workflow — a framework-agnostic, 3-phase AI-coding workflow | [docs/modules/ai_coding_workflow.md](modules/ai_coding_workflow.md) |
 | `ai_defense` | ENI Enterprise AI Defense OS Module. | [docs/modules/ai_defense.md](modules/ai_defense.md) |
 | `artifact_pipeline` | Artifact Pipeline — navigate & organize all creative works (no LLM). | [docs/modules/artifact_pipeline.md](modules/artifact_pipeline.md) |
 | `autonomous_agent_runtime` | ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction. | [docs/modules/autonomous_agent_runtime.md](modules/autonomous_agent_runtime.md) |
 | `claude_code_ui_harness` | Claude Code UI Harness — Enterprise Module wrapper. | [docs/modules/claude_code_ui_harness.md](modules/claude_code_ui_harness.md) |
 | `compliance` | ENI Enterprise Compliance OS Module. | [docs/modules/compliance.md](modules/compliance.md) |
-| `compression_bridge` | Enterprise Platform — Compression Bridge Module v3.0.0 | [docs/modules/compression_bridge.md](modules/compression_bridge.md) |
+| `compression_bridge` | compression_bridge platform module. | [docs/modules/compression_bridge.md](modules/compression_bridge.md) |
 | `cost_meter` | Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4). | [docs/modules/cost_meter.md](modules/cost_meter.md) |
 | `custom_agent_workflows` | custom_agent_workflows — build your OWN AI coding workflows as a module. | [docs/modules/custom_agent_workflows.md](modules/custom_agent_workflows.md) |
 | `customer_experience` | Customer Experience OS Module. | [docs/modules/customer_experience.md](modules/customer_experience.md) |
@@ -68,6 +69,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `gateway` | ENI Multi-Gateway Remote Control & Automations Module | [docs/modules/gateway.md](modules/gateway.md) |
 | `guardrails` | ENI Guardrails OS Module. | [docs/modules/guardrails.md](modules/guardrails.md) |
 | `hermes_controller` | Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent. | [docs/modules/hermes_controller.md](modules/hermes_controller.md) |
+| `hybrid_kg_retrieval` | hybrid_kg_retrieval — an agentic RAG 2.0 retrieval engine that combines a | [docs/modules/hybrid_kg_retrieval.md](modules/hybrid_kg_retrieval.md) |
 | `icm` | ICM (Interpretable Context Methodology) — skill/prompt-engineering layer. | [docs/modules/icm.md](modules/icm.md) |
 | `innovation_rd` | Innovation R&D OS Module | [docs/modules/innovation_rd.md](modules/innovation_rd.md) |
 | `kb_bridge` | ENI Knowledge Base OS Module | [docs/modules/kb_bridge.md](modules/kb_bridge.md) |

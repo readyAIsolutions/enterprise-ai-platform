@@ -1,6 +1,6 @@
 # Hand off the finished result
 
-Purpose: Enterprise Platform — Compression Bridge Module v3.0.0
+Purpose: compression_bridge platform module.
 
 ## Role
 Hand off the finished result for the `compression_bridge` module.

@@ -8,8 +8,8 @@ Generated from the module's real code by gen_module_skills_plugins.py.
 """
 from __future__ import annotations
 
-_MOD = {"name": "compression_bridge", "category": "Legacy Core", "version": "3.0.0",
-        "purpose": "Enterprise Platform — Compression Bridge Module v3.0.0 ====================================================== Enterprise-grade compression module bridging the core Compression engine into the Enterpr", "facades": ["bridge", "health_check", "initialize", "shutdown"]}
+_MOD = {"name": "compression_bridge", "category": "Legacy Core", "version": "0.0.0",
+        "purpose": "compression_bridge platform module.", "facades": []}
 
 
 def _on_transform_tool_result(result, **_):

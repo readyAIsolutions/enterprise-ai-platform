@@ -1,6 +1,6 @@
 # Module: `error_correction`
 
-- Category: Legacy Core · priority 27
+- Category: Legacy Core · priority 28
 - Version: 1.0.0
 - Purpose: error_correction — Hamming error-correcting code as an enterprise module.
 - Skill: `eni-module-error_correction` (ICM stages) in skills_pack/skills/eni-modules/error_correction/

@@ -1,6 +1,6 @@
 # ICM module map: rag
 
-- Category: Legacy Core (priority 52)
+- Category: Legacy Core (priority 54)
 - Version: 1.0.0
 - Purpose: Production RAG System — Enterprise-grade Retrieval-Augmented Generation.
 - API: Production RAG System — Enterprise-grade Retrieval-Augmented Generation.

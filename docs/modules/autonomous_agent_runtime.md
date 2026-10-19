@@ -1,6 +1,6 @@
 # Module: `autonomous_agent_runtime`
 
-- Category: Legacy Core · priority 17
+- Category: Legacy Core · priority 18
 - Version: 1.0.0
 - Purpose: ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction.
 - Skill: `eni-module-autonomous_agent_runtime` (ICM stages) in skills_pack/skills/eni-modules/autonomous_agent_runtime/

@@ -1,9 +1,9 @@
 # ICM module map: compression_bridge
 
-- Category: Legacy Core (priority 20)
-- Version: 3.0.0
-- Purpose: Enterprise Platform — Compression Bridge Module v3.0.0
-- API: bridge, health_check, initialize, shutdown
+- Category: Legacy Core (priority 21)
+- Version: 0.0.0
+- Purpose: compression_bridge platform module.
+- API: compression_bridge platform module.
 
 ## Stages
 01_intake, 03_drafting, 04_verification, 05_output

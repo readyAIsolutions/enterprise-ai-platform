@@ -1,6 +1,6 @@
 # ICM module map: semantic_memory
 
-- Category: Legacy Core (priority 60)
+- Category: Legacy Core (priority 62)
 - Version: 2.0.0
 - Purpose: ENI Semantic Memory OS Module.
 - API: consolidate, db_path, dim, group_by_time_bucket, health_check, initialize, memory, ranking

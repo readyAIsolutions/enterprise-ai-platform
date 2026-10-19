@@ -1,6 +1,6 @@
 # ICM module map: innovation_rd
 
-- Category: Legacy Core (priority 34)
+- Category: Legacy Core (priority 36)
 - Version: 1.0.0
 - Purpose: Innovation R&D OS Module
 - API: health_check, initialize, shutdown

@@ -1,6 +1,6 @@
 # ICM module map: secret_rotation
 
-- Category: Legacy Core (priority 59)
+- Category: Legacy Core (priority 61)
 - Version: 1.1.0
 - Purpose: ENI Enterprise Secret Rotation OS Module.
 - API: ENI Enterprise Secret Rotation OS Module.

@@ -1,6 +1,6 @@
 # ICM module map: research_verification
 
-- Category: Legacy Core (priority 54)
+- Category: Legacy Core (priority 56)
 - Version: 1.0.0
 - Purpose: Research & Verification OS — Enterprise Platform Kernel Module v1.0.0
 - API: confidence, detector, execute_pipeline, health_check, initialize, planner, ranker, shutdown

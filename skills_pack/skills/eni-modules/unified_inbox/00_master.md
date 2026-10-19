@@ -1,6 +1,6 @@
 # ICM module map: unified_inbox
 
-- Category: Legacy Core (priority 68)
+- Category: Legacy Core (priority 70)
 - Version: 1.0.0
 - Purpose: Enterprise Platform Unified Inbox module package.
 - API: health_check, inbox, initialize, set_event_bus, shutdown

@@ -1,6 +1,6 @@
 # Module: `model_miner`
 
-- Category: Legacy Core · priority 42
+- Category: Legacy Core · priority 44
 - Version: 1.0.0
 - Purpose: Enterprise Model Miner OS Module — scan/rip local model training into the KB.
 - Skill: `eni-module-model_miner` (ICM stages) in skills_pack/skills/eni-modules/model_miner/

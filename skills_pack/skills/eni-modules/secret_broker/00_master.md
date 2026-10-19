@@ -1,6 +1,6 @@
 # ICM module map: secret_broker
 
-- Category: Legacy Core (priority 58)
+- Category: Legacy Core (priority 60)
 - Version: 1.0.0
 - Purpose: Enterprise Secret Broker OS Module — local-first secret handling.
 - API: Enterprise Secret Broker OS Module — local-first secret handling.

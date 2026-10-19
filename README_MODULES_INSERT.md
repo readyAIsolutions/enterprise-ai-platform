@@ -51,12 +51,13 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `agent_os` | Enterprise Agent OS Module — a unified AI agent operating system. |
 | `agent_tools` | ENI Enterprise — Claude Code Tools Module v2.0.0 |
 | `agentic_workflow_builder` | agentic_workflow_builder — compose agentic workflows (Claude Code + Cursor). |
+| `ai_coding_workflow` | ai_coding_workflow — a framework-agnostic, 3-phase AI-coding workflow |
 | `ai_defense` | ENI Enterprise AI Defense OS Module. |
 | `artifact_pipeline` | Artifact Pipeline — navigate & organize all creative works (no LLM). |
 | `autonomous_agent_runtime` | ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction. |
 | `claude_code_ui_harness` | Claude Code UI Harness — Enterprise Module wrapper. |
 | `compliance` | ENI Enterprise Compliance OS Module. |
-| `compression_bridge` | Enterprise Platform — Compression Bridge Module v3.0.0 |
+| `compression_bridge` | compression_bridge platform module. |
 | `cost_meter` | Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4). |
 | `custom_agent_workflows` | custom_agent_workflows — build your OWN AI coding workflows as a module. |
 | `customer_experience` | Customer Experience OS Module. |
@@ -69,6 +70,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `gateway` | ENI Multi-Gateway Remote Control & Automations Module |
 | `guardrails` | ENI Guardrails OS Module. |
 | `hermes_controller` | Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent. |
+| `hybrid_kg_retrieval` | hybrid_kg_retrieval — an agentic RAG 2.0 retrieval engine that combines a |
 | `icm` | ICM (Interpretable Context Methodology) — skill/prompt-engineering layer. |
 | `innovation_rd` | Innovation R&D OS Module |
 | `kb_bridge` | ENI Knowledge Base OS Module |

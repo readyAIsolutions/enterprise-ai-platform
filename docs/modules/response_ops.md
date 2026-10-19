@@ -1,6 +1,6 @@
 # Module: `response_ops`
 
-- Category: Legacy Core · priority 56
+- Category: Legacy Core · priority 58
 - Version: 1.0.0
 - Purpose: ENI Response Ops Module — self-healing fleet supervisor + ICM routing hook.
 - Skill: `eni-module-response_ops` (ICM stages) in skills_pack/skills/eni-modules/response_ops/

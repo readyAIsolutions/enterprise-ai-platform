@@ -1,6 +1,6 @@
 # Module: `custom_agent_workflows`
 
-- Category: Legacy Core · priority 22
+- Category: Legacy Core · priority 23
 - Version: 1.0.0
 - Purpose: custom_agent_workflows — build your OWN AI coding workflows as a module.
 - Skill: `eni-module-custom_agent_workflows` (ICM stages) in skills_pack/skills/eni-modules/custom_agent_workflows/

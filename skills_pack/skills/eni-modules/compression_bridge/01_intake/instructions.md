@@ -1,6 +1,6 @@
 # Gather and normalize inputs
 
-Purpose: Enterprise Platform — Compression Bridge Module v3.0.0
+Purpose: compression_bridge platform module.
 
 ## Role
 Gather and normalize inputs for the `compression_bridge` module.
