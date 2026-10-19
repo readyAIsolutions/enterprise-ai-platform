@@ -67,6 +67,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `a2a` | ENI A2A Module -- Agent-to-Agent protocol (Google A2A style). |
 | `agent_catalog` | ENI Agent Catalog Module -- unified specialist-agent registry. |
 | `agent_coordination` | Agent Communication & Coordination OS — Multi-agent orchestration, task scheduling, |
+| `classical_ml` | Classical-ML module — stdlib classical machine-learning toolkit (Naive Bayes, decision trees, k-means, KNN, PCA, ROC/AUC, bootstrap p-values) from StatQuest transcripts. |
 | `agent_core` | Claude Code Core — Enterprise Platform Kernel Module v2.0.0 |
 | `agent_graph` | ENI Agent Graph Module — langgraph-style stateful agent graph orchestration. |
 | `agent_infra` | Claude Code Superior — Infrastructure Module v1.0.0 |

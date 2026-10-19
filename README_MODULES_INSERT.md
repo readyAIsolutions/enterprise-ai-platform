@@ -55,6 +55,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `ai_defense` | ENI Enterprise AI Defense OS Module. |
 | `artifact_pipeline` | Artifact Pipeline — navigate & organize all creative works (no LLM). |
 | `autonomous_agent_runtime` | ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction. |
+| `classical_ml` | Classical-ML module — stdlib classical machine-learning toolkit. |
 | `claude_code_ui_harness` | Claude Code UI Harness — Enterprise Module wrapper. |
 | `compliance` | ENI Enterprise Compliance OS Module. |
 | `compression_bridge` | compression_bridge platform module. |
