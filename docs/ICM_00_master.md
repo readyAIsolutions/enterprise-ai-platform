@@ -38,6 +38,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | ENI Enterprise AI Defense OS Module. | ai_defense | 01_intake, 03_drafting, 04_verification, 05_output |
 | Artifact Pipeline — navigate & organize all creative works ( | artifact_pipeline | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Autonomous Agent Runtime Module -- Multi-provider LLM ab | autonomous_agent_runtime | 01_intake, 03_drafting, 04_verification, 05_output |
+| Classical-ML module — stdlib classical machine-learning tool | classical_ml | 01_intake, 03_drafting, 04_verification, 05_output |
 | Claude Code UI Harness — Enterprise Module wrapper. | claude_code_ui_harness | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise Compliance OS Module. | compliance | 01_intake, 03_drafting, 04_verification, 05_output |
 | compression_bridge platform module. | compression_bridge | 01_intake, 03_drafting, 04_verification, 05_output |

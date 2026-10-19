@@ -1,6 +1,6 @@
 # Module: `folder_agency_system`
 
-- Category: Legacy Core · priority 30
+- Category: Legacy Core · priority 31
 - Version: 1.0.0
 - Purpose: folder_agency_system — a folder/org-structure system that organizes an AI
 - Skill: `eni-module-folder_agency_system` (ICM stages) in skills_pack/skills/eni-modules/folder_agency_system/

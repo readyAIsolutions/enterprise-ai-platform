@@ -1,6 +1,6 @@
 # ICM module map: threat_model
 
-- Category: Legacy Core (priority 68)
+- Category: Legacy Core (priority 69)
 - Version: 1.0.0
 - Purpose: ENI Threat Model OS Module.
 - API: ENI Threat Model OS Module.

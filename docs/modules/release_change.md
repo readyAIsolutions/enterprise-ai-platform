@@ -1,6 +1,6 @@
 # Module: `release_change`
 
-- Category: Legacy Core · priority 55
+- Category: Legacy Core · priority 56
 - Version: 1.0.0
 - Purpose: Release & Change Management OS Module
 - Skill: `eni-module-release_change` (ICM stages) in skills_pack/skills/eni-modules/release_change/

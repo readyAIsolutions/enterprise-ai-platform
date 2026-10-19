@@ -1,6 +1,6 @@
 # ICM module map: knowledge_graph
 
-- Category: Legacy Core (priority 38)
+- Category: Legacy Core (priority 39)
 - Version: 1.0.0
 - Purpose: Knowledge Graph OS Module
 - API: health_check, initialize, shutdown

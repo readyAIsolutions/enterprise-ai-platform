@@ -1,6 +1,6 @@
 # Module: `swarm_network`
 
-- Category: Legacy Core · priority 66
+- Category: Legacy Core · priority 67
 - Version: 2.0.0
 - Purpose: Swarm Network Optimization OS — Enterprise Module
 - Skill: `eni-module-swarm_network` (ICM stages) in skills_pack/skills/eni-modules/swarm_network/

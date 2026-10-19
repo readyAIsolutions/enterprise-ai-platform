@@ -1,6 +1,6 @@
 # ICM module map: llmops_trace
 
-- Category: Legacy Core (priority 39)
+- Category: Legacy Core (priority 40)
 - Version: 1.1.0
 - Purpose: ENI LLMOps Trace OS Module — local, offline LLM tracing & observability.
 - API: ENI LLMOps Trace OS Module — local, offline LLM tracing & observability.

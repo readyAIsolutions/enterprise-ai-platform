@@ -1,6 +1,6 @@
 # Module: `research_verification`
 
-- Category: Legacy Core · priority 56
+- Category: Legacy Core · priority 57
 - Version: 1.0.0
 - Purpose: Research & Verification OS — Enterprise Platform Kernel Module v1.0.0
 - Skill: `eni-module-research_verification` (ICM stages) in skills_pack/skills/eni-modules/research_verification/

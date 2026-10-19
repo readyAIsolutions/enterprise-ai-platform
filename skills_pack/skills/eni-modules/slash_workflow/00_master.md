@@ -1,6 +1,6 @@
 # ICM module map: slash_workflow
 
-- Category: Legacy Core (priority 64)
+- Category: Legacy Core (priority 65)
 - Version: 1.0.0
 - Purpose: slash_workflow — Plan->Implement->Validate AI-coding workflow with reusable markdown slash-commands, a plan-document schema, isolated-context sub-agents, a dete
 - API: health_check, initialize, render_command, run_workflow, shutdown, validate_plan

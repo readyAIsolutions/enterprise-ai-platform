@@ -1,6 +1,6 @@
 # Module: `swarm_bridge`
 
-- Category: Legacy Core · priority 65
+- Category: Legacy Core · priority 66
 - Version: 5.0.0
 - Purpose: ENI Swarm Enterprise Module v5.0.0
 - Skill: `eni-module-swarm_bridge` (ICM stages) in skills_pack/skills/eni-modules/swarm_bridge/

@@ -32,7 +32,8 @@
     "error_correction",
     "agent_inbox_defense",
     "ai_coding_workflow",
-    "hybrid_kg_retrieval"
+    "hybrid_kg_retrieval",
+    "classical_ml"
   ],
   "transcripts": {
     "JEVanClief": {
@@ -3480,9 +3481,10 @@
         "reason": "statistics explainer — expository teaching, not a buildable technique"
       },
       "N4ZQQqyIf6k": {
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "statistics explainer — expository teaching, not a buildable technique"
+        "title": "Using Bootstrapping to Calculate p-values!!!",
+        "status": "built",
+        "module": "classical_ml",
+        "reason": null
       },
       "Xz0x-8-cgaQ": {
         "status": "evaluated-skip",
@@ -3510,9 +3512,10 @@
         "reason": "statistics explainer — expository teaching, not a buildable technique"
       },
       "_L39rN6gz7Y": {
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "statistics explainer — expository teaching, not a buildable technique"
+        "title": "Decision and Classification Trees, Clearly Explained!!!",
+        "status": "built",
+        "module": "classical_ml",
+        "reason": null
       },
       "Llqoz1u8Pfk": {
         "status": "evaluated-skip",
@@ -3625,14 +3628,16 @@
         "reason": "statistics explainer — expository teaching, not a buildable technique"
       },
       "H3EjCKtlVog": {
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "statistics explainer — expository teaching, not a buildable technique"
+        "title": "Gaussian Naive Bayes, Clearly Explained!!!",
+        "status": "built",
+        "module": "classical_ml",
+        "reason": null
       },
       "O2L2Uv9pdDA": {
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "statistics explainer — expository teaching, not a buildable technique"
+        "title": "Naive Bayes, Clearly Explained!!!",
+        "status": "built",
+        "module": "classical_ml",
+        "reason": null
       },
       "Xm2C_gTAl8c": {
         "status": "evaluated-skip",
@@ -3750,9 +3755,10 @@
         "reason": "statistics explainer — expository teaching, not a buildable technique"
       },
       "4jRBRDbJemM": {
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "statistics explainer — expository teaching, not a buildable technique"
+        "title": "ROC and AUC, Clearly Explained!",
+        "status": "built",
+        "module": "classical_ml",
+        "reason": null
       },
       "vikkiwjQqfU": {
         "status": "evaluated-skip",
@@ -3935,9 +3941,10 @@
         "reason": "statistics explainer — expository teaching, not a buildable technique"
       },
       "4b5d3muPQmA": {
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "statistics explainer — expository teaching, not a buildable technique"
+        "title": "StatQuest: K-means clustering",
+        "status": "built",
+        "module": "classical_ml",
+        "reason": null
       },
       "ARfXDSkQf1Y": {
         "status": "evaluated-skip",
@@ -3965,9 +3972,10 @@
         "reason": "statistics explainer — expository teaching, not a buildable technique"
       },
       "FgakZw6K1QQ": {
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "statistics explainer — expository teaching, not a buildable technique"
+        "title": "StatQuest: Principal Component Analysis (PCA), Step-by-Step",
+        "status": "built",
+        "module": "classical_ml",
+        "reason": null
       },
       "pYxNSUDSFH4": {
         "status": "evaluated-skip",
@@ -4115,9 +4123,10 @@
         "reason": "statistics explainer — expository teaching, not a buildable technique"
       },
       "HVXime0nQeI": {
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "statistics explainer — expository teaching, not a buildable technique"
+        "title": "StatQuest: K-nearest neighbors, Clearly Explained",
+        "status": "built",
+        "module": "classical_ml",
+        "reason": null
       },
       "7xHsRkOdVwo": {
         "status": "evaluated-skip",

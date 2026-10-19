@@ -1,6 +1,6 @@
 # ICM module map: memory
 
-- Category: Legacy Core (priority 42)
+- Category: Legacy Core (priority 43)
 - Version: 1.0.0
 - Purpose: ENI Agent Memory OS Module.
 - API: DEFAULT_DB, add, consolidate, database_path, delete, forget, get, get_memories

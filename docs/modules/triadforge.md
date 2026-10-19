@@ -1,6 +1,6 @@
 # Module: `triadforge`
 
-- Category: Legacy Core · priority 69
+- Category: Legacy Core · priority 70
 - Version: 1.0.0
 - Purpose: ENI TRIAD FORGE Module — White/Grey/Black Box security testing, as a kernel module.
 - Skill: `eni-module-triadforge` (ICM stages) in skills_pack/skills/eni-modules/triadforge/

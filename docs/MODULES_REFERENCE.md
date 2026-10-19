@@ -54,6 +54,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `ai_defense` | ENI Enterprise AI Defense OS Module. | [docs/modules/ai_defense.md](modules/ai_defense.md) |
 | `artifact_pipeline` | Artifact Pipeline — navigate & organize all creative works (no LLM). | [docs/modules/artifact_pipeline.md](modules/artifact_pipeline.md) |
 | `autonomous_agent_runtime` | ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction. | [docs/modules/autonomous_agent_runtime.md](modules/autonomous_agent_runtime.md) |
+| `classical_ml` | Classical-ML module — stdlib classical machine-learning toolkit. | [docs/modules/classical_ml.md](modules/classical_ml.md) |
 | `claude_code_ui_harness` | Claude Code UI Harness — Enterprise Module wrapper. | [docs/modules/claude_code_ui_harness.md](modules/claude_code_ui_harness.md) |
 | `compliance` | ENI Enterprise Compliance OS Module. | [docs/modules/compliance.md](modules/compliance.md) |
 | `compression_bridge` | compression_bridge platform module. | [docs/modules/compression_bridge.md](modules/compression_bridge.md) |

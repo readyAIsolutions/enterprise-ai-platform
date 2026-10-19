@@ -233,400 +233,407 @@
       "purpose": "ENI Autonomous Agent Runtime Module -- Multi-provider LLM abstraction."
     },
     {
-      "module": "claude_code_ui_harness",
+      "module": "classical_ml",
       "priority": 19,
+      "category": "Legacy Core",
+      "version": "1.0.0",
+      "purpose": "Classical-ML module — stdlib classical machine-learning toolkit."
+    },
+    {
+      "module": "claude_code_ui_harness",
+      "priority": 20,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Claude Code UI Harness — Enterprise Module wrapper."
     },
     {
       "module": "compliance",
-      "priority": 20,
+      "priority": 21,
       "category": "Legacy Core",
       "version": "1.1.0",
       "purpose": "ENI Enterprise Compliance OS Module."
     },
     {
       "module": "compression_bridge",
-      "priority": 21,
+      "priority": 22,
       "category": "Legacy Core",
       "version": "0.0.0",
       "purpose": "compression_bridge platform module."
     },
     {
       "module": "cost_meter",
-      "priority": 22,
+      "priority": 23,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4)."
     },
     {
       "module": "custom_agent_workflows",
-      "priority": 23,
+      "priority": 24,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "custom_agent_workflows — build your OWN AI coding workflows as a module."
     },
     {
       "module": "customer_experience",
-      "priority": 24,
+      "priority": 25,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Customer Experience OS Module."
     },
     {
       "module": "developer_experience",
-      "priority": 25,
+      "priority": 26,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Developer Experience OS Module"
     },
     {
       "module": "disaster_recovery",
-      "priority": 26,
+      "priority": 27,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Disaster Recovery OS Module"
     },
     {
       "module": "enterprise_validation",
-      "priority": 27,
+      "priority": 28,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Enterprise Validation & Certification OS — Module Entry Point"
     },
     {
       "module": "error_correction",
-      "priority": 28,
+      "priority": 29,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "error_correction — Hamming error-correcting code as an enterprise module."
     },
     {
       "module": "eval_gate",
-      "priority": 29,
+      "priority": 30,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline)."
     },
     {
       "module": "folder_agency_system",
-      "priority": 30,
+      "priority": 31,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "folder_agency_system — a folder/org-structure system that organizes an AI"
     },
     {
       "module": "gateway",
-      "priority": 31,
+      "priority": 32,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Multi-Gateway Remote Control & Automations Module"
     },
     {
       "module": "guardrails",
-      "priority": 32,
+      "priority": 33,
       "category": "Legacy Core",
       "version": "2.0.0",
       "purpose": "ENI Guardrails OS Module."
     },
     {
       "module": "hermes_controller",
-      "priority": 33,
+      "priority": 34,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent."
     },
     {
       "module": "hybrid_kg_retrieval",
-      "priority": 34,
+      "priority": 35,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "hybrid_kg_retrieval — an agentic RAG 2.0 retrieval engine that combines a"
     },
     {
       "module": "icm",
-      "priority": 35,
+      "priority": 36,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ICM (Interpretable Context Methodology) — skill/prompt-engineering layer."
     },
     {
       "module": "innovation_rd",
-      "priority": 36,
+      "priority": 37,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Innovation R&D OS Module"
     },
     {
       "module": "kb_bridge",
-      "priority": 37,
+      "priority": 38,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Knowledge Base OS Module"
     },
     {
       "module": "knowledge_graph",
-      "priority": 38,
+      "priority": 39,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Knowledge Graph OS Module"
     },
     {
       "module": "llmops_trace",
-      "priority": 39,
+      "priority": 40,
       "category": "Legacy Core",
       "version": "1.1.0",
       "purpose": "ENI LLMOps Trace OS Module — local, offline LLM tracing & observability."
     },
     {
       "module": "look_and_feel",
-      "priority": 40,
+      "priority": 41,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Enterprise Platform — Look & Feel Registry Module v1.0.0"
     },
     {
       "module": "mcp_tools",
-      "priority": 41,
+      "priority": 42,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI MCP Tools Module — FastMCP-style tool registry & MCP serving layer."
     },
     {
       "module": "memory",
-      "priority": 42,
+      "priority": 43,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Agent Memory OS Module."
     },
     {
       "module": "mlops_lifecycle",
-      "priority": 43,
+      "priority": 44,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Enterprise MLOps/LLMOps Lifecycle Module — Complete Agent Experiment Lifecycle Management"
     },
     {
       "module": "model_miner",
-      "priority": 44,
+      "priority": 45,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Enterprise Model Miner OS Module — scan/rip local model training into the KB."
     },
     {
       "module": "model_router",
-      "priority": 45,
+      "priority": 46,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Model Router OS Module — enterprise model-routing / fallback gateway."
     },
     {
       "module": "model_security",
-      "priority": 46,
+      "priority": 47,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Model Security OS Module."
     },
     {
       "module": "multiplayer_agent_triage",
-      "priority": 47,
+      "priority": 48,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "multiplayer_agent_triage — a Platform Kernel module for triaging problems and"
     },
     {
       "module": "observability",
-      "priority": 48,
+      "priority": 49,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Observability — real, consolidated fleet health + Prometheus export."
     },
     {
       "module": "position_addressed_memory",
-      "priority": 49,
+      "priority": 50,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Position-addressed memory — *folder-as-memory* for AI context."
     },
     {
       "module": "prd_audit",
-      "priority": 50,
+      "priority": 51,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "prd_audit — PRD-gated build workflow: write the PRD, audit it with a second"
     },
     {
       "module": "privacy_data",
-      "priority": 51,
+      "priority": 52,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Privacy & Data Governance OS Module"
     },
     {
       "module": "prompt_context",
-      "priority": 52,
+      "priority": 53,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Prompt & Context Management OS Module"
     },
     {
       "module": "prompt_guard",
-      "priority": 53,
+      "priority": 54,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding."
     },
     {
       "module": "rag",
-      "priority": 54,
+      "priority": 55,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Production RAG System — Enterprise-grade Retrieval-Augmented Generation."
     },
     {
       "module": "release_change",
-      "priority": 55,
+      "priority": 56,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Release & Change Management OS Module"
     },
     {
       "module": "research_verification",
-      "priority": 56,
+      "priority": 57,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Research & Verification OS — Enterprise Platform Kernel Module v1.0.0"
     },
     {
       "module": "response_hardening",
-      "priority": 57,
+      "priority": 58,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Response Hardening module."
     },
     {
       "module": "response_ops",
-      "priority": 58,
+      "priority": 59,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Response Ops Module — self-healing fleet supervisor + ICM routing hook."
     },
     {
       "module": "safety_governance",
-      "priority": 59,
+      "priority": 60,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Enterprise — Safety & Governance OS v1.0.0"
     },
     {
       "module": "secret_broker",
-      "priority": 60,
+      "priority": 61,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Enterprise Secret Broker OS Module — local-first secret handling."
     },
     {
       "module": "secret_rotation",
-      "priority": 61,
+      "priority": 62,
       "category": "Legacy Core",
       "version": "1.1.0",
       "purpose": "ENI Enterprise Secret Rotation OS Module."
     },
     {
       "module": "semantic_memory",
-      "priority": 62,
+      "priority": 63,
       "category": "Legacy Core",
       "version": "2.0.0",
       "purpose": "ENI Semantic Memory OS Module."
     },
     {
       "module": "skill_factory",
-      "priority": 63,
+      "priority": 64,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution."
     },
     {
       "module": "slash_workflow",
-      "priority": 64,
+      "priority": 65,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "slash_workflow — Plan->Implement->Validate AI-coding workflow with reusable markdown slash-commands, a plan-document schema, isolated-context sub-agents, a dete"
     },
     {
       "module": "swarm_bridge",
-      "priority": 65,
+      "priority": 66,
       "category": "Legacy Core",
       "version": "5.0.0",
       "purpose": "ENI Swarm Enterprise Module v5.0.0"
     },
     {
       "module": "swarm_network",
-      "priority": 66,
+      "priority": 67,
       "category": "Legacy Core",
       "version": "2.0.0",
       "purpose": "Swarm Network Optimization OS — Enterprise Module"
     },
     {
       "module": "task_harness",
-      "priority": 67,
+      "priority": 68,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Task Harness OS Module"
     },
     {
       "module": "threat_model",
-      "priority": 68,
+      "priority": 69,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Threat Model OS Module."
     },
     {
       "module": "triadforge",
-      "priority": 69,
+      "priority": 70,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI TRIAD FORGE Module — White/Grey/Black Box security testing, as a kernel module."
     },
     {
       "module": "unified_inbox",
-      "priority": 70,
+      "priority": 71,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "Enterprise Platform Unified Inbox module package."
     },
     {
       "module": "unified_work_system",
-      "priority": 71,
+      "priority": 72,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Unified Work System Module"
     },
     {
       "module": "universal_score",
-      "priority": 72,
+      "priority": 73,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Universal Build Score module."
     },
     {
       "module": "voice_agent_hub",
-      "priority": 73,
+      "priority": 74,
       "category": "Legacy Core",
       "version": "0.0.0",
       "purpose": "voice_agent_hub — voice-driven orchestration of coding agents in a group call."
     },
     {
       "module": "vuln_scanner",
-      "priority": 74,
+      "priority": 75,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style)."
     },
     {
       "module": "youtube_transcripts",
-      "priority": 75,
+      "priority": 76,
       "category": "Legacy Core",
       "version": "1.0.0",
       "purpose": "YouTube transcript puller with PIA VPN IP rotation."
