@@ -1,6 +1,6 @@
 # ICM module map: model_miner
 
-- Category: Legacy Core (priority 45)
+- Category: Legacy Core (priority 46)
 - Version: 1.0.0
 - Purpose: Enterprise Model Miner OS Module — scan/rip local model training into the KB.
 - API: facade, health_check, initialize, shutdown

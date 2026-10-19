@@ -1,6 +1,6 @@
 # ICM module map: guardrails
 
-- Category: Legacy Core (priority 33)
+- Category: Legacy Core (priority 34)
 - Version: 2.0.0
 - Purpose: ENI Guardrails OS Module.
 - API: facade, get_event_bus, get_registry, guardrails, health_check, initialize, list_guards, list_validators

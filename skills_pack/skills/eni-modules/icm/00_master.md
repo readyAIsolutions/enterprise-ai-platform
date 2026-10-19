@@ -1,6 +1,6 @@
 # ICM module map: icm
 
-- Category: Legacy Core (priority 36)
+- Category: Legacy Core (priority 37)
 - Version: 1.0.0
 - Purpose: ICM (Interpretable Context Methodology) — skill/prompt-engineering layer.
 - API: health_check, initialize, new_project, route, shutdown, stage_context

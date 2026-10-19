@@ -1,6 +1,6 @@
 # ICM module map: compression_bridge
 
-- Category: Legacy Core (priority 22)
+- Category: Legacy Core (priority 23)
 - Version: 0.0.0
 - Purpose: compression_bridge platform module.
 - API: compression_bridge platform module.

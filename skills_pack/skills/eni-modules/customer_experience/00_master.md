@@ -1,6 +1,6 @@
 # ICM module map: customer_experience
 
-- Category: Legacy Core (priority 25)
+- Category: Legacy Core (priority 26)
 - Version: 1.0.0
 - Purpose: Customer Experience OS Module.
 - API: health_check, initialize, shutdown

@@ -41,6 +41,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Classical-ML module — stdlib classical machine-learning tool | classical_ml | 01_intake, 03_drafting, 04_verification, 05_output |
 | Claude Code UI Harness — Enterprise Module wrapper. | claude_code_ui_harness | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise Compliance OS Module. | compliance | 01_intake, 03_drafting, 04_verification, 05_output |
+| composable_workflow_engine — a compose-your-own context-engi | composable_workflow_engine | 01_intake, 03_drafting, 04_verification, 05_output |
 | compression_bridge platform module. | compression_bridge | 01_intake, 03_drafting, 04_verification, 05_output |
 | Cost Meter — per-tenant cost metering + fractional-reasoning | cost_meter | 01_intake, 03_drafting, 04_verification, 05_output |
 | custom_agent_workflows — build your OWN AI coding workflows  | custom_agent_workflows | 01_intake, 03_drafting, 04_verification, 05_output |
@@ -75,6 +76,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Prompt & Context Management OS Module | prompt_context | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Prompt Guard OS Module — injection / jailbreak /  | prompt_guard | 01_intake, 03_drafting, 04_verification, 05_output |
 | Production RAG System — Enterprise-grade Retrieval-Augmented | rag | 01_intake, 03_drafting, 04_verification, 05_output |
+| ``rag_strategy_router`` — intent-based VECTOR / GRAPH / HYBR | rag_strategy_router | 01_intake, 03_drafting, 04_verification, 05_output |
 | Release & Change Management OS Module | release_change | 01_intake, 03_drafting, 04_verification, 05_output |
 | Research & Verification OS — Enterprise Platform Kernel Modu | research_verification | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Response Hardening module. | response_hardening | 01_intake, 03_drafting, 04_verification, 05_output |

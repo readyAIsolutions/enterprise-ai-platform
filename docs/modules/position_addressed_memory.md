@@ -1,6 +1,6 @@
 # Module: `position_addressed_memory`
 
-- Category: Legacy Core · priority 50
+- Category: Legacy Core · priority 51
 - Version: 1.0.0
 - Purpose: Position-addressed memory — *folder-as-memory* for AI context.
 - Skill: `eni-module-position_addressed_memory` (ICM stages) in skills_pack/skills/eni-modules/position_addressed_memory/

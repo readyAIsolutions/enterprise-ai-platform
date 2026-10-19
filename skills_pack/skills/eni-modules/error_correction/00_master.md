@@ -1,6 +1,6 @@
 # ICM module map: error_correction
 
-- Category: Legacy Core (priority 29)
+- Category: Legacy Core (priority 30)
 - Version: 1.0.0
 - Purpose: error_correction — Hamming error-correcting code as an enterprise module.
 - API: correct, decode, dimensions, encode, health_check, initialize, set_event_bus, shutdown

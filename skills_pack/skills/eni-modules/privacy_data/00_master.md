@@ -1,6 +1,6 @@
 # ICM module map: privacy_data
 
-- Category: Legacy Core (priority 52)
+- Category: Legacy Core (priority 53)
 - Version: 1.0.0
 - Purpose: Privacy & Data Governance OS Module
 - API: health_check, initialize, shutdown

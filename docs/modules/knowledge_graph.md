@@ -1,6 +1,6 @@
 # Module: `knowledge_graph`
 
-- Category: Legacy Core · priority 39
+- Category: Legacy Core · priority 40
 - Version: 1.0.0
 - Purpose: Knowledge Graph OS Module
 - Skill: `eni-module-knowledge_graph` (ICM stages) in skills_pack/skills/eni-modules/knowledge_graph/

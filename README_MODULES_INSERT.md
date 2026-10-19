@@ -58,6 +58,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `classical_ml` | Classical-ML module — stdlib classical machine-learning toolkit. |
 | `claude_code_ui_harness` | Claude Code UI Harness — Enterprise Module wrapper. |
 | `compliance` | ENI Enterprise Compliance OS Module. |
+| `composable_workflow_engine` | composable_workflow_engine — a compose-your-own context-engineering |
 | `compression_bridge` | compression_bridge platform module. |
 | `cost_meter` | Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4). |
 | `custom_agent_workflows` | custom_agent_workflows — build your OWN AI coding workflows as a module. |
@@ -92,6 +93,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `prompt_context` | Prompt & Context Management OS Module |
 | `prompt_guard` | Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding. |
 | `rag` | Production RAG System — Enterprise-grade Retrieval-Augmented Generation. |
+| `rag_strategy_router` | ``rag_strategy_router`` — intent-based VECTOR / GRAPH / HYBRID RAG router. |
 | `release_change` | Release & Change Management OS Module |
 | `research_verification` | Research & Verification OS — Enterprise Platform Kernel Module v1.0.0 |
 | `response_hardening` | ENI Response Hardening module. |

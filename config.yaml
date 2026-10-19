@@ -676,6 +676,22 @@ modules:
     config:
       default_seed: 42
 
+  composable_workflow_engine:
+    enabled: true
+    priority: 35
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config: {}
+
+  rag_strategy_router:
+    enabled: true
+    priority: 36
+    required: false
+    startup_timeout_sec: 30
+    health_check_interval_sec: 60
+    config: {}
+
 # ── Logging configuration ────────────────────────────────────────────────────
 logging:
   level: "INFO"  # DEBUG | INFO | WARNING | ERROR | CRITICAL

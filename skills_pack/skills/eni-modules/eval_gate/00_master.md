@@ -1,6 +1,6 @@
 # ICM module map: eval_gate
 
-- Category: Legacy Core (priority 30)
+- Category: Legacy Core (priority 31)
 - Version: 1.0.0
 - Purpose: ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline).
 - API: ENI Eval Gate OS Module — automated LLM evaluation gates (local & offline).

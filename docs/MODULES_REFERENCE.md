@@ -57,6 +57,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `classical_ml` | Classical-ML module — stdlib classical machine-learning toolkit. | [docs/modules/classical_ml.md](modules/classical_ml.md) |
 | `claude_code_ui_harness` | Claude Code UI Harness — Enterprise Module wrapper. | [docs/modules/claude_code_ui_harness.md](modules/claude_code_ui_harness.md) |
 | `compliance` | ENI Enterprise Compliance OS Module. | [docs/modules/compliance.md](modules/compliance.md) |
+| `composable_workflow_engine` | composable_workflow_engine — a compose-your-own context-engineering | [docs/modules/composable_workflow_engine.md](modules/composable_workflow_engine.md) |
 | `compression_bridge` | compression_bridge platform module. | [docs/modules/compression_bridge.md](modules/compression_bridge.md) |
 | `cost_meter` | Cost Meter — per-tenant cost metering + fractional-reasoning policy (B3 + C4). | [docs/modules/cost_meter.md](modules/cost_meter.md) |
 | `custom_agent_workflows` | custom_agent_workflows — build your OWN AI coding workflows as a module. | [docs/modules/custom_agent_workflows.md](modules/custom_agent_workflows.md) |
@@ -91,6 +92,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `prompt_context` | Prompt & Context Management OS Module | [docs/modules/prompt_context.md](modules/prompt_context.md) |
 | `prompt_guard` | Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding. | [docs/modules/prompt_guard.md](modules/prompt_guard.md) |
 | `rag` | Production RAG System — Enterprise-grade Retrieval-Augmented Generation. | [docs/modules/rag.md](modules/rag.md) |
+| `rag_strategy_router` | ``rag_strategy_router`` — intent-based VECTOR / GRAPH / HYBRID RAG router. | [docs/modules/rag_strategy_router.md](modules/rag_strategy_router.md) |
 | `release_change` | Release & Change Management OS Module | [docs/modules/release_change.md](modules/release_change.md) |
 | `research_verification` | Research & Verification OS — Enterprise Platform Kernel Module v1.0.0 | [docs/modules/research_verification.md](modules/research_verification.md) |
 | `response_hardening` | ENI Response Hardening module. | [docs/modules/response_hardening.md](modules/response_hardening.md) |

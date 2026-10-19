@@ -1,6 +1,6 @@
 # Module: `llmops_trace`
 
-- Category: Legacy Core · priority 40
+- Category: Legacy Core · priority 41
 - Version: 1.1.0
 - Purpose: ENI LLMOps Trace OS Module — local, offline LLM tracing & observability.
 - Skill: `eni-module-llmops_trace` (ICM stages) in skills_pack/skills/eni-modules/llmops_trace/
