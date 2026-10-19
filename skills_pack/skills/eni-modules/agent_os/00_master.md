@@ -1,6 +1,6 @@
 # ICM module map: agent_os
 
-- Category: Legacy Core (priority 11)
+- Category: Legacy Core (priority 12)
 - Version: 1.0.0
 - Purpose: Enterprise Agent OS Module — a unified AI agent operating system.
 - API: health_check, initialize, run, shutdown, surface

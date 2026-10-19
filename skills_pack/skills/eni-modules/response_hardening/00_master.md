@@ -1,6 +1,6 @@
 # ICM module map: response_hardening
 
-- Category: Legacy Core (priority 54)
+- Category: Legacy Core (priority 55)
 - Version: 1.0.0
 - Purpose: ENI Response Hardening module.
 - API: apply_repair, get_audit, health_check, initialize, shutdown

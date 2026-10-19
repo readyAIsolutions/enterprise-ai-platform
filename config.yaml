@@ -15,6 +15,23 @@ platform:
 
 # ── Module configuration ─────────────────────────────────────────────────────
 modules:
+  agent_inbox_defense:
+    enabled: true
+    priority: 20
+    required: false
+    startup_timeout_sec: 15
+    health_check_interval_sec: 120
+    config:
+      scanner_model: "standard"
+      require_review: true
+      review_threshold: 0.35
+      quarantine_threshold: 0.6
+      token_flood_chars: 40000
+      per_message_token_max: 50000
+      total_token_budget: 500000
+      siege_window_sec: 60.0
+      siege_burst_max: 5
+
   error_correction:
     enabled: true
     priority: 20

@@ -1,6 +1,6 @@
 # Module: `voice_agent_hub`
 
-- Category: Legacy Core · priority 70
+- Category: Legacy Core · priority 71
 - Version: 0.0.0
 - Purpose: voice_agent_hub — voice-driven orchestration of coding agents in a group call.
 - Skill: `eni-module-voice_agent_hub` (ICM stages) in skills_pack/skills/eni-modules/voice_agent_hub/

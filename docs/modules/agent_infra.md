@@ -1,6 +1,6 @@
 # Module: `agent_infra`
 
-- Category: Legacy Core · priority 10
+- Category: Legacy Core · priority 11
 - Version: 1.0.0
 - Purpose: Claude Code Superior — Infrastructure Module v1.0.0
 - Skill: `eni-module-agent_infra` (ICM stages) in skills_pack/skills/eni-modules/agent_infra/

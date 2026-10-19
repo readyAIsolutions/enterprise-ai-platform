@@ -1,6 +1,6 @@
 # Module: `agent_os`
 
-- Category: Legacy Core · priority 11
+- Category: Legacy Core · priority 12
 - Version: 1.0.0
 - Purpose: Enterprise Agent OS Module — a unified AI agent operating system.
 - Skill: `eni-module-agent_os` (ICM stages) in skills_pack/skills/eni-modules/agent_os/

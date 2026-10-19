@@ -1,6 +1,6 @@
 # Module: `agentic_workflow_builder`
 
-- Category: Legacy Core · priority 13
+- Category: Legacy Core · priority 14
 - Version: 1.0.0
 - Purpose: agentic_workflow_builder — compose agentic workflows (Claude Code + Cursor).
 - Skill: `eni-module-agentic_workflow_builder` (ICM stages) in skills_pack/skills/eni-modules/agentic_workflow_builder/

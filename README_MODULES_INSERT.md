@@ -46,6 +46,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `agent_coordination` | Agent Communication & Coordination OS — Multi-agent orchestration, task scheduling, |
 | `agent_core` | Claude Code Core — Enterprise Platform Kernel Module v2.0.0 |
 | `agent_graph` | ENI Agent Graph Module — langgraph-style stateful agent graph orchestration. |
+| `agent_inbox_defense` | agent_inbox_defense — enterprise module wrapping a defensive scanner for |
 | `agent_infra` | Claude Code Superior — Infrastructure Module v1.0.0 |
 | `agent_os` | Enterprise Agent OS Module — a unified AI agent operating system. |
 | `agent_tools` | ENI Enterprise — Claude Code Tools Module v2.0.0 |

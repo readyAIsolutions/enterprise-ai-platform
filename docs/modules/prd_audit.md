@@ -1,6 +1,6 @@
 # Module: `prd_audit`
 
-- Category: Legacy Core · priority 47
+- Category: Legacy Core · priority 48
 - Version: 1.0.0
 - Purpose: prd_audit — PRD-gated build workflow: write the PRD, audit it with a second
 - Skill: `eni-module-prd_audit` (ICM stages) in skills_pack/skills/eni-modules/prd_audit/

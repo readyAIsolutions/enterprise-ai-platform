@@ -1,6 +1,6 @@
 # Module: `guardrails`
 
-- Category: Legacy Core · priority 30
+- Category: Legacy Core · priority 31
 - Version: 2.0.0
 - Purpose: ENI Guardrails OS Module.
 - Skill: `eni-module-guardrails` (ICM stages) in skills_pack/skills/eni-modules/guardrails/

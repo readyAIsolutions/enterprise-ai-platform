@@ -1,6 +1,6 @@
 # ICM module map: agent_infra
 
-- Category: Legacy Core (priority 10)
+- Category: Legacy Core (priority 11)
 - Version: 1.0.0
 - Purpose: Claude Code Superior — Infrastructure Module v1.0.0
 - API: buddy_manager, component, health_check, infra, initialize, plugin_manager, server, set_event_bus

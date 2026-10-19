@@ -1,6 +1,6 @@
 # ICM module map: youtube_transcripts
 
-- Category: Legacy Core (priority 72)
+- Category: Legacy Core (priority 73)
 - Version: 1.0.0
 - Purpose: YouTube transcript puller with PIA VPN IP rotation.
 - API: health_check, initialize, last_run, list_videos, pull, shutdown

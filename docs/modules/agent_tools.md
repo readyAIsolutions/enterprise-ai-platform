@@ -1,6 +1,6 @@
 # Module: `agent_tools`
 
-- Category: Legacy Core · priority 12
+- Category: Legacy Core · priority 13
 - Version: 2.0.0
 - Purpose: ENI Enterprise — Claude Code Tools Module v2.0.0
 - Skill: `eni-module-agent_tools` (ICM stages) in skills_pack/skills/eni-modules/agent_tools/

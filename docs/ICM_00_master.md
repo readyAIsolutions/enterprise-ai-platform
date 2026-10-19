@@ -29,6 +29,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Agent Communication & Coordination OS — Multi-agent orchestr | agent_coordination | 01_intake, 03_drafting, 04_verification, 05_output |
 | Claude Code Core — Enterprise Platform Kernel Module v2.0.0 | agent_core | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Agent Graph Module — langgraph-style stateful agent grap | agent_graph | 01_intake, 03_drafting, 04_verification, 05_output |
+| agent_inbox_defense — enterprise module wrapping a defensive | agent_inbox_defense | 01_intake, 03_drafting, 04_verification, 05_output |
 | Claude Code Superior — Infrastructure Module v1.0.0 | agent_infra | 01_intake, 03_drafting, 04_verification, 05_output |
 | Enterprise Agent OS Module — a unified AI agent operating sy | agent_os | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise — Claude Code Tools Module v2.0.0 | agent_tools | 01_intake, 03_drafting, 04_verification, 05_output |

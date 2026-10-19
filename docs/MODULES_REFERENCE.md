@@ -45,6 +45,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `agent_coordination` | Agent Communication & Coordination OS — Multi-agent orchestration, task scheduling, | [docs/modules/agent_coordination.md](modules/agent_coordination.md) |
 | `agent_core` | Claude Code Core — Enterprise Platform Kernel Module v2.0.0 | [docs/modules/agent_core.md](modules/agent_core.md) |
 | `agent_graph` | ENI Agent Graph Module — langgraph-style stateful agent graph orchestration. | [docs/modules/agent_graph.md](modules/agent_graph.md) |
+| `agent_inbox_defense` | agent_inbox_defense — enterprise module wrapping a defensive scanner for | [docs/modules/agent_inbox_defense.md](modules/agent_inbox_defense.md) |
 | `agent_infra` | Claude Code Superior — Infrastructure Module v1.0.0 | [docs/modules/agent_infra.md](modules/agent_infra.md) |
 | `agent_os` | Enterprise Agent OS Module — a unified AI agent operating system. | [docs/modules/agent_os.md](modules/agent_os.md) |
 | `agent_tools` | ENI Enterprise — Claude Code Tools Module v2.0.0 | [docs/modules/agent_tools.md](modules/agent_tools.md) |
