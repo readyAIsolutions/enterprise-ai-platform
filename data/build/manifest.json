@@ -8861,6 +8861,18 @@
         "module": null,
         "reason": "research paper-summary explainer \u2014 no reusable engineering technique",
         "title": "This AI Learned To Isolate Speech Signals"
+      },
+      "_x9AwxfjxvE": {
+        "title": null,
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "GPT-3 capabilities explainer/news \u2014 no reusable engineering technique"
+      },
+      "_DN2rzHkpZE": {
+        "title": null,
+        "status": "evaluated-skip",
+        "module": null,
+        "reason": "AI formal-verification story explainer \u2014 expository, no gradable module"
       }
     },
     "rayfernando": {},
