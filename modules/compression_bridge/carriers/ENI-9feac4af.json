@@ -1,0 +1,12 @@
+{
+  "sha256_orig": "9feac4afb9ead6e81fa3864e17ed1d08079c9dd5c9380b7348df65e7f098a49a",
+  "engine": "xz-9",
+  "ratio": 3.947,
+  "original_chars": 300,
+  "compressed_bytes": 76,
+  "est_tokens": 78.94736842105263,
+  "est_usd": 0.0,
+  "tool": "",
+  "ts": "2026-09-01T18:57:52",
+  "recover_hint": "xz -dc /home/hunter/Desktop/Enterprise Builder/enterprise/modules/compression_bridge/carriers/ENI-9feac4af.xz"
+}
