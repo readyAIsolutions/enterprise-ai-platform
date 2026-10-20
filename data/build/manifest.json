@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Transcript -> module build ledger. Covers JEVanClief + matthew_berman (paper_feeds/context_routing/shared_workspace are research/rebuilt modules, tracked separately). Status: pulled / built / skipped(no-reusable-value).",
+  "note": "Transcript -> module build ledger. Covers JEVanClief + matthew_berman + ColeMedin (paper_feeds/context_routing/shared_workspace are research/rebuilt modules, tracked separately). Status: pulled / built / skipped(no-reusable-value).",
   "built_modules": [
     "context_routing",
     "shared_workspace",
@@ -8902,13 +8902,25 @@
         "reason": "GPT-3 capabilities explainer/news \u2014 no reusable engineering technique"
       },
       "_DN2rzHkpZE": {
-        "title": null,
-        "status": "evaluated-skip",
-        "module": null,
-        "reason": "AI formal-verification story explainer \u2014 expository, no gradable module"
-      }
-    },
-    "rayfernando": {},
+              "title": null,
+              "status": "evaluated-skip",
+              "module": null,
+              "reason": "AI formal-verification story explainer \\u2014 expository, no gradable module"
+            }
+          },
+          "ColeMedin": {
+            "mHBk8Z7Exag": {
+              "title": "The True Power of AI Coding - Build Your OWN Workflows (Full Guide)",
+              "status": "built",
+              "module": "context_workflow_framework"
+            },
+            "p0FERNkpyHE": {
+              "title": "Introducing RAG 2.0: Agentic RAG + Knowledge Graphs (FREE Template)",
+              "status": "built",
+              "module": "agentic_rag_planner"
+            }
+          },
+          "rayfernando": {},
     "AndrejKarpathy": {},
     "jasonai": {}
   }
