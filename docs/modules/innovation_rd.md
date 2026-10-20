@@ -1,6 +1,6 @@
 # Module: `innovation_rd`
 
-- Category: Legacy Core · priority 40
+- Category: Legacy Core · priority 41
 - Version: 1.0.0
 - Purpose: Innovation R&D OS Module
 - Skill: `eni-module-innovation_rd` (ICM stages) in skills_pack/skills/eni-modules/innovation_rd/

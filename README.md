@@ -89,6 +89,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `guardrails` | ENI Guardrails OS Module. |
 | `hermes_controller` | Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent. |
 | `icm` | ICM (Interpretable Context Methodology) — skill/prompt-engineering layer. |
+| `information_theory` | information_theory — Shannon entropy, mutual information, KL divergence, and a Wordle-style expected-information-gain solver (StatQuest + 3blue1brown). |
 | `innovation_rd` | Innovation R&D OS Module |
 | `kb_bridge` | ENI Knowledge Base OS Module |
 | `knowledge_graph` | Knowledge Graph OS Module |
@@ -113,6 +114,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `secret_broker` | Enterprise Secret Broker OS Module — local-first secret handling. |
 | `secret_rotation` | ENI Enterprise Secret Rotation OS Module. |
 | `semantic_memory` | ENI Semantic Memory OS Module. |
+| `similarity_metrics` | similarity_metrics — cosine / Pearson / covariance similarity + a RAG document ranker (StatQuest). |
 | `skill_factory` | ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution. |
 | `swarm_bridge` | ENI Swarm Enterprise Module v5.0.0 |
 | `swarm_network` | Swarm Network Optimization OS — Enterprise Module |

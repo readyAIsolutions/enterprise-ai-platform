@@ -1,6 +1,6 @@
 # ICM module map: swarm_bridge
 
-- Category: Legacy Core (priority 70)
+- Category: Legacy Core (priority 72)
 - Version: 5.0.0
 - Purpose: ENI Swarm Enterprise Module v5.0.0
 - API: ENI Swarm Enterprise Module v5.0.0

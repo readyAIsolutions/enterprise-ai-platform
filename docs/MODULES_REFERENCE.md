@@ -75,6 +75,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `hermes_controller` | Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent. | [docs/modules/hermes_controller.md](modules/hermes_controller.md) |
 | `hybrid_kg_retrieval` | hybrid_kg_retrieval — an agentic RAG 2.0 retrieval engine that combines a | [docs/modules/hybrid_kg_retrieval.md](modules/hybrid_kg_retrieval.md) |
 | `icm` | ICM (Interpretable Context Methodology) — skill/prompt-engineering layer. | [docs/modules/icm.md](modules/icm.md) |
+| `information_theory` | information_theory — Shannon entropy, mutual information, KL divergence, and | [docs/modules/information_theory.md](modules/information_theory.md) |
 | `innovation_rd` | Innovation R&D OS Module | [docs/modules/innovation_rd.md](modules/innovation_rd.md) |
 | `kb_bridge` | ENI Knowledge Base OS Module | [docs/modules/kb_bridge.md](modules/kb_bridge.md) |
 | `knowledge_graph` | Knowledge Graph OS Module | [docs/modules/knowledge_graph.md](modules/knowledge_graph.md) |
@@ -103,6 +104,7 @@ _Auto-generated: python3 scripts/gen_module_docs.py — one page per module in d
 | `secret_broker` | Enterprise Secret Broker OS Module — local-first secret handling. | [docs/modules/secret_broker.md](modules/secret_broker.md) |
 | `secret_rotation` | ENI Enterprise Secret Rotation OS Module. | [docs/modules/secret_rotation.md](modules/secret_rotation.md) |
 | `semantic_memory` | ENI Semantic Memory OS Module. | [docs/modules/semantic_memory.md](modules/semantic_memory.md) |
+| `similarity_metrics` | similarity_metrics — cosine / Pearson / covariance similarity as a module. | [docs/modules/similarity_metrics.md](modules/similarity_metrics.md) |
 | `skill_factory` | ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution. | [docs/modules/skill_factory.md](modules/skill_factory.md) |
 | `slash_workflow` | slash_workflow — Plan->Implement->Validate AI-coding workflow with reusable markdown slash-commands, a plan-document schema, isolated-context sub-agents, a dete | [docs/modules/slash_workflow.md](modules/slash_workflow.md) |
 | `swarm_bridge` | ENI Swarm Enterprise Module v5.0.0 | [docs/modules/swarm_bridge.md](modules/swarm_bridge.md) |

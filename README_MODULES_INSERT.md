@@ -76,6 +76,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `hermes_controller` | Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent. |
 | `hybrid_kg_retrieval` | hybrid_kg_retrieval — an agentic RAG 2.0 retrieval engine that combines a |
 | `icm` | ICM (Interpretable Context Methodology) — skill/prompt-engineering layer. |
+| `information_theory` | information_theory — Shannon entropy, mutual information, KL divergence, and |
 | `innovation_rd` | Innovation R&D OS Module |
 | `kb_bridge` | ENI Knowledge Base OS Module |
 | `knowledge_graph` | Knowledge Graph OS Module |
@@ -104,6 +105,7 @@ one page per module in [`docs/modules/`](docs/modules/) and the full grouped ind
 | `secret_broker` | Enterprise Secret Broker OS Module — local-first secret handling. |
 | `secret_rotation` | ENI Enterprise Secret Rotation OS Module. |
 | `semantic_memory` | ENI Semantic Memory OS Module. |
+| `similarity_metrics` | similarity_metrics — cosine / Pearson / covariance similarity as a module. |
 | `skill_factory` | ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution. |
 | `slash_workflow` | slash_workflow — Plan->Implement->Validate AI-coding workflow with reusable markdown slash-commands, a plan-document schema, isolated-context sub-agents, a dete |
 | `swarm_bridge` | ENI Swarm Enterprise Module v5.0.0 |

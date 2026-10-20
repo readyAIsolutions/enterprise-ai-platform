@@ -1,6 +1,6 @@
 # ICM module map: model_router
 
-- Category: Legacy Core (priority 49)
+- Category: Legacy Core (priority 50)
 - Version: 1.0.0
 - Purpose: ENI Model Router OS Module — enterprise model-routing / fallback gateway.
 - API: ENI Model Router OS Module — enterprise model-routing / fallback gateway.

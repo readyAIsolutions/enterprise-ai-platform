@@ -1,6 +1,6 @@
 # ICM module map: vuln_scanner
 
-- Category: Legacy Core (priority 79)
+- Category: Legacy Core (priority 81)
 - Version: 1.0.0
 - Purpose: ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style).
 - API: ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style).

@@ -59,6 +59,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Enterprise Hermes Controller OS Module — autonomous controll | hermes_controller | 01_intake, 03_drafting, 04_verification, 05_output |
 | hybrid_kg_retrieval — an agentic RAG 2.0 retrieval engine th | hybrid_kg_retrieval | 01_intake, 03_drafting, 04_verification, 05_output |
 | ICM (Interpretable Context Methodology) — skill/prompt-engin | icm | 01_intake, 03_drafting, 04_verification, 05_output |
+| information_theory — Shannon entropy, mutual information, KL | information_theory | 01_intake, 03_drafting, 04_verification, 05_output |
 | Innovation R&D OS Module | innovation_rd | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Knowledge Base OS Module | kb_bridge | 01_intake, 03_drafting, 04_verification, 05_output |
 | Knowledge Graph OS Module | knowledge_graph | 01_intake, 03_drafting, 04_verification, 05_output |
@@ -87,6 +88,7 @@ Catch-all: if a task just needs a capability, use the module directly.
 | Enterprise Secret Broker OS Module — local-first secret hand | secret_broker | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Enterprise Secret Rotation OS Module. | secret_rotation | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Semantic Memory OS Module. | semantic_memory | 01_intake, 03_drafting, 04_verification, 05_output |
+| similarity_metrics — cosine / Pearson / covariance similarit | similarity_metrics | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Skill Factory Module — Meta-Skill Generator / Registry / | skill_factory | 01_intake, 03_drafting, 04_verification, 05_output |
 | slash_workflow — Plan->Implement->Validate AI-coding workflo | slash_workflow | 01_intake, 03_drafting, 04_verification, 05_output |
 | ENI Swarm Enterprise Module v5.0.0 | swarm_bridge | 01_intake, 03_drafting, 04_verification, 05_output |

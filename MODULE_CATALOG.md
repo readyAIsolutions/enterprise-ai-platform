@@ -59,46 +59,48 @@
 37. **hermes_controller** v1.0.0 — Enterprise Hermes Controller OS Module — autonomous controller for Hermes Agent.
 38. **hybrid_kg_retrieval** v1.0.0 — hybrid_kg_retrieval — an agentic RAG 2.0 retrieval engine that combines a
 39. **icm** v1.0.0 — ICM (Interpretable Context Methodology) — skill/prompt-engineering layer.
-40. **innovation_rd** v1.0.0 — Innovation R&D OS Module
-41. **kb_bridge** v1.0.0 — ENI Knowledge Base OS Module
-42. **knowledge_graph** v1.0.0 — Knowledge Graph OS Module
-43. **llmops_trace** v1.1.0 — ENI LLMOps Trace OS Module — local, offline LLM tracing & observability.
-44. **look_and_feel** v1.0.0 — Enterprise Platform — Look & Feel Registry Module v1.0.0
-45. **mcp_tools** v1.0.0 — ENI MCP Tools Module — FastMCP-style tool registry & MCP serving layer.
-46. **memory** v1.0.0 — ENI Agent Memory OS Module.
-47. **mlops_lifecycle** v1.0.0 — ENI Enterprise MLOps/LLMOps Lifecycle Module — Complete Agent Experiment Lifecycle Management
-48. **model_miner** v1.0.0 — Enterprise Model Miner OS Module — scan/rip local model training into the KB.
-49. **model_router** v1.0.0 — ENI Model Router OS Module — enterprise model-routing / fallback gateway.
-50. **model_security** v1.0.0 — ENI Model Security OS Module.
-51. **multiplayer_agent_triage** v1.0.0 — multiplayer_agent_triage — a Platform Kernel module for triaging problems and
-52. **observability** v1.0.0 — Observability — real, consolidated fleet health + Prometheus export.
-53. **position_addressed_memory** v1.0.0 — Position-addressed memory — *folder-as-memory* for AI context.
-54. **prd_audit** v1.0.0 — prd_audit — PRD-gated build workflow: write the PRD, audit it with a second
-55. **privacy_data** v1.0.0 — Privacy & Data Governance OS Module
-56. **prompt_context** v1.0.0 — Prompt & Context Management OS Module
-57. **prompt_guard** v1.0.0 — Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding.
-58. **rag** v1.0.0 — Production RAG System — Enterprise-grade Retrieval-Augmented Generation.
-59. **rag_strategy_router** v1.0.0 — ``rag_strategy_router`` — intent-based VECTOR / GRAPH / HYBRID RAG router.
-60. **release_change** v1.0.0 — Release & Change Management OS Module
-61. **research_verification** v1.0.0 — Research & Verification OS — Enterprise Platform Kernel Module v1.0.0
-62. **response_hardening** v1.0.0 — ENI Response Hardening module.
-63. **response_ops** v1.0.0 — ENI Response Ops Module — self-healing fleet supervisor + ICM routing hook.
-64. **safety_governance** v1.0.0 — ENI Enterprise — Safety & Governance OS v1.0.0
-65. **secret_broker** v1.0.0 — Enterprise Secret Broker OS Module — local-first secret handling.
-66. **secret_rotation** v1.1.0 — ENI Enterprise Secret Rotation OS Module.
-67. **semantic_memory** v2.0.0 — ENI Semantic Memory OS Module.
-68. **skill_factory** v1.0.0 — ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution.
-69. **slash_workflow** v1.0.0 — slash_workflow — Plan->Implement->Validate AI-coding workflow with reusable markdown slash-commands, a plan-document schema, isolated-context sub-agents, a dete
-70. **swarm_bridge** v5.0.0 — ENI Swarm Enterprise Module v5.0.0
-71. **swarm_network** v2.0.0 — Swarm Network Optimization OS — Enterprise Module
-72. **task_harness** v1.0.0 — ENI Task Harness OS Module
-73. **threat_model** v1.0.0 — ENI Threat Model OS Module.
-74. **triadforge** v1.0.0 — ENI TRIAD FORGE Module — White/Grey/Black Box security testing, as a kernel module.
-75. **unified_inbox** v1.0.0 — Enterprise Platform Unified Inbox module package.
-76. **unified_work_system** v1.0.0 — ENI Unified Work System Module
-77. **universal_score** v1.0.0 — ENI Universal Build Score module.
-78. **voice_agent_hub** v0.0.0 — voice_agent_hub — voice-driven orchestration of coding agents in a group call.
-79. **vuln_scanner** v1.0.0 — ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style).
-80. **youtube_transcripts** v1.0.0 — YouTube transcript puller with PIA VPN IP rotation.
+40. **information_theory** v1.0.0 — information_theory — Shannon entropy, mutual information, KL divergence, and
+41. **innovation_rd** v1.0.0 — Innovation R&D OS Module
+42. **kb_bridge** v1.0.0 — ENI Knowledge Base OS Module
+43. **knowledge_graph** v1.0.0 — Knowledge Graph OS Module
+44. **llmops_trace** v1.1.0 — ENI LLMOps Trace OS Module — local, offline LLM tracing & observability.
+45. **look_and_feel** v1.0.0 — Enterprise Platform — Look & Feel Registry Module v1.0.0
+46. **mcp_tools** v1.0.0 — ENI MCP Tools Module — FastMCP-style tool registry & MCP serving layer.
+47. **memory** v1.0.0 — ENI Agent Memory OS Module.
+48. **mlops_lifecycle** v1.0.0 — ENI Enterprise MLOps/LLMOps Lifecycle Module — Complete Agent Experiment Lifecycle Management
+49. **model_miner** v1.0.0 — Enterprise Model Miner OS Module — scan/rip local model training into the KB.
+50. **model_router** v1.0.0 — ENI Model Router OS Module — enterprise model-routing / fallback gateway.
+51. **model_security** v1.0.0 — ENI Model Security OS Module.
+52. **multiplayer_agent_triage** v1.0.0 — multiplayer_agent_triage — a Platform Kernel module for triaging problems and
+53. **observability** v1.0.0 — Observability — real, consolidated fleet health + Prometheus export.
+54. **position_addressed_memory** v1.0.0 — Position-addressed memory — *folder-as-memory* for AI context.
+55. **prd_audit** v1.0.0 — prd_audit — PRD-gated build workflow: write the PRD, audit it with a second
+56. **privacy_data** v1.0.0 — Privacy & Data Governance OS Module
+57. **prompt_context** v1.0.0 — Prompt & Context Management OS Module
+58. **prompt_guard** v1.0.0 — Enterprise Prompt Guard OS Module — injection / jailbreak / policy guarding.
+59. **rag** v1.0.0 — Production RAG System — Enterprise-grade Retrieval-Augmented Generation.
+60. **rag_strategy_router** v1.0.0 — ``rag_strategy_router`` — intent-based VECTOR / GRAPH / HYBRID RAG router.
+61. **release_change** v1.0.0 — Release & Change Management OS Module
+62. **research_verification** v1.0.0 — Research & Verification OS — Enterprise Platform Kernel Module v1.0.0
+63. **response_hardening** v1.0.0 — ENI Response Hardening module.
+64. **response_ops** v1.0.0 — ENI Response Ops Module — self-healing fleet supervisor + ICM routing hook.
+65. **safety_governance** v1.0.0 — ENI Enterprise — Safety & Governance OS v1.0.0
+66. **secret_broker** v1.0.0 — Enterprise Secret Broker OS Module — local-first secret handling.
+67. **secret_rotation** v1.1.0 — ENI Enterprise Secret Rotation OS Module.
+68. **semantic_memory** v2.0.0 — ENI Semantic Memory OS Module.
+69. **similarity_metrics** v1.0.0 — similarity_metrics — cosine / Pearson / covariance similarity as a module.
+70. **skill_factory** v1.0.0 — ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution.
+71. **slash_workflow** v1.0.0 — slash_workflow — Plan->Implement->Validate AI-coding workflow with reusable markdown slash-commands, a plan-document schema, isolated-context sub-agents, a dete
+72. **swarm_bridge** v5.0.0 — ENI Swarm Enterprise Module v5.0.0
+73. **swarm_network** v2.0.0 — Swarm Network Optimization OS — Enterprise Module
+74. **task_harness** v1.0.0 — ENI Task Harness OS Module
+75. **threat_model** v1.0.0 — ENI Threat Model OS Module.
+76. **triadforge** v1.0.0 — ENI TRIAD FORGE Module — White/Grey/Black Box security testing, as a kernel module.
+77. **unified_inbox** v1.0.0 — Enterprise Platform Unified Inbox module package.
+78. **unified_work_system** v1.0.0 — ENI Unified Work System Module
+79. **universal_score** v1.0.0 — ENI Universal Build Score module.
+80. **voice_agent_hub** v0.0.0 — voice_agent_hub — voice-driven orchestration of coding agents in a group call.
+81. **vuln_scanner** v1.0.0 — ENI Vuln Scanner OS Module — offline LLM vulnerability scanning (garak-style).
+82. **youtube_transcripts** v1.0.0 — YouTube transcript puller with PIA VPN IP rotation.
 
 _Generated by scripts/gen_module_skills_plugins.py; fold into build loop._

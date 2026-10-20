@@ -1,6 +1,6 @@
 # Module: `rag`
 
-- Category: Legacy Core · priority 58
+- Category: Legacy Core · priority 59
 - Version: 1.0.0
 - Purpose: Production RAG System — Enterprise-grade Retrieval-Augmented Generation.
 - Skill: `eni-module-rag` (ICM stages) in skills_pack/skills/eni-modules/rag/

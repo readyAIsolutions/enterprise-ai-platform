@@ -1,6 +1,6 @@
 # Module: `response_hardening`
 
-- Category: Legacy Core · priority 62
+- Category: Legacy Core · priority 63
 - Version: 1.0.0
 - Purpose: ENI Response Hardening module.
 - Skill: `eni-module-response_hardening` (ICM stages) in skills_pack/skills/eni-modules/response_hardening/

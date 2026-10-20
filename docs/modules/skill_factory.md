@@ -1,6 +1,6 @@
 # Module: `skill_factory`
 
-- Category: Legacy Core · priority 68
+- Category: Legacy Core · priority 70
 - Version: 1.0.0
 - Purpose: ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution.
 - Skill: `eni-module-skill_factory` (ICM stages) in skills_pack/skills/eni-modules/skill_factory/

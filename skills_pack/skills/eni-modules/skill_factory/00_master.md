@@ -1,6 +1,6 @@
 # ICM module map: skill_factory
 
-- Category: Legacy Core (priority 68)
+- Category: Legacy Core (priority 70)
 - Version: 1.0.0
 - Purpose: ENI Skill Factory Module — Meta-Skill Generator / Registry / Self-Evolution.
 - API: factory, health_check, initialize, set_event_bus, shutdown

@@ -1,6 +1,6 @@
 # ICM module map: model_security
 
-- Category: Legacy Core (priority 50)
+- Category: Legacy Core (priority 51)
 - Version: 1.0.0
 - Purpose: ENI Model Security OS Module.
 - API: ENI Model Security OS Module.
